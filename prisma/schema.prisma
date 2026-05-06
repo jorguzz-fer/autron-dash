@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Multi-tenant ────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                 User[]
+  auditLogs             AuditLog[]
+  pedidos               Pedido[]
+  followUps             FollowUp[]
+  estoques              Estoque[]
+  faturamentos          Faturamento[]
+  classificacoesProduto ClassificacaoProduto[]
+  dataUploads           DataUpload[]
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  name         String
+  email        String
+  passwordHash String
+  role         Role      @default(VIEWER)
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions    Session[]
+  auditLogs   AuditLog[]
+  dataUploads DataUpload[]
+
+  @@unique([tenantId, email])
+  @@index([email])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  ip        String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum Role {
+  ADMIN
+  DIRETOR
+  GERENTE
+  OPERADOR
+  VIEWER
+}
+
+// ─── Auditoria & segurança ──────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}
+
+model RateLimitHit {
+  id    Int      @id @default(autoincrement())
+  key   String
+  hitAt DateTime @default(now())
+
+  @@index([key, hitAt])
+}
+
+// ─── LGPD ───────────────────────────────────────────────────────────────────
+
+model LGPDConsent {
+  id        String   @id @default(cuid())
+  userId    String
+  version   String
+  accepted  Boolean
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ─── Datasets de domínio (Protheus) ─────────────────────────────────────────
+// Estratégia: snapshot atual. Cada upload do mesmo dataset substitui os dados.
+// Histórico do upload em si (quem, quando, hash, linhas) fica em DataUpload.
+
+enum Dataset {
+  PEDIDO
+  FOLLOWUP
+  ESTOQUE
+  FATURAMENTO
+  CLASSIFICACAO
+}
+
+enum UploadStatus {
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+model DataUpload {
+  id           String       @id @default(cuid())
+  tenantId     String
+  userId       String
+  dataset      Dataset
+  filename     String
+  fileHash     String
+  fileSize     Int
+  rowCount     Int          @default(0)
+  status       UploadStatus @default(PROCESSING)
+  errorMessage String?
+  startedAt    DateTime     @default(now())
+  finishedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, dataset, startedAt(sort: Desc)])
+  @@index([fileHash])
+}
+
+// ── 1. Pedido (entrada_pedido.xlsx) ────────────────────────────────────────
+model Pedido {
+  id               String    @id @default(cuid())
+  tenantId         String
+  numPedido        String // PV — pode ter prefixo 'I'/'B' (filtramos no parser)
+  item             Int
+  produto          String
+  descricaoProduto String?
+  quantidade       Int
+  vlrTotal         Decimal?  @db.Decimal(15, 2)
+  margemPct        Decimal?  @db.Decimal(8, 4)
+  dtEmissao        DateTime?
+  dtOfertada       DateTime?
+  dtFatCli         DateTime?
+  notaFiscal       Int? // null = EM ABERTO; preenchido = FINALIZADO
+  numeroSC         String? // armazenado como string para evitar perda de precisão
+  itemSC           Int?
+  numeroOP         String?
+  itemOP           Int?
+  pedCliente       String?
+  nomeVendedor     String?
+  unidadeNegocio   String?
+  createdAt        DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, numPedido, item])
+  @@index([tenantId, dtEmissao])
+  @@index([tenantId, produto])
+  @@index([tenantId, numeroSC])
+  @@index([tenantId, notaFiscal])
+}
+
+// ── 2. FollowUp (followup.xlsx) ────────────────────────────────────────────
+model FollowUp {
+  id              String    @id @default(cuid())
+  tenantId        String
+  noSC            String // No. da S.C.
+  numeroPV        String?
+  codigoItem      String?
+  pasta           String? // "17/04 a 23/04" — semana de entrega
+  dtConfirma      DateTime?
+  dtPreEntr       DateTime?
+  dtChegadaAutron DateTime?
+  noPO            String?
+  opNaSC          String? // OP referenciada na SC (string p/ preservar precisão)
+  pvInformadoSC   String?
+  createdAt       DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, noSC])
+  @@index([tenantId, numeroPV, codigoItem])
+  @@index([tenantId, dtConfirma])
+}
+
+// ── 3. Estoque (mata010.xlsx) ──────────────────────────────────────────────
+model Estoque {
+  id           String   @id @default(cuid())
+  tenantId     String
+  codigo       String // código do produto
+  saldoEstoque Decimal  @db.Decimal(15, 4)
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, codigo])
+  @@index([tenantId, saldoEstoque])
+}
+
+// ── 4. Faturamento (faturamento.xlsx) ──────────────────────────────────────
+model Faturamento {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  emissao            DateTime?
+  numDocto           String // NF (string p/ preservar zeros à esquerda)
+  produto            String
+  descricaoProduto   String?
+  quantidade         Int
+  vlrUnitario        Decimal?  @db.Decimal(15, 4)
+  vlrBruto           Decimal?  @db.Decimal(15, 2)
+  vlrIcms            Decimal?  @db.Decimal(15, 2)
+  vlrIpi             Decimal?  @db.Decimal(15, 2)
+  noPedido           String? // PV
+  itemPv             Int?
+  faturamentoBruto   Decimal?  @db.Decimal(15, 2)
+  faturamentoLiquido Decimal?  @db.Decimal(15, 2)
+  margemLiquidaR     Decimal?  @db.Decimal(15, 2)
+  margemLiquidaPct   Decimal?  @db.Decimal(8, 4)
+  nomeVendedor       String?
+  razaoSocial        String?
+  nomeFantasia       String?
+  uf                 String?
+  tipoNegocio        String?
+  createdAt          DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, numDocto, produto, itemPv])
+  @@index([tenantId, emissao])
+  @@index([tenantId, noPedido])
+  @@index([tenantId, nomeVendedor])
+}
+
+// ── 5. ClassificacaoProduto (sciozvs0.csv) ─────────────────────────────────
+model ClassificacaoProduto {
+  id          String   @id @default(cuid())
+  tenantId    String
+  produto     String
+  tipoProduto String // "Comprando" | "Produzindo" | "Indefinido"
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, produto])
+  @@index([tenantId, tipoProduto])
+}
