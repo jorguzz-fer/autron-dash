@@ -1,15 +1,105 @@
 @import "tailwindcss";
 
 @theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Brand Autron — azul, escala completa pra usar em utility classes (bg-brand-500, text-brand-300, etc.) */
   --color-brand-50: #eff6ff;
   --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
   --color-brand-500: #3b82f6;
   --color-brand-600: #2563eb;
   --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
   --color-brand-900: #1e3a8a;
+  --color-brand-950: #172554;
+
+  /* Easings */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-html,
-body {
+/* ─── Tokens semânticos ────────────────────────────────────────────────────
+   Sidebar: SEMPRE dark (constante). Conteúdo: light por default, dark via
+   data-theme="dark" no <html>. Use via var() em estilos custom; pra utilities
+   prefira as classes Tailwind onde fizer sentido. */
+
+:root {
+  color-scheme: light;
+  --canvas: #f6f8fb;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --surface-elev: #ffffff;
+  --border-soft: #e6ebf1;
+  --border-strong: #cbd5e1;
+  --fg: #0f172a;
+  --fg-strong: #020617;
+  --fg-muted: #64748b;
+  --fg-subtle: #94a3b8;
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-md: 0 4px 16px -4px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.04);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #060912;
+  --surface: #0d1322;
+  --surface-2: #131a2c;
+  --surface-elev: #131a2c;
+  --border-soft: rgb(255 255 255 / 0.06);
+  --border-strong: rgb(255 255 255 / 0.14);
+  --fg: #e7ecf3;
+  --fg-strong: #f8fafc;
+  --fg-muted: #8a94a6;
+  --fg-subtle: #5b6577;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.32);
+  --shadow-md: 0 6px 24px -8px rgb(0 0 0 / 0.5), 0 2px 6px -2px rgb(0 0 0 / 0.3);
+}
+
+/* Sidebar tokens — constantes. Não respondem ao data-theme. */
+:root {
+  --sidebar-bg: #07091a;
+  --sidebar-elev: #0e1124;
+  --sidebar-border: rgb(255 255 255 / 0.06);
+  --sidebar-fg: #8a94a6;
+  --sidebar-fg-strong: #f1f5f9;
+  --sidebar-active-bg: rgb(59 130 246 / 0.12);
+  --sidebar-active-fg: #93c5fd;
+  --sidebar-active-bar: #3b82f6;
+}
+
+html, body {
   height: 100%;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--fg);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar refinado — escuro persistente em sidebar, theme-responsive em conteúdo */
+* { scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); background-clip: padding-box; }
+
+/* Utility: tabular-nums em todo lugar onde quisermos números alinhados */
+.numeric { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* Focus ring consistente */
+.ring-focus:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
 }

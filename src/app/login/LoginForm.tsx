@@ -3,6 +3,8 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowRight, AlertCircle } from "lucide-react";
+import PasswordInput from "@/components/UI/PasswordInput";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -15,11 +17,7 @@ export default function LoginForm() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    const res = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
+    const res = await signIn("credentials", { email, password, redirect: false });
     setSubmitting(false);
     if (res?.error || !res?.ok) {
       setError("Credenciais inválidas, conta inativa ou limite de tentativas atingido.");
@@ -31,9 +29,13 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
-          Email
+      <div className="space-y-1.5">
+        <label
+          htmlFor="email"
+          className="block text-[12.5px] font-medium"
+          style={{ color: "var(--fg)" }}
+        >
+          E-mail
         </label>
         <input
           id="email"
@@ -43,37 +45,59 @@ export default function LoginForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
           placeholder="seu@email.com"
+          className="w-full rounded-lg border bg-[var(--surface)] px-3 py-2.5 text-[14px] text-[color:var(--fg-strong)] placeholder:text-[color:var(--fg-subtle)] outline-none transition focus:border-[var(--color-brand-500)] focus:ring-2 focus:ring-[color:var(--color-brand-500)]/20"
+          style={{ borderColor: "var(--border-strong)" }}
         />
       </div>
-      <div>
-        <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1.5">
-          Senha
-        </label>
-        <input
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <label
+            htmlFor="password"
+            className="block text-[12.5px] font-medium"
+            style={{ color: "var(--fg)" }}
+          >
+            Senha
+          </label>
+          <span className="text-[11px]" style={{ color: "var(--fg-subtle)" }}>
+            Min. 10 caracteres
+          </span>
+        </div>
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
-          placeholder="••••••••"
+          placeholder="••••••••••"
         />
       </div>
+
       {error && (
-        <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-          {error}
+        <div
+          className="flex items-start gap-2 rounded-lg border px-3 py-2.5 text-[12.5px]"
+          style={{
+            color: "#e11d48",
+            backgroundColor: "color-mix(in srgb, #e11d48 8%, transparent)",
+            borderColor: "color-mix(in srgb, #e11d48 28%, transparent)",
+          }}
+        >
+          <AlertCircle className="size-4 shrink-0 mt-px" />
+          <span>{error}</span>
         </div>
       )}
+
       <button
         type="submit"
         disabled={submitting}
-        className="w-full px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-400 hover:from-blue-600 hover:to-cyan-500 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+        className="ring-focus group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-lg bg-[var(--color-brand-600)] px-4 py-2.5 text-[14px] font-medium text-white transition hover:bg-[var(--color-brand-700)] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitting ? "Entrando..." : "Entrar"}
+        {!submitting && (
+          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+        )}
       </button>
     </form>
   );

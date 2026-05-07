@@ -1,66 +1,149 @@
-import { auth, signOut } from "@/lib/auth";
+import AppShell from "@/components/Layout/AppShell";
+import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import KPICard from "@/components/UI/KPICard";
+import { ArrowUpRight, Boxes, ClipboardList, Receipt, Truck } from "lucide-react";
 
-export const metadata = {
-  title: "Dashboard — Autron Dash",
-};
+export const metadata = { title: "Dashboard — Autron Dash" };
 
 export default async function DashboardPage() {
   const session = await auth();
   if (!session) redirect("/login");
 
   return (
-    <main className="min-h-screen px-6 py-10 bg-slate-950">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-100">Dashboard</h1>
-            <p className="text-sm text-slate-400">
-              Olá, {session.user.name} —{" "}
-              <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 text-xs font-medium">
-                {session.user.role}
-              </span>
-              <span className="ml-2 text-slate-500">@ {session.user.tenantSlug}</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <a
-              href="/uploads"
-              className="px-4 py-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 text-sm border border-blue-500/20 transition"
-            >
-              Upload de planilhas
-            </a>
-            <form
-              action={async () => {
-                "use server";
-                await signOut({ redirectTo: "/login" });
-              }}
-            >
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm border border-slate-700 transition"
-              >
-                Sair
-              </button>
-            </form>
-          </div>
-        </div>
+    <AppShell title="Dashboard" subtitle={`Visão consolidada — @${session.user.tenantSlug}`}>
+      <div className="space-y-6">
+        {/* KPI strip — placeholder com dados estáticos.
+            Vão receber dados reais via getEnrichedPedidos() na Fase 5. */}
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KPICard
+            label="Pedidos em aberto"
+            value="—"
+            hint="Aguardando dados reais"
+            tone="brand"
+            icon={ClipboardList}
+          />
+          <KPICard
+            label="Itens em estoque"
+            value="—"
+            hint="Snapshot atual"
+            tone="neutral"
+            icon={Boxes}
+          />
+          <KPICard
+            label="Pedidos atrasados"
+            value="—"
+            hint="vs DT. Fat. Cli"
+            tone="danger"
+            icon={Truck}
+          />
+          <KPICard
+            label="Faturamento líquido"
+            value="—"
+            hint="Período selecionado"
+            tone="success"
+            icon={Receipt}
+          />
+        </section>
 
-        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium border border-amber-500/20 mb-4">
-            <span className="size-2 rounded-full bg-amber-400 animate-pulse" />
-            Fase 1 concluída — auth + multi-tenant + LGPD
+        {/* Status card — Fase 4 em andamento */}
+        <section
+          className="rounded-2xl border p-6"
+          style={{
+            backgroundColor: "var(--surface)",
+            borderColor: "var(--border-soft)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2">
+              <div
+                className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium"
+                style={{
+                  color: "var(--color-brand-700)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--color-brand-500) 10%, transparent)",
+                  borderColor:
+                    "color-mix(in srgb, var(--color-brand-500) 28%, transparent)",
+                }}
+              >
+                <span className="size-1.5 rounded-full bg-[var(--color-brand-500)]" />
+                Fase 4 — UI base em construção
+              </div>
+              <h2
+                className="text-[18px] font-semibold tracking-tight"
+                style={{ color: "var(--fg-strong)" }}
+              >
+                Olá, {session.user.name}.
+              </h2>
+              <p className="text-[14px]" style={{ color: "var(--fg-muted)" }}>
+                Sidebar, top bar, KPIs, login e tema dark/light estão prontos. As 5 abas
+                operacionais (Visão Geral, Prontidão, Previsão Entrega, Estoque, Faturamento)
+                vão consumir <code className="font-mono">getEnrichedPedidos()</code> nas
+                próximas fases.
+              </p>
+            </div>
           </div>
-          <h2 className="text-lg font-semibold text-slate-100 mb-2">Próximas fases</h2>
-          <ul className="text-sm text-slate-400 space-y-1.5 list-disc list-inside">
-            <li>Fase 2: schema dos 5 datasets + upload de planilhas</li>
-            <li>Fase 3: regras de negócio (alocação FIFO, prontidão, ação) em TS + testes</li>
-            <li>Fase 4: UI Trezo + filtro global de data + componentes reutilizáveis</li>
-            <li>Fases 5–9: as 5 abas (Visão Geral, Prontidão, Entrega, Estoque, Faturamento)</li>
-            <li>Fase 10: code review de segurança + Coolify deploy</li>
-          </ul>
+
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <NextStep
+              num="5"
+              title="Aba Visão Geral"
+              detail="KPIs do período + pedidos por mês + status pie + por vendedor."
+            />
+            <NextStep
+              num="6"
+              title="Aba Prontidão"
+              detail="Pronto p/ Fazer + ações necessárias + colorização da tabela."
+            />
+            <NextStep
+              num="7"
+              title="Aba Previsão Entrega"
+              detail="Atrasados + média de atraso + top 10 + semana de entrega."
+            />
+            <NextStep
+              num="8"
+              title="Aba Estoque & SC/OP"
+              detail="Disponibilidade + alocação FIFO + ERROS de cadastro."
+            />
+          </div>
+        </section>
+      </div>
+    </AppShell>
+  );
+}
+
+function NextStep({ num, title, detail }: { num: string; title: string; detail: string }) {
+  return (
+    <div
+      className="flex items-start gap-3 rounded-xl border p-3"
+      style={{
+        backgroundColor: "var(--surface-2)",
+        borderColor: "var(--border-soft)",
+      }}
+    >
+      <div
+        className="numeric flex size-8 shrink-0 items-center justify-center rounded-md text-[12px] font-semibold"
+        style={{
+          backgroundColor:
+            "color-mix(in srgb, var(--color-brand-500) 14%, transparent)",
+          color: "var(--color-brand-700)",
+        }}
+      >
+        {num}
+      </div>
+      <div className="min-w-0 leading-snug">
+        <div
+          className="flex items-center gap-1 text-[13.5px] font-medium"
+          style={{ color: "var(--fg-strong)" }}
+        >
+          {title}
+          <ArrowUpRight className="size-3.5" style={{ color: "var(--fg-subtle)" }} />
+        </div>
+        <div className="mt-0.5 text-[12.5px]" style={{ color: "var(--fg-muted)" }}>
+          {detail}
         </div>
       </div>
-    </main>
+    </div>
   );
 }
