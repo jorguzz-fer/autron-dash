@@ -22,7 +22,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.8.0",
     "@prisma/client": "^6.8.2",
-    "apexcharts": "^5.10.6",
+    "apexcharts": "^3.54.1",
     "bcryptjs": "^2.4.3",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.14.0",
@@ -30,8 +30,9 @@
     "next-auth": "^5.0.0-beta.29",
     "papaparse": "^5.5.3",
     "react": "^19.0.0",
-    "react-apexcharts": "^2.1.0",
+    "react-apexcharts": "^1.9.0",
     "react-dom": "^19.0.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
     "zod": "^3.24.4"
   },
   "devDependencies": {
