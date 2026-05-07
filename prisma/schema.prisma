@@ -24,6 +24,7 @@ model Tenant {
   estoques              Estoque[]
   faturamentos          Faturamento[]
   classificacoesProduto ClassificacaoProduto[]
+  metas                 Meta[]
   dataUploads           DataUpload[]
 }
 
@@ -126,6 +127,12 @@ enum Dataset {
   ESTOQUE
   FATURAMENTO
   CLASSIFICACAO
+  META
+}
+
+enum MetaCategoria {
+  ENTRADA_PEDIDO
+  RECEITA
 }
 
 enum UploadStatus {
@@ -177,6 +184,8 @@ model Pedido {
   pedCliente       String?
   nomeVendedor     String?
   unidadeNegocio   String?
+  contrato         Boolean   @default(false)
+  cliente          String?
   createdAt        DateTime  @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -271,4 +280,24 @@ model ClassificacaoProduto {
 
   @@unique([tenantId, produto])
   @@index([tenantId, tipoProduto])
+}
+
+// ── 6. Meta (Metas_Budget_Grupo_Autron_<ano>.xlsx) ─────────────────────────
+// Layout: 3 blocos (AUTRON / ERGOMEC / GRUPO), cada um com várias linhas-categoria
+// (Entrada de pedido, Receita de vendas e Serviços, sub-itens) × 12 meses.
+// GRUPO = fórmula AUTRON+ERGOMEC; o parser pega o resultado calculado.
+model Meta {
+  id        String        @id @default(cuid())
+  tenantId  String
+  unidade   String        // "AUTRON" | "ERGOMEC" | "GRUPO"
+  categoria MetaCategoria
+  ano       Int
+  mes       Int           // 1..12
+  valor     Decimal       @db.Decimal(15, 2)
+  createdAt DateTime      @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, unidade, categoria, ano, mes])
+  @@index([tenantId, ano, categoria])
 }

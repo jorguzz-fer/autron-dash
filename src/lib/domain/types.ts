@@ -20,6 +20,8 @@ export interface PedidoInput {
   pedCliente: string | null;
   nomeVendedor: string | null;
   unidadeNegocio: string | null;
+  contrato: boolean;
+  cliente: string | null;
 }
 
 export interface FollowUpInput {

@@ -74,6 +74,8 @@ export async function getEnrichedPedidos(filters: DashboardFilters): Promise<Ped
     pedCliente: p.pedCliente,
     nomeVendedor: p.nomeVendedor,
     unidadeNegocio: p.unidadeNegocio,
+    contrato: p.contrato,
+    cliente: p.cliente,
   }));
 
   const followUpsInput: FollowUpInput[] = followUps.map((f) => ({

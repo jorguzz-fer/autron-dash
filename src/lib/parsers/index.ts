@@ -4,6 +4,7 @@ import { parseFollowUp } from "./followup";
 import { parseEstoque } from "./estoque";
 import { parseFaturamento } from "./faturamento";
 import { parseClassificacao } from "./classificacao";
+import { parseMetas } from "./metas";
 
 export const PARSERS = {
   PEDIDO: parsePedido,
@@ -11,6 +12,7 @@ export const PARSERS = {
   ESTOQUE: parseEstoque,
   FATURAMENTO: parseFaturamento,
   CLASSIFICACAO: parseClassificacao,
+  META: parseMetas,
 } as const;
 
 export const DATASET_LABELS: Record<Dataset, string> = {
@@ -19,6 +21,7 @@ export const DATASET_LABELS: Record<Dataset, string> = {
   ESTOQUE: "Estoque (mata010.xlsx)",
   FATURAMENTO: "Faturamento (faturamento.xlsx)",
   CLASSIFICACAO: "Classificação Comprando/Produzindo (sciozvs0.csv)",
+  META: "Metas Budget (Metas_Budget_Grupo_Autron_<ano>.xlsx)",
 };
 
 export const DATASET_ACCEPTS: Record<Dataset, string> = {
@@ -27,6 +30,7 @@ export const DATASET_ACCEPTS: Record<Dataset, string> = {
   ESTOQUE: ".xlsx",
   FATURAMENTO: ".xlsx",
   CLASSIFICACAO: ".csv",
+  META: ".xlsx",
 };
 
 export type { PedidoRow } from "./pedido";
@@ -34,3 +38,4 @@ export type { FollowUpRow } from "./followup";
 export type { EstoqueRow } from "./estoque";
 export type { FaturamentoRow } from "./faturamento";
 export type { ClassificacaoRow } from "./classificacao";
+export type { MetaRow } from "./metas";

@@ -29,6 +29,8 @@ export interface PedidoRow {
   pedCliente: string | null;
   nomeVendedor: string | null;
   unidadeNegocio: string | null;
+  contrato: boolean;
+  cliente: string | null;
 }
 
 const HEADER_ROW_INDEX = 1; // linha 2 no Excel (0-based)
@@ -60,6 +62,8 @@ export async function parsePedido(buffer: Buffer): Promise<ParseResult<PedidoRow
   const cPedCliente = findCol(idx, "Ped Cliente", "Pedido Cliente");
   const cVendedor = findCol(idx, "Nome do Vendedor", "Vendedor");
   const cUN = findCol(idx, "Unidade Negocio", "Unidade de Negocio");
+  const cContrato = findCol(idx, "Contrato", "Pedido Contrato", "É Contrato");
+  const cCliente = findCol(idx, "Cliente", "Razao Social", "Razão Social", "Nome Cliente");
 
   if (cNumPedido === null || cItem === null || cProduto === null || cQuantidade === null) {
     return {
@@ -109,6 +113,8 @@ export async function parsePedido(buffer: Buffer): Promise<ParseResult<PedidoRow
       pedCliente: cPedCliente !== null ? toIdString(row[cPedCliente]) : null,
       nomeVendedor: cVendedor !== null ? toCleanString(row[cVendedor]) : null,
       unidadeNegocio: cUN !== null ? toCleanString(row[cUN]) : null,
+      contrato: cContrato !== null ? parseContrato(row[cContrato]) : false,
+      cliente: cCliente !== null ? toCleanString(row[cCliente]) : null,
     });
   }
 
@@ -130,4 +136,11 @@ export async function parsePedido(buffer: Buffer): Promise<ParseResult<PedidoRow
   }
 
   return { rows: deduped, skipped, warnings };
+}
+
+function parseContrato(v: unknown): boolean {
+  if (v == null) return false;
+  if (typeof v === "boolean") return v;
+  const s = String(v).trim().toLowerCase();
+  return s === "sim" || s === "s" || s === "true" || s === "1" || s === "yes" || s === "y";
 }
