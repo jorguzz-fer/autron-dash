@@ -1,6 +1,6 @@
 "use client";
 
-import { type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 type Trend = "up" | "down" | "flat";
 
@@ -11,7 +11,13 @@ interface KPICardProps {
   value: string | number;
   hint?: string;
   delta?: { value: string; trend: Trend };
-  icon?: LucideIcon;
+  /**
+   * Ícone JÁ RENDERIZADO (ReactNode) — o caller passa, por exemplo,
+   * `icon={<ClipboardList className="size-4" />}`. Importante: passar o
+   * COMPONENTE (LucideIcon) direto faria Next 15 tentar serializar
+   * `forwardRef` cross-boundary (RSC → Client) e quebrar o render.
+   */
+  icon?: ReactNode;
   tone?: KPITone;
   /** Se passado, o card vira clicável e dispara o callback (para usar como filtro). */
   onClick?: () => void;
@@ -40,7 +46,7 @@ export default function KPICard({
   value,
   hint,
   delta,
-  icon: Icon,
+  icon,
   tone = "neutral",
   onClick,
   active = false,
@@ -65,7 +71,6 @@ export default function KPICard({
         boxShadow: active ? `0 0 0 1px ${accent} inset, var(--shadow-sm)` : "var(--shadow-sm)",
       }}
     >
-      {/* Top row: label + icon */}
       <div className="flex items-start justify-between gap-2">
         <div
           className="text-[11px] font-medium uppercase tracking-[0.06em]"
@@ -73,17 +78,16 @@ export default function KPICard({
         >
           {label}
         </div>
-        {Icon && (
+        {icon && (
           <div
             className="flex size-8 items-center justify-center rounded-lg"
             style={{ backgroundColor: tintBg, color: accent }}
           >
-            <Icon className="size-4" />
+            {icon}
           </div>
         )}
       </div>
 
-      {/* Value */}
       <div className="flex items-baseline gap-2">
         <div
           className="numeric text-[28px] font-semibold leading-none"
@@ -108,14 +112,12 @@ export default function KPICard({
         )}
       </div>
 
-      {/* Hint */}
       {hint && (
         <div className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
           {hint}
         </div>
       )}
 
-      {/* Active marker */}
       {active && (
         <span
           aria-hidden

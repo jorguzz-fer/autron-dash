@@ -21,28 +21,28 @@ export default async function DashboardPage() {
             value="—"
             hint="Aguardando dados reais"
             tone="brand"
-            icon={ClipboardList}
+            icon={<ClipboardList className="size-4" />}
           />
           <KPICard
             label="Itens em estoque"
             value="—"
             hint="Snapshot atual"
             tone="neutral"
-            icon={Boxes}
+            icon={<Boxes className="size-4" />}
           />
           <KPICard
             label="Pedidos atrasados"
             value="—"
             hint="vs DT. Fat. Cli"
             tone="danger"
-            icon={Truck}
+            icon={<Truck className="size-4" />}
           />
           <KPICard
             label="Faturamento líquido"
             value="—"
             hint="Período selecionado"
             tone="success"
-            icon={Receipt}
+            icon={<Receipt className="size-4" />}
           />
         </section>
 
