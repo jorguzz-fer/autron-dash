@@ -9,6 +9,7 @@ import CardSection from "@/components/UI/CardSection";
 import HBarRanking from "@/components/UI/HBarRanking";
 import StatusBadge from "@/components/UI/StatusBadge";
 import { fmtCurrency, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
+import { parseSort, sortRows } from "@/lib/sort";
 import {
   ClipboardList,
   TrendingUp,
@@ -23,9 +24,14 @@ export const metadata = { title: "Entrada de Pedidos — Autron Dash" };
 
 const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
-export default async function EntradaPedidosPage() {
+interface SP { sort?: string; dir?: string }
+
+export default async function EntradaPedidosPage({ searchParams }: { searchParams: Promise<SP> }) {
   const session = await auth();
   if (!session) redirect("/login");
+
+  const sp = await searchParams;
+  const sortState = parseSort(sp.sort, sp.dir);
 
   const tenantId = session.user.tenantId;
   const all = await getEnrichedPedidos({ tenantId });
@@ -193,7 +199,7 @@ export default async function EntradaPedidosPage() {
         >
           <DataTable
             columns={unidadeCols}
-            rows={unidades}
+            rows={sortRows(unidades as unknown as Record<string, unknown>[], sortState) as unknown as typeof unidades}
             rowKey={(u) => u.unidade}
             emptyMessage={`Sem pedidos em ${anoBase}.`}
           />
@@ -229,7 +235,7 @@ export default async function EntradaPedidosPage() {
         >
           <DataTable
             columns={clienteCols(anoBase)}
-            rows={topClientes}
+            rows={sortRows(topClientes as unknown as Record<string, unknown>[], sortState) as unknown as typeof topClientes}
             rowKey={(c) => c.cliente}
             emptyMessage="Sem dados de cliente."
           />
@@ -305,10 +311,10 @@ interface UnidadeRow {
 }
 
 const unidadeCols: Column<UnidadeRow>[] = [
-  { key: "un", header: "Unidade", cell: (u) => <span className="font-medium">{u.unidade}</span>, width: "120px" },
-  { key: "pvs", header: "PVs", align: "right", cell: (u) => <span className="numeric">{fmtNum(u.pvs)}</span> },
-  { key: "pec", header: "Peças", align: "right", cell: (u) => <span className="numeric">{fmtNum(u.pecas)}</span> },
-  { key: "val", header: "Valor", align: "right", cell: (u) => <span className="numeric font-medium">{fmtCurrency(u.valor, { compact: true })}</span> },
+  { key: "un", header: "Unidade", sortKey: "unidade", cell: (u) => <span className="font-medium">{u.unidade}</span>, width: "120px" },
+  { key: "pvs", header: "PVs", sortKey: "pvs", align: "right", cell: (u) => <span className="numeric">{fmtNum(u.pvs)}</span> },
+  { key: "pec", header: "Peças", sortKey: "pecas", align: "right", cell: (u) => <span className="numeric">{fmtNum(u.pecas)}</span> },
+  { key: "val", header: "Valor", sortKey: "valor", align: "right", cell: (u) => <span className="numeric font-medium">{fmtCurrency(u.valor, { compact: true })}</span> },
 ];
 
 interface ClienteRow {
@@ -325,19 +331,21 @@ function clienteCols(anoBase: number): Column<ClienteRow>[] {
     {
       key: "cli",
       header: "Cliente",
+      sortKey: "cliente",
       cell: (c) => (
         <span className="block max-w-[280px] truncate" title={c.cliente}>
           {c.cliente}
         </span>
       ),
     },
-    { key: "pvs", header: "PVs", align: "right", cell: (c) => <span className="numeric">{fmtNum(c.pvs)}</span> },
-    { key: "pec", header: "Peças", align: "right", cell: (c) => <span className="numeric">{fmtNum(c.pecas)}</span> },
-    { key: "val", header: `Valor ${anoBase}`, align: "right", cell: (c) => <span className="numeric font-medium">{fmtCurrency(c.valor, { compact: true })}</span> },
-    { key: "ant", header: `Valor ${anoBase - 1}`, align: "right", cell: (c) => <span className="numeric text-[12px]">{c.valorAnt > 0 ? fmtCurrency(c.valorAnt, { compact: true }) : "—"}</span> },
+    { key: "pvs", header: "PVs", sortKey: "pvs", align: "right", cell: (c) => <span className="numeric">{fmtNum(c.pvs)}</span> },
+    { key: "pec", header: "Peças", sortKey: "pecas", align: "right", cell: (c) => <span className="numeric">{fmtNum(c.pecas)}</span> },
+    { key: "val", header: `Valor ${anoBase}`, sortKey: "valor", align: "right", cell: (c) => <span className="numeric font-medium">{fmtCurrency(c.valor, { compact: true })}</span> },
+    { key: "ant", header: `Valor ${anoBase - 1}`, sortKey: "valorAnt", align: "right", cell: (c) => <span className="numeric text-[12px]">{c.valorAnt > 0 ? fmtCurrency(c.valorAnt, { compact: true }) : "—"}</span> },
     {
       key: "delta",
       header: "Var. YoY",
+      sortKey: "deltaPct",
       align: "right",
       cell: (c) => {
         if (c.deltaPct == null) return <span style={{ color: "var(--fg-subtle)" }}>—</span>;

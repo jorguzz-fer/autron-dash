@@ -8,7 +8,9 @@ import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
 import HBarRanking from "@/components/UI/HBarRanking";
+import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
+import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import {
   Trophy,
   Wallet,
@@ -20,35 +22,49 @@ import {
 
 export const metadata = { title: "Comparativo Ploomes — Autron Dash" };
 
-export default async function ComparativoPloomesPage() {
+interface SP {
+  from?: string;
+  to?: string;
+  sort?: string;
+  dir?: string;
+}
+
+export default async function ComparativoPloomesPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
   const session = await auth();
   if (!session) redirect("/login");
 
+  const sp = await searchParams;
+  const desde = parseDateInput(sp.from);
+  const ate = parseDateInput(sp.to, true);
+  const sortState = parseSort(sp.sort, sp.dir);
+
   const tenantId = session.user.tenantId;
   const [oportunidades, enriched] = await Promise.all([
-    getPloomes({ tenantId }),
+    getPloomes({ tenantId, desde, ate }),
     getEnrichedPedidos({ tenantId }),
   ]);
 
   if (oportunidades.length === 0) {
     return (
       <AppShell title="Comparativo Ploomes" subtitle="CRM × Pedidos efetivados">
+        <DateRangeFilter label="Ganho em" fromValue={sp.from} toValue={sp.to} />
         <CardSection
-          title="Sem dados do Ploomes"
-          subtitle="Faça upload do Ganhas.xlsx (export do CRM) em /uploads → card 'Ploomes — Oportunidades Ganhas'."
+          title="Sem oportunidades no período"
+          subtitle="Faça upload do Ganhas.xlsx em /uploads ou amplie o filtro de datas."
         >
           <p className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
             Este painel cruza as oportunidades GANHAS no Ploomes com os pedidos
-            efetivamente entrados, e calcula a taxa de conversão CRM → Pedido por mês,
-            por responsável e por cliente.
+            efetivamente entrados, e calcula a taxa de conversão CRM → Pedido.
           </p>
         </CardSection>
       </AppShell>
     );
   }
 
-  // ── Cruzamento Ploomes × Pedido ───────────────────────────────────
-  // Chave: pedidoCompraCliente (Ploomes) ≈ pedCliente (Pedido)
   const pedidosPorPC = new Map<string, typeof enriched[number][]>();
   for (const p of enriched) {
     const pc = p.pedCliente;
@@ -70,7 +86,6 @@ export default async function ComparativoPloomesPage() {
     };
   });
 
-  // ── KPIs ──────────────────────────────────────────────────────────
   const totalGanhas = oportunidades.length;
   const valorGanhasTotal = oportunidades.reduce((a, o) => a + (o.valor ?? 0), 0);
   const ticketMedio = totalGanhas === 0 ? 0 : valorGanhasTotal / totalGanhas;
@@ -81,13 +96,11 @@ export default async function ComparativoPloomesPage() {
     .filter((o) => o.virouPedido)
     .reduce((a, o) => a + (o.valorPedidos ?? 0), 0);
 
-  // ── Ano-base (último ano com oportunidades) ───────────────────────
   const anos = Array.from(
     new Set(oportunidades.filter((o) => o.termino).map((o) => o.termino!.getFullYear())),
   ).sort();
   const anoBase = anos.length > 0 ? Math.max(...anos) : new Date().getFullYear();
 
-  // ── Mês a mês (anoBase): Oportunidades vs Pedidos ─────────────────
   const oppByMonth = new Map<string, { count: number; valor: number }>();
   for (const o of oportunidades) {
     if (!o.termino) continue;
@@ -111,7 +124,6 @@ export default async function ComparativoPloomesPage() {
     new Set([...oppByMonth.keys(), ...pedByMonth.keys()]),
   ).sort();
 
-  // ── Top responsáveis (por # ganhas e valor) ───────────────────────
   const byResp = new Map<string, { count: number; valor: number }>();
   for (const o of oportunidades) {
     const r = o.responsavel ?? "Sem responsável";
@@ -125,7 +137,6 @@ export default async function ComparativoPloomesPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // ── Top clientes ───────────────────────────────────────────────────
   const byCliente = new Map<string, { count: number; valor: number }>();
   for (const o of oportunidades) {
     const c = o.cliente ?? "Sem cliente";
@@ -139,15 +150,20 @@ export default async function ComparativoPloomesPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // ── Tabela: oportunidades recentes ────────────────────────────────
-  const tabela = oportunidadesEnriched.slice(0, 60);
+  const baseTabela = oportunidadesEnriched.slice(0, 60);
+  const tabela = sortRows(
+    baseTabela as unknown as Record<string, unknown>[],
+    sortState,
+  ) as unknown as TabelaRow[];
 
   return (
     <AppShell
       title="Comparativo Ploomes"
-      subtitle={`CRM × Pedidos efetivados — base ${fmtNum(totalGanhas)} oportunidades ganhas`}
+      subtitle={`CRM × Pedidos — ${fmtNum(totalGanhas)} oportunidades no período`}
     >
       <div className="space-y-5">
+        <DateRangeFilter label="Ganho em" fromValue={sp.from} toValue={sp.to} />
+
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <KPICard
             label="Oportunidades ganhas"
@@ -186,7 +202,6 @@ export default async function ComparativoPloomesPage() {
           />
         </section>
 
-        {/* Comparativo mensal */}
         <CardSection
           title={
             <span className="flex items-center gap-2">
@@ -194,7 +209,7 @@ export default async function ComparativoPloomesPage() {
               Oportunidades vs Pedidos · {anoBase}
             </span>
           }
-          subtitle="Tendência mensal: contagem e valor de oportunidades ganhas no CRM vs pedidos entrados no Protheus"
+          subtitle="Tendência mensal: contagem e valor de oportunidades ganhas no CRM vs pedidos entrados"
         >
           <DataTable
             columns={mesCols}
@@ -238,10 +253,10 @@ export default async function ComparativoPloomesPage() {
         </section>
 
         <CardSection
-          title="Oportunidades recentes — cruzamento com pedidos"
-          subtitle="Ordenadas por data de Término (mais recentes). Badge ✓ quando o PC bate com pedCliente"
+          title="Oportunidades — cruzamento com pedidos"
+          subtitle="Top 60 · clique em qualquer coluna pra ordenar"
         >
-          <DataTable<typeof tabela[number]>
+          <DataTable<TabelaRow>
             columns={tabelaCols}
             rows={tabela}
             rowKey={(o) => o.id}
@@ -264,10 +279,10 @@ interface MesRow {
 
 const mesCols: Column<MesRow>[] = [
   { key: "mes", header: "Mês", cell: (m) => <span className="capitalize">{m.label}</span>, width: "100px" },
-  { key: "gc", header: "Ganhas (qtd)", align: "right", cell: (m) => <span className="numeric">{fmtNum(m.ganhasCount)}</span> },
-  { key: "gv", header: "Ganhas (R$)", align: "right", cell: (m) => <span className="numeric font-medium">{m.ganhasValor > 0 ? fmtCurrency(m.ganhasValor, { compact: true }) : "—"}</span> },
-  { key: "pc", header: "PVs (qtd)", align: "right", cell: (m) => <span className="numeric">{fmtNum(m.pedidosCount)}</span> },
-  { key: "pv", header: "PVs (R$)", align: "right", cell: (m) => <span className="numeric font-medium">{m.pedidosValor > 0 ? fmtCurrency(m.pedidosValor, { compact: true }) : "—"}</span> },
+  { key: "gc", header: "Ganhas (qtd)", sortKey: "ganhasCount", align: "right", cell: (m) => <span className="numeric">{fmtNum(m.ganhasCount)}</span> },
+  { key: "gv", header: "Ganhas (R$)", sortKey: "ganhasValor", align: "right", cell: (m) => <span className="numeric font-medium">{m.ganhasValor > 0 ? fmtCurrency(m.ganhasValor, { compact: true }) : "—"}</span> },
+  { key: "pc", header: "PVs (qtd)", sortKey: "pedidosCount", align: "right", cell: (m) => <span className="numeric">{fmtNum(m.pedidosCount)}</span> },
+  { key: "pv", header: "PVs (R$)", sortKey: "pedidosValor", align: "right", cell: (m) => <span className="numeric font-medium">{m.pedidosValor > 0 ? fmtCurrency(m.pedidosValor, { compact: true }) : "—"}</span> },
 ];
 
 interface TabelaRow extends PloomesOportunidade {
@@ -280,12 +295,14 @@ const tabelaCols: Column<TabelaRow>[] = [
   {
     key: "termino",
     header: "Ganhou em",
+    sortKey: "termino",
     cell: (o) => <span className="numeric text-[12px]">{fmtDate(o.termino)}</span>,
     width: "120px",
   },
   {
     key: "titulo",
     header: "Oportunidade",
+    sortKey: "titulo",
     cell: (o) => (
       <span className="block max-w-[300px] truncate" title={o.titulo}>
         {o.titulo}
@@ -295,27 +312,31 @@ const tabelaCols: Column<TabelaRow>[] = [
   {
     key: "cliente",
     header: "Cliente",
+    sortKey: "cliente",
     cell: (o) => (
       <span className="block max-w-[200px] truncate" title={o.cliente ?? ""}>
         {o.cliente ?? "—"}
       </span>
     ),
   },
-  { key: "resp", header: "Responsável", cell: (o) => <span className="text-[12px]">{o.responsavel ?? "—"}</span> },
+  { key: "resp", header: "Responsável", sortKey: "responsavel", cell: (o) => <span className="text-[12px]">{o.responsavel ?? "—"}</span> },
   {
     key: "valor",
     header: "Valor",
+    sortKey: "valor",
     align: "right",
     cell: (o) => <span className="numeric font-medium">{fmtCurrency(o.valor)}</span>,
   },
   {
     key: "pc",
     header: "PO Cliente",
+    sortKey: "pedidoCompraCliente",
     cell: (o) => <span className="numeric text-[12px]">{o.pedidoCompraCliente ?? "—"}</span>,
   },
   {
     key: "convertida",
     header: "Convertida?",
+    sortKey: "virouPedido",
     cell: (o) => {
       if (!o.pedidoCompraCliente) return <StatusBadge tone="muted">Sem PO</StatusBadge>;
       if (o.virouPedido)

@@ -8,7 +8,9 @@ import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
 import HBarRanking from "@/components/UI/HBarRanking";
 import FilterSelect from "@/components/UI/FilterSelect";
+import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import { fmtDate, fmtNum, fmtPct } from "@/lib/format";
+import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -33,6 +35,10 @@ export const metadata = { title: "Prontidão — Autron Dash" };
 interface SP {
   dispo?: string;
   tipo?: string;
+  from?: string;
+  to?: string;
+  sort?: string;
+  dir?: string;
 }
 
 export default async function ProntidaoPage({
@@ -44,10 +50,17 @@ export default async function ProntidaoPage({
   if (!session) redirect("/login");
 
   const sp = await searchParams;
-  const all = await getEnrichedPedidos({ tenantId: session.user.tenantId });
+  const dataInicio = parseDateInput(sp.from);
+  const dataFim = parseDateInput(sp.to, true);
+  const sortState = parseSort(sp.sort, sp.dir);
+
+  const all = await getEnrichedPedidos({
+    tenantId: session.user.tenantId,
+    dataInicio,
+    dataFim,
+  });
   const pedidos = all.filter((p) => p.statusPedido === "EM ABERTO");
 
-  // ── KPIs por linha ────────────────────────────────────────────────
   const sim = pedidos.filter((p) => p.prontoParaFazer === "SIM").length;
   const parcialFU = pedidos.filter((p) => p.prontoParaFazer === "PARCIAL - Sem Follow-up").length;
   const parcialEst = pedidos.filter((p) => p.prontoParaFazer === "PARCIAL - Sem Estoque").length;
@@ -56,10 +69,6 @@ export default async function ProntidaoPage({
   const comprando = pedidos.filter((p) => p.tipoProduto === "Comprando").length;
   const produzindo = pedidos.filter((p) => p.tipoProduto === "Produzindo").length;
 
-  // ── Datas por PV ──────────────────────────────────────────────────
-  // Consolida por numPedido. Regra: para CADA PV, se ALGUMA linha tem
-  // dtFatCli null → "Sem prazo". Senão usa o MAIOR atraso entre as linhas
-  // (pior caso) — se > 0 → "Fora do prazo", caso contrário → "Dentro do prazo".
   const pvBuckets = new Map<string, { hasUndefined: boolean; maxAtraso: number }>();
   for (const p of pedidos) {
     const cur = pvBuckets.get(p.numPedido) ?? { hasUndefined: false, maxAtraso: -Infinity };
@@ -82,14 +91,12 @@ export default async function ProntidaoPage({
   const pctDentro = pvDecidiveis === 0 ? 0 : (pvDentro / pvDecidiveis) * 100;
   const pctFora = pvDecidiveis === 0 ? 0 : (pvFora / pvDecidiveis) * 100;
 
-  // ── Distribuição por ação ────────────────────────────────────────
   const byAcao = new Map<string, number>();
   for (const p of pedidos) byAcao.set(p.acaoNecessaria, (byAcao.get(p.acaoNecessaria) ?? 0) + 1);
   const acoesRanking = Array.from(byAcao.entries())
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
 
-  // ── Tabela ───────────────────────────────────────────────────────
   const ordemPront: Record<ProntoParaFazer, number> = {
     "FINALIZADO": 99,
     "Servico": 5,
@@ -103,7 +110,7 @@ export default async function ProntidaoPage({
     if (sp.tipo && p.tipoProduto !== sp.tipo) return false;
     return true;
   });
-  const tabela = [...filtered]
+  const baseTabela = [...filtered]
     .sort((a, b) => {
       const eA = a.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
       const eB = b.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
@@ -111,11 +118,16 @@ export default async function ProntidaoPage({
       return ordemPront[a.prontoParaFazer] - ordemPront[b.prontoParaFazer];
     })
     .slice(0, 100);
+  const tabela = sortRows(
+    baseTabela as unknown as Record<string, unknown>[],
+    sortState,
+  ) as unknown as PedidoEnriched[];
 
   return (
     <AppShell title="Prontidão" subtitle="Pronto para fazer? Estoque + follow-up + ação necessária">
       <div className="space-y-5">
-        {/* Por linha */}
+        <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
+
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <KPICard label="Prontos" value={fmtNum(sim)} icon={<CheckCircle2 className="size-4" />} tone="success" />
           <KPICard label="Sem follow-up" value={fmtNum(parcialFU)} hint="Estoque ok, falta confirmação" icon={<Circle className="size-4" />} tone="warning" />
@@ -124,7 +136,6 @@ export default async function ProntidaoPage({
           <KPICard label="Erros cadastro" value={fmtNum(erros)} hint="Comprando com OP" icon={<CircleAlert className="size-4" />} tone="danger" active={erros > 0} />
         </section>
 
-        {/* Datas por PV (consolidado) */}
         <CardSection
           title="Datas por PV — atendimento do prazo do cliente"
           subtitle="Consolidado por PV (não por linha): MAX(atraso) entre os itens. Sem prazo = ao menos 1 item sem DT. Fat. Cli."
@@ -143,7 +154,6 @@ export default async function ProntidaoPage({
             <KPICard label="Sem prazo definido" value={fmtNum(pvSem)} hint="Sem DT. Fat. Cli em algum item" icon={<CalendarOff className="size-4" />} tone="warning" />
           </div>
 
-          {/* Bar minimalista da distribuição */}
           <div className="mt-5">
             <HBarRanking
               items={[
@@ -156,7 +166,6 @@ export default async function ProntidaoPage({
           </div>
         </CardSection>
 
-        {/* Tipo + Ações */}
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <CardSection title="Tipo de produto" subtitle="Comprando vs Produzindo (em aberto)">
             <div className="grid grid-cols-2 gap-3">
@@ -184,7 +193,6 @@ export default async function ProntidaoPage({
           </div>
         </section>
 
-        {/* Tabela com filtros locais */}
         <CardSection
           title="Pedidos com atenção"
           subtitle={`${fmtNum(filtered.length)} de ${fmtNum(pedidos.length)} pedidos em aberto · top 100 (erros e bloqueios primeiro)`}
@@ -250,11 +258,12 @@ function acaoBadge(a: AcaoNecessaria) {
 }
 
 const prontidaoCols: Column<PedidoEnriched>[] = [
-  { key: "pv", header: "PV", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
-  { key: "item", header: "Item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
+  { key: "pv", header: "PV", sortKey: "numPedido", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
+  { key: "item", header: "Item", sortKey: "item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
   {
     key: "produto",
     header: "Produto",
+    sortKey: "produto",
     cell: (p) => (
       <div>
         <code className="font-mono text-[12px]">{p.produto}</code>
@@ -271,12 +280,13 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
   {
     key: "tipo",
     header: "Tipo",
+    sortKey: "tipoProduto",
     cell: (p) => <StatusBadge tone={p.tipoProduto === "Indefinido" ? "warning" : "muted"}>{p.tipoProduto}</StatusBadge>,
   },
-  { key: "qtd", header: "Qtd", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
-  { key: "estoque", header: "Estoque", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.estoqueDisponivel)}</span> },
-  { key: "pronto", header: "Pronto?", cell: (p) => prontidaoBadge(p.prontoParaFazer) },
-  { key: "acao", header: "Ação", cell: (p) => acaoBadge(p.acaoNecessaria) },
+  { key: "qtd", header: "Qtd", sortKey: "quantidade", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
+  { key: "estoque", header: "Estoque", sortKey: "estoqueDisponivel", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.estoqueDisponivel)}</span> },
+  { key: "pronto", header: "Pronto?", sortKey: "prontoParaFazer", cell: (p) => prontidaoBadge(p.prontoParaFazer) },
+  { key: "acao", header: "Ação", sortKey: "acaoNecessaria", cell: (p) => acaoBadge(p.acaoNecessaria) },
   {
     key: "prazo",
     header: "Prazo",

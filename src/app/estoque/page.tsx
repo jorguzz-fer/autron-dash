@@ -6,7 +6,9 @@ import KPICard from "@/components/UI/KPICard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
+import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import { fmtDate, fmtNum } from "@/lib/format";
+import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import {
   CheckCircle2,
   CircleSlash,
@@ -19,14 +21,33 @@ import type { DisponibilidadeEstoque, PedidoEnriched } from "@/lib/domain";
 
 export const metadata = { title: "Estoque & SC/OP — Autron Dash" };
 
-export default async function EstoquePage() {
+interface SP {
+  from?: string;
+  to?: string;
+  sort?: string;
+  dir?: string;
+}
+
+export default async function EstoquePage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const all = await getEnrichedPedidos({ tenantId: session.user.tenantId });
+  const sp = await searchParams;
+  const dataInicio = parseDateInput(sp.from);
+  const dataFim = parseDateInput(sp.to, true);
+  const sortState = parseSort(sp.sort, sp.dir);
+
+  const all = await getEnrichedPedidos({
+    tenantId: session.user.tenantId,
+    dataInicio,
+    dataFim,
+  });
   const pedidos = all.filter((p) => p.statusPedido === "EM ABERTO");
 
-  // KPIs
   const sim = pedidos.filter((p) => p.disponibilidadeEstoque === "SIM").length;
   const parcial = pedidos.filter((p) => p.disponibilidadeEstoque === "PARCIAL").length;
   const nao = pedidos.filter((p) => p.disponibilidadeEstoque === "NAO").length;
@@ -34,10 +55,8 @@ export default async function EstoquePage() {
   const necOP = pedidos.filter((p) => p.acaoNecessaria === "Necessario gerar OP").length;
   const erros = pedidos.filter((p) => p.acaoNecessaria === "ERRO no CADASTRO");
 
-  // Tabela completa de em aberto (com colorização)
-  const tabela = [...pedidos]
+  const baseTabela = [...pedidos]
     .sort((a, b) => {
-      // erros primeiro, depois NAO, PARCIAL, SIM
       const ordem: Record<DisponibilidadeEstoque, number> = {
         "NAO": 1,
         "PARCIAL": 2,
@@ -51,11 +70,16 @@ export default async function EstoquePage() {
       return ordem[a.disponibilidadeEstoque] - ordem[b.disponibilidadeEstoque];
     })
     .slice(0, 100);
+  const tabela = sortRows(
+    baseTabela as unknown as Record<string, unknown>[],
+    sortState,
+  ) as unknown as PedidoEnriched[];
 
   return (
     <AppShell title="Estoque & SC/OP" subtitle="Disponibilidade + alocação FIFO + erros de cadastro">
       <div className="space-y-5">
-        {/* KPIs */}
+        <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
+
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <KPICard
             label="Com estoque"
@@ -94,7 +118,6 @@ export default async function EstoquePage() {
           />
         </section>
 
-        {/* Alerta de erros de cadastro */}
         {erros.length > 0 && (
           <CardSection
             title={
@@ -116,7 +139,7 @@ export default async function EstoquePage() {
 
         <CardSection
           title="Pedidos por disponibilidade"
-          subtitle="Top 100 — sem estoque e erros primeiro"
+          subtitle={`${fmtNum(tabela.length)} pedidos · clique em qualquer coluna pra ordenar`}
         >
           <DataTable
             columns={estoqueCols}
@@ -139,11 +162,12 @@ function dispoBadge(d: DisponibilidadeEstoque) {
 }
 
 const estoqueCols: Column<PedidoEnriched>[] = [
-  { key: "pv", header: "PV", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
-  { key: "item", header: "Item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
+  { key: "pv", header: "PV", sortKey: "numPedido", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
+  { key: "item", header: "Item", sortKey: "item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
   {
     key: "produto",
     header: "Produto",
+    sortKey: "produto",
     cell: (p) => (
       <div>
         <code className="font-mono text-[12px]">{p.produto}</code>
@@ -157,21 +181,22 @@ const estoqueCols: Column<PedidoEnriched>[] = [
       </div>
     ),
   },
-  { key: "tipo", header: "Tipo", cell: (p) => <span className="text-[12px]">{p.tipoProduto}</span> },
-  { key: "qtd", header: "Qtd", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
-  { key: "estoque", header: "Estoque", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.estoqueDisponivel)}</span> },
-  { key: "alocada", header: "Alocada", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.qtdAlocada)}</span> },
-  { key: "dispo", header: "Disp.", cell: (p) => dispoBadge(p.disponibilidadeEstoque) },
-  { key: "sc", header: "SC", cell: (p) => <span className="numeric text-[12px]">{p.numeroSC ?? "—"}</span> },
+  { key: "tipo", header: "Tipo", sortKey: "tipoProduto", cell: (p) => <span className="text-[12px]">{p.tipoProduto}</span> },
+  { key: "qtd", header: "Qtd", sortKey: "quantidade", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
+  { key: "estoque", header: "Estoque", sortKey: "estoqueDisponivel", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.estoqueDisponivel)}</span> },
+  { key: "alocada", header: "Alocada", sortKey: "qtdAlocada", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.qtdAlocada)}</span> },
+  { key: "dispo", header: "Disp.", sortKey: "disponibilidadeEstoque", cell: (p) => dispoBadge(p.disponibilidadeEstoque) },
+  { key: "sc", header: "SC", sortKey: "numeroSC", cell: (p) => <span className="numeric text-[12px]">{p.numeroSC ?? "—"}</span> },
   { key: "op", header: "OP", cell: (p) => <span className="numeric text-[12px]">{p.numeroOP ?? p.fuOpNaSC ?? "—"}</span> },
 ];
 
 const errosCols: Column<PedidoEnriched>[] = [
-  { key: "pv", header: "PV", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
-  { key: "item", header: "Item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
+  { key: "pv", header: "PV", sortKey: "numPedido", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
+  { key: "item", header: "Item", sortKey: "item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
   {
     key: "produto",
     header: "Produto",
+    sortKey: "produto",
     cell: (p) => (
       <div>
         <code className="font-mono text-[12px]">{p.produto}</code>
@@ -191,6 +216,7 @@ const errosCols: Column<PedidoEnriched>[] = [
   {
     key: "emissao",
     header: "Emissão",
+    sortKey: "dtEmissao",
     cell: (p) => <span className="numeric text-[12px]">{fmtDate(p.dtEmissao)}</span>,
   },
 ];

@@ -6,6 +6,10 @@ import { Dataset } from "@prisma/client";
 import { DATASET_LABELS } from "@/lib/parsers";
 import UploadCard from "./UploadCard";
 import GenerateReportsBanner from "@/components/UI/GenerateReportsBanner";
+import DataTable, { type Column } from "@/components/UI/DataTable";
+import StatusBadge from "@/components/UI/StatusBadge";
+import { fmtNum } from "@/lib/format";
+import { parseSort, sortRows } from "@/lib/sort";
 
 export const metadata = { title: "Upload de planilhas — Autron Dash" };
 
@@ -21,9 +25,32 @@ const DATASET_ORDER: Dataset[] = [
 
 const ROLES_WRITE = new Set(["ADMIN", "DIRETOR", "GERENTE", "OPERADOR"]);
 
-export default async function UploadsPage() {
+interface SP {
+  sort?: string;
+  dir?: string;
+}
+
+interface UploadRow {
+  id: string;
+  startedAt: Date;
+  userName: string;
+  dataset: string;
+  filename: string;
+  rowCount: number;
+  status: "PROCESSING" | "SUCCESS" | "FAILED";
+  errorMessage: string | null;
+}
+
+export default async function UploadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
   const session = await auth();
   if (!session) redirect("/login");
+
+  const sp = await searchParams;
+  const sortState = parseSort(sp.sort, sp.dir);
 
   const canUpload = ROLES_WRITE.has(session.user.role);
 
@@ -40,6 +67,21 @@ export default async function UploadsPage() {
       lastByDataset.set(u.dataset, u);
     }
   }
+
+  const tableRows: UploadRow[] = uploads.map((u) => ({
+    id: u.id,
+    startedAt: u.startedAt,
+    userName: u.user.name,
+    dataset: u.dataset,
+    filename: u.filename,
+    rowCount: u.rowCount,
+    status: u.status,
+    errorMessage: u.errorMessage,
+  }));
+  const tabela = sortRows(
+    tableRows as unknown as Record<string, unknown>[],
+    sortState,
+  ) as unknown as UploadRow[];
 
   return (
     <AppShell
@@ -61,12 +103,10 @@ export default async function UploadsPage() {
           </div>
         )}
 
-        {/* Banner: gerar relatórios (habilita quando os 5 datasets têm upload SUCCESS) */}
         <GenerateReportsBanner
           state={{ loaded: lastByDataset.size, total: DATASET_ORDER.length }}
         />
 
-        {/* Cards de upload */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {DATASET_ORDER.map((ds) => {
             const last = lastByDataset.get(ds);
@@ -91,154 +131,100 @@ export default async function UploadsPage() {
           })}
         </section>
 
-        {/* Histórico */}
-        <section
-          className="rounded-2xl border overflow-hidden"
-          style={{
-            backgroundColor: "var(--surface)",
-            borderColor: "var(--border-soft)",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <div
-            className="flex items-center justify-between px-5 py-3.5"
-            style={{ borderBottom: "1px solid var(--border-soft)" }}
-          >
-            <div>
-              <h2
-                className="text-[14px] font-semibold tracking-tight"
-                style={{ color: "var(--fg-strong)" }}
+        <DataTable
+          caption={
+            <div className="flex items-center justify-between">
+              <div className="leading-tight">
+                <h2 className="text-[14px] font-semibold tracking-tight" style={{ color: "var(--fg-strong)" }}>
+                  Histórico recente
+                </h2>
+                <p className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+                  Últimas 30 tentativas — clique nas colunas pra ordenar.
+                </p>
+              </div>
+              <span
+                className="numeric rounded-md px-2 py-0.5 text-[11px]"
+                style={{ color: "var(--fg-muted)", backgroundColor: "var(--surface-2)" }}
               >
-                Histórico recente
-              </h2>
-              <p className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
-                Últimas 30 tentativas — sucessos, processando e falhas.
-              </p>
+                {uploads.length}
+              </span>
             </div>
-            <span
-              className="numeric rounded-md px-2 py-0.5 text-[11px]"
-              style={{
-                color: "var(--fg-muted)",
-                backgroundColor: "var(--surface-2)",
-              }}
-            >
-              {uploads.length}
-            </span>
-          </div>
-
-          {uploads.length === 0 ? (
-            <p className="px-5 py-8 text-center text-[13px]" style={{ color: "var(--fg-muted)" }}>
-              Nenhum upload ainda.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr
-                    className="text-left text-[10.5px] uppercase tracking-wider"
-                    style={{
-                      color: "var(--fg-muted)",
-                      backgroundColor: "var(--surface-2)",
-                    }}
-                  >
-                    <th className="px-5 py-2.5 font-medium">Quando</th>
-                    <th className="px-5 py-2.5 font-medium">Quem</th>
-                    <th className="px-5 py-2.5 font-medium">Dataset</th>
-                    <th className="px-5 py-2.5 font-medium">Arquivo</th>
-                    <th className="px-5 py-2.5 text-right font-medium">Linhas</th>
-                    <th className="px-5 py-2.5 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {uploads.map((u) => (
-                    <tr
-                      key={u.id}
-                      className="transition-colors hover:bg-[var(--surface-2)]"
-                      style={{ borderTop: "1px solid var(--border-soft)" }}
-                    >
-                      <td className="px-5 py-2.5 whitespace-nowrap" style={{ color: "var(--fg)" }}>
-                        {u.startedAt.toLocaleString("pt-BR")}
-                      </td>
-                      <td className="px-5 py-2.5" style={{ color: "var(--fg)" }}>
-                        {u.user.name}
-                      </td>
-                      <td className="px-5 py-2.5">
-                        <span
-                          className="rounded-md px-1.5 py-0.5 font-mono text-[10.5px]"
-                          style={{
-                            color: "var(--fg-muted)",
-                            backgroundColor: "var(--surface-2)",
-                          }}
-                        >
-                          {u.dataset}
-                        </span>
-                      </td>
-                      <td
-                        className="max-w-xs truncate px-5 py-2.5"
-                        title={u.filename}
-                        style={{ color: "var(--fg)" }}
-                      >
-                        {u.filename}
-                      </td>
-                      <td
-                        className="numeric px-5 py-2.5 text-right"
-                        style={{ color: "var(--fg-strong)" }}
-                      >
-                        {u.rowCount.toLocaleString("pt-BR")}
-                      </td>
-                      <td className="px-5 py-2.5">
-                        <StatusBadge status={u.status} />
-                        {u.status === "FAILED" && u.errorMessage && (
-                          <p
-                            className="mt-0.5 max-w-md truncate text-[11px]"
-                            title={u.errorMessage}
-                            style={{ color: "#e11d48" }}
-                          >
-                            {u.errorMessage}
-                          </p>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+          }
+          columns={historicoCols}
+          rows={tabela}
+          rowKey={(u) => u.id}
+          emptyMessage="Nenhum upload ainda."
+        />
       </div>
     </AppShell>
   );
 }
 
-function StatusBadge({ status }: { status: "PROCESSING" | "SUCCESS" | "FAILED" }) {
-  const map = {
-    SUCCESS: {
-      color: "#059669",
-      bg: "color-mix(in srgb, #10b981 12%, transparent)",
-      border: "color-mix(in srgb, #10b981 30%, transparent)",
-      label: "Sucesso",
-    },
-    FAILED: {
-      color: "#e11d48",
-      bg: "color-mix(in srgb, #e11d48 12%, transparent)",
-      border: "color-mix(in srgb, #e11d48 30%, transparent)",
-      label: "Falha",
-    },
-    PROCESSING: {
-      color: "#b45309",
-      bg: "color-mix(in srgb, #f59e0b 12%, transparent)",
-      border: "color-mix(in srgb, #f59e0b 30%, transparent)",
-      label: "Processando",
-    },
-  } as const;
-  const s = map[status];
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium"
-      style={{ color: s.color, backgroundColor: s.bg, borderColor: s.border }}
-    >
-      <span className="size-1 rounded-full" style={{ backgroundColor: s.color }} />
-      {s.label}
-    </span>
-  );
+function StatusUpload({ status }: { status: "PROCESSING" | "SUCCESS" | "FAILED" }) {
+  if (status === "SUCCESS") return <StatusBadge tone="success">Sucesso</StatusBadge>;
+  if (status === "FAILED") return <StatusBadge tone="danger">Falha</StatusBadge>;
+  return <StatusBadge tone="warning">Processando</StatusBadge>;
 }
+
+const historicoCols: Column<UploadRow>[] = [
+  {
+    key: "quando",
+    header: "Quando",
+    sortKey: "startedAt",
+    cell: (u) => (
+      <span className="numeric whitespace-nowrap text-[12px]" style={{ color: "var(--fg)" }}>
+        {u.startedAt.toLocaleString("pt-BR")}
+      </span>
+    ),
+  },
+  { key: "quem", header: "Quem", sortKey: "userName", cell: (u) => <span style={{ color: "var(--fg)" }}>{u.userName}</span> },
+  {
+    key: "dataset",
+    header: "Dataset",
+    sortKey: "dataset",
+    cell: (u) => (
+      <span
+        className="rounded-md px-1.5 py-0.5 font-mono text-[10.5px]"
+        style={{ color: "var(--fg-muted)", backgroundColor: "var(--surface-2)" }}
+      >
+        {u.dataset}
+      </span>
+    ),
+  },
+  {
+    key: "arquivo",
+    header: "Arquivo",
+    sortKey: "filename",
+    cell: (u) => (
+      <span className="block max-w-xs truncate" title={u.filename} style={{ color: "var(--fg)" }}>
+        {u.filename}
+      </span>
+    ),
+  },
+  {
+    key: "linhas",
+    header: "Linhas",
+    sortKey: "rowCount",
+    align: "right",
+    cell: (u) => <span className="numeric" style={{ color: "var(--fg-strong)" }}>{fmtNum(u.rowCount)}</span>,
+  },
+  {
+    key: "status",
+    header: "Status",
+    sortKey: "status",
+    cell: (u) => (
+      <div>
+        <StatusUpload status={u.status} />
+        {u.status === "FAILED" && u.errorMessage && (
+          <p
+            className="mt-0.5 max-w-md truncate text-[11px]"
+            title={u.errorMessage}
+            style={{ color: "#e11d48" }}
+          >
+            {u.errorMessage}
+          </p>
+        )}
+      </div>
+    ),
+  },
+];

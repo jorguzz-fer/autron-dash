@@ -7,19 +7,40 @@ import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
 import HBarRanking from "@/components/UI/HBarRanking";
 import StatusBadge from "@/components/UI/StatusBadge";
+import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
+import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import { ClipboardList, Activity, CheckCircle2, Wallet } from "lucide-react";
 import type { PedidoEnriched } from "@/lib/domain";
 
 export const metadata = { title: "Visão Geral — Autron Dash" };
 
-export default async function VisaoGeralPage() {
+interface SP {
+  from?: string;
+  to?: string;
+  sort?: string;
+  dir?: string;
+}
+
+export default async function VisaoGeralPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const pedidos = await getEnrichedPedidos({ tenantId: session.user.tenantId });
+  const sp = await searchParams;
+  const dataInicio = parseDateInput(sp.from);
+  const dataFim = parseDateInput(sp.to, true);
+  const sortState = parseSort(sp.sort, sp.dir);
 
-  // ── KPIs ──────────────────────────────────────────────────────────
+  const pedidos = await getEnrichedPedidos({
+    tenantId: session.user.tenantId,
+    dataInicio,
+    dataFim,
+  });
+
   const totalPVs = new Set(pedidos.map((p) => p.numPedido)).size;
   const totalLinhas = pedidos.length;
   const emAberto = pedidos.filter((p) => p.statusPedido === "EM ABERTO");
@@ -27,7 +48,6 @@ export default async function VisaoGeralPage() {
   const valorEmAberto = emAberto.reduce((acc, p) => acc + (p.vlrTotal ?? 0), 0);
   const pctConclusao = totalLinhas === 0 ? 0 : (finalizados.length / totalLinhas) * 100;
 
-  // ── Pedidos por mês (últimos 12) ──────────────────────────────────
   const byMonth = new Map<string, number>();
   for (const p of pedidos) {
     if (!p.dtEmissao) continue;
@@ -38,7 +58,6 @@ export default async function VisaoGeralPage() {
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .slice(-12);
 
-  // ── Top vendedores (por # linhas) ─────────────────────────────────
   const byVendedor = new Map<string, number>();
   for (const p of pedidos) {
     const v = p.nomeVendedor ?? "Sem vendedor";
@@ -49,13 +68,17 @@ export default async function VisaoGeralPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
 
-  // ── Tabela: pedidos em aberto ordenados por valor ─────────────────
-  const tabela = [...emAberto].sort((a, b) => (b.vlrTotal ?? 0) - (a.vlrTotal ?? 0)).slice(0, 30);
+  // Tabela default: top 30 por valor desc. Se houver sort URL, aplica em cima do top 30.
+  const baseTabela = [...emAberto]
+    .sort((a, b) => (b.vlrTotal ?? 0) - (a.vlrTotal ?? 0))
+    .slice(0, 30);
+  const tabela = sortRows(baseTabela as unknown as Record<string, unknown>[], sortState) as unknown as PedidoEnriched[];
 
   return (
     <AppShell title="Visão Geral" subtitle="Status macro e entrada de pedidos por mês">
       <div className="space-y-5">
-        {/* KPIs */}
+        <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
+
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KPICard
             label="Total de PVs"
@@ -87,7 +110,6 @@ export default async function VisaoGeralPage() {
           />
         </section>
 
-        {/* Mês + Vendedores */}
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <CardSection title="Pedidos por mês" subtitle="Últimos 12 meses">
             <HBarRanking
@@ -100,7 +122,6 @@ export default async function VisaoGeralPage() {
           </CardSection>
         </section>
 
-        {/* Tabela top em aberto */}
         <CardSection
           title="Maiores pedidos em aberto"
           subtitle={`${fmtNum(tabela.length)} de ${fmtNum(emAberto.length)} pedidos em aberto, ordenados por valor`}
@@ -118,29 +139,32 @@ export default async function VisaoGeralPage() {
 }
 
 const visaoGeralCols: Column<PedidoEnriched>[] = [
-  { key: "pv", header: "PV", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
-  { key: "item", header: "Item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
-  { key: "produto", header: "Produto", cell: (p) => <code className="font-mono text-[12px]">{p.produto}</code>, width: "140px" },
+  { key: "pv", header: "PV", sortKey: "numPedido", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
+  { key: "item", header: "Item", sortKey: "item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
+  { key: "produto", header: "Produto", sortKey: "produto", cell: (p) => <code className="font-mono text-[12px]">{p.produto}</code>, width: "140px" },
   {
     key: "desc",
     header: "Descrição",
+    sortKey: "descricaoProduto",
     cell: (p) => (
       <span className="block max-w-[280px] truncate" title={p.descricaoProduto ?? ""}>
         {p.descricaoProduto ?? "—"}
       </span>
     ),
   },
-  { key: "qtd", header: "Qtd", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
+  { key: "qtd", header: "Qtd", sortKey: "quantidade", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
   {
     key: "vlr",
     header: "Valor",
+    sortKey: "vlrTotal",
     align: "right",
     cell: (p) => <span className="numeric font-medium">{fmtCurrency(p.vlrTotal)}</span>,
   },
-  { key: "vendedor", header: "Vendedor", cell: (p) => <span className="truncate">{p.nomeVendedor ?? "—"}</span> },
+  { key: "vendedor", header: "Vendedor", sortKey: "nomeVendedor", cell: (p) => <span className="truncate">{p.nomeVendedor ?? "—"}</span> },
   {
     key: "emissao",
     header: "Emissão",
+    sortKey: "dtEmissao",
     cell: (p) => <span className="numeric text-[12px]">{fmtDate(p.dtEmissao)}</span>,
   },
   {

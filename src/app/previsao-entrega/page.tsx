@@ -7,20 +7,41 @@ import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
 import HBarRanking from "@/components/UI/HBarRanking";
+import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import { fmtDate, fmtNum } from "@/lib/format";
+import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import { Clock, CheckCircle2, HelpCircle, Timer, AlertOctagon } from "lucide-react";
 import type { PedidoEnriched } from "@/lib/domain";
 
 export const metadata = { title: "Previsão Entrega — Autron Dash" };
 
-export default async function PrevisaoEntregaPage() {
+interface SP {
+  from?: string;
+  to?: string;
+  sort?: string;
+  dir?: string;
+}
+
+export default async function PrevisaoEntregaPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const all = await getEnrichedPedidos({ tenantId: session.user.tenantId });
+  const sp = await searchParams;
+  const dataInicio = parseDateInput(sp.from);
+  const dataFim = parseDateInput(sp.to, true);
+  const sortState = parseSort(sp.sort, sp.dir);
+
+  const all = await getEnrichedPedidos({
+    tenantId: session.user.tenantId,
+    dataInicio,
+    dataFim,
+  });
   const pedidos = all.filter((p) => p.statusPedido === "EM ABERTO");
 
-  // KPIs
   const atrasados = pedidos.filter((p) => (p.diasAtrasoCliente ?? 0) > 0);
   const noPrazo = pedidos.filter((p) => p.diasAtrasoCliente != null && p.diasAtrasoCliente <= 0);
   const semData = pedidos.filter((p) => p.diasAtrasoCliente == null);
@@ -33,12 +54,10 @@ export default async function PrevisaoEntregaPage() {
     0,
   );
 
-  // Top 10 mais atrasados
   const top10 = [...atrasados]
     .sort((a, b) => (b.diasAtrasoCliente ?? 0) - (a.diasAtrasoCliente ?? 0))
     .slice(0, 10);
 
-  // Por semana de entrega (pasta)
   const bySemana = new Map<string, number>();
   for (const p of pedidos) {
     const k = p.semanaEntrega ?? "Sem semana";
@@ -49,14 +68,19 @@ export default async function PrevisaoEntregaPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // Tabela: ordenado por atraso desc
-  const tabela = [...pedidos]
+  const baseTabela = [...pedidos]
     .sort((a, b) => (b.diasAtrasoCliente ?? -9999) - (a.diasAtrasoCliente ?? -9999))
     .slice(0, 50);
+  const tabela = sortRows(
+    baseTabela as unknown as Record<string, unknown>[],
+    sortState,
+  ) as unknown as PedidoEnriched[];
 
   return (
     <AppShell title="Previsão Entrega" subtitle="Atrasos vs DT. Fat. Cli + semana de entrega">
       <div className="space-y-5">
+        <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
+
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <KPICard
             label="Atrasados"
@@ -114,7 +138,7 @@ export default async function PrevisaoEntregaPage() {
 
         <CardSection
           title="Pedidos por urgência"
-          subtitle="Top 50 ordenados por dias de atraso (mais atrasados primeiro)"
+          subtitle={`${fmtNum(tabela.length)} pedidos · clique em qualquer coluna pra ordenar`}
         >
           <DataTable
             columns={previsaoCols}
@@ -137,11 +161,12 @@ function atrasoBadge(d: number | null) {
 }
 
 const previsaoCols: Column<PedidoEnriched>[] = [
-  { key: "pv", header: "PV", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
-  { key: "item", header: "Item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
+  { key: "pv", header: "PV", sortKey: "numPedido", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
+  { key: "item", header: "Item", sortKey: "item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
   {
     key: "produto",
     header: "Produto",
+    sortKey: "produto",
     cell: (p) => (
       <div>
         <code className="font-mono text-[12px]">{p.produto}</code>
@@ -155,15 +180,17 @@ const previsaoCols: Column<PedidoEnriched>[] = [
       </div>
     ),
   },
-  { key: "qtd", header: "Qtd", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
+  { key: "qtd", header: "Qtd", sortKey: "quantidade", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
   {
     key: "fatcli",
     header: "DT. Fat. Cli",
+    sortKey: "dtFatCli",
     cell: (p) => <span className="numeric text-[12px]">{fmtDate(p.dtFatCli)}</span>,
   },
   {
     key: "ofertada",
     header: "Ofertada",
+    sortKey: "dtOfertada",
     cell: (p) => <span className="numeric text-[12px]">{fmtDate(p.dtOfertada)}</span>,
   },
   {
@@ -175,6 +202,6 @@ const previsaoCols: Column<PedidoEnriched>[] = [
       </span>
     ),
   },
-  { key: "semana", header: "Semana", cell: (p) => <span className="text-[12px]">{p.semanaEntrega ?? "—"}</span> },
-  { key: "atraso", header: "Atraso", cell: (p) => atrasoBadge(p.diasAtrasoCliente) },
+  { key: "semana", header: "Semana", sortKey: "semanaEntrega", cell: (p) => <span className="text-[12px]">{p.semanaEntrega ?? "—"}</span> },
+  { key: "atraso", header: "Atraso", sortKey: "diasAtrasoCliente", cell: (p) => atrasoBadge(p.diasAtrasoCliente) },
 ];

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import SortableHeader from "./SortableHeader";
 
 export interface Column<T> {
   key: string;
@@ -6,6 +7,8 @@ export interface Column<T> {
   align?: "left" | "right" | "center";
   width?: string;
   cell: (row: T) => ReactNode;
+  /** Se passado, o header vira clicável (URL-driven sort) usando este key. */
+  sortKey?: string;
 }
 
 interface Props<T> {
@@ -64,7 +67,13 @@ export default function DataTable<T>({
                     style={{ width: c.width, textAlign: c.align ?? "left" }}
                     className="px-4 py-2.5 font-medium whitespace-nowrap"
                   >
-                    {c.header}
+                    {c.sortKey ? (
+                      <SortableHeader sortKey={c.sortKey} align={c.align}>
+                        {c.header}
+                      </SortableHeader>
+                    ) : (
+                      c.header
+                    )}
                   </th>
                 ))}
               </tr>

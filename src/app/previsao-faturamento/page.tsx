@@ -9,6 +9,7 @@ import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
 import { fmtCurrency, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
+import { parseSort, sortRows } from "@/lib/sort";
 import {
   TrendingUp,
   Wallet,
@@ -31,9 +32,14 @@ function shiftMonth(date: Date, deltaMonths: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + deltaMonths, 1);
 }
 
-export default async function PrevisaoFaturamentoPage() {
+interface SP { sort?: string; dir?: string }
+
+export default async function PrevisaoFaturamentoPage({ searchParams }: { searchParams: Promise<SP> }) {
   const session = await auth();
   if (!session) redirect("/login");
+
+  const sp = await searchParams;
+  const sortState = parseSort(sp.sort, sp.dir);
 
   const tenantId = session.user.tenantId;
   const [enriched, fats, metasAtual, metasAnterior] = await Promise.all([
@@ -160,9 +166,18 @@ export default async function PrevisaoFaturamentoPage() {
   }
 
   // ── Top 10 pedidos abertos ────────────────────────────────────────
-  const top10Abertos = [...emAberto]
+  const baseTop10 = [...emAberto]
     .sort((a, b) => (b.vlrTotal ?? 0) - (a.vlrTotal ?? 0))
     .slice(0, 10);
+  const top10Abertos = sortRows(
+    baseTop10 as unknown as Record<string, unknown>[],
+    sortState,
+  ) as unknown as PedidoEnriched[];
+
+  const mesesSorted = sortRows(
+    meses as unknown as Record<string, unknown>[],
+    sortState,
+  ) as unknown as typeof meses;
 
   return (
     <AppShell
@@ -263,7 +278,7 @@ export default async function PrevisaoFaturamentoPage() {
             projetado: number;
           }>
             columns={timelineCols}
-            rows={meses}
+            rows={mesesSorted}
             rowKey={(m) => m.key}
             emptyMessage="Sem dados."
           />
@@ -299,6 +314,7 @@ const timelineCols: Column<{
   {
     key: "mes",
     header: "Mês",
+    sortKey: "key",
     cell: (m) => (
       <span className="flex items-center gap-2 capitalize">
         {m.label}
@@ -311,6 +327,7 @@ const timelineCols: Column<{
   {
     key: "real",
     header: "Realizado",
+    sortKey: "realizado",
     align: "right",
     cell: (m) => (
       <span className="numeric font-medium" style={{ color: m.realizado > 0 ? "var(--fg-strong)" : "var(--fg-subtle)" }}>
@@ -321,6 +338,7 @@ const timelineCols: Column<{
   {
     key: "pipe",
     header: "Pipeline",
+    sortKey: "pipeline",
     align: "right",
     cell: (m) => (
       <span className="numeric text-[12px]" style={{ color: m.pipeline > 0 ? "var(--color-brand-700)" : "var(--fg-subtle)" }}>
@@ -331,6 +349,7 @@ const timelineCols: Column<{
   {
     key: "meta",
     header: "Meta",
+    sortKey: "meta",
     align: "right",
     cell: (m) => (
       <span className="numeric text-[12px]" style={{ color: m.meta > 0 ? "var(--fg-muted)" : "var(--fg-subtle)" }}>
@@ -341,6 +360,7 @@ const timelineCols: Column<{
   {
     key: "proj",
     header: "Projetado",
+    sortKey: "projetado",
     align: "right",
     cell: (m) => {
       if (m.projetado === 0) return <span style={{ color: "var(--fg-subtle)" }}>—</span>;
@@ -365,8 +385,8 @@ const timelineCols: Column<{
 ];
 
 const topPedidosCols: Column<PedidoEnriched>[] = [
-  { key: "pv", header: "PV", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
-  { key: "item", header: "Item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
+  { key: "pv", header: "PV", sortKey: "numPedido", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
+  { key: "item", header: "Item", sortKey: "item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
   {
     key: "cli",
     header: "Cliente",
@@ -395,6 +415,7 @@ const topPedidosCols: Column<PedidoEnriched>[] = [
   {
     key: "vlr",
     header: "Valor",
+    sortKey: "vlrTotal",
     align: "right",
     cell: (p) => <span className="numeric font-medium">{fmtCurrency(p.vlrTotal)}</span>,
   },

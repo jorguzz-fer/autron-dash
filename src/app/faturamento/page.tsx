@@ -6,23 +6,46 @@ import KPICard from "@/components/UI/KPICard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
 import HBarRanking from "@/components/UI/HBarRanking";
+import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
+import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import { Receipt, TrendingUp, FileText, Percent } from "lucide-react";
 
 export const metadata = { title: "Faturamento — Autron Dash" };
 
-export default async function FaturamentoPage() {
+interface SP {
+  from?: string;
+  to?: string;
+  sort?: string;
+  dir?: string;
+}
+
+export default async function FaturamentoPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const fats = await getFaturamentos({ tenantId: session.user.tenantId });
+  const sp = await searchParams;
+  const dataInicio = parseDateInput(sp.from);
+  const dataFim = parseDateInput(sp.to, true);
+  const sortState = parseSort(sp.sort, sp.dir);
+
+  const fats = await getFaturamentos({
+    tenantId: session.user.tenantId,
+    dataInicio,
+    dataFim,
+  });
 
   if (fats.length === 0) {
     return (
       <AppShell title="Faturamento" subtitle="Notas fiscais + margem + top vendedores">
+        <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
         <CardSection
-          title="Sem dados de faturamento"
-          subtitle="Faça upload do faturamento.xlsx em /uploads para ver este painel."
+          title="Sem dados de faturamento no período"
+          subtitle="Faça upload do faturamento.xlsx em /uploads ou amplie o filtro de datas."
         >
           <p className="text-[13px]" style={{ color: "var(--fg-muted)" }}>
             Os dados aparecerão aqui assim que a planilha for processada.
@@ -32,14 +55,12 @@ export default async function FaturamentoPage() {
     );
   }
 
-  // KPIs
   const totalBruto = fats.reduce((a, r) => a + (r.faturamentoBruto ?? 0), 0);
   const totalLiquido = fats.reduce((a, r) => a + (r.faturamentoLiquido ?? 0), 0);
   const totalMargemR = fats.reduce((a, r) => a + (r.margemLiquidaR ?? 0), 0);
   const margemMediaPct = totalLiquido === 0 ? 0 : (totalMargemR / totalLiquido) * 100;
   const totalNFs = new Set(fats.map((r) => r.numDocto)).size;
 
-  // Por mês
   const byMonth = new Map<string, number>();
   for (const r of fats) {
     if (!r.emissao) continue;
@@ -50,7 +71,6 @@ export default async function FaturamentoPage() {
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .slice(-12);
 
-  // Top vendedores por fat. líquido
   const byVendedor = new Map<string, number>();
   for (const r of fats) {
     const v = r.nomeVendedor ?? "Sem vendedor";
@@ -61,7 +81,6 @@ export default async function FaturamentoPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // Top clientes por fat. líquido
   const byCliente = new Map<string, number>();
   for (const r of fats) {
     const c = r.razaoSocial ?? "Sem cliente";
@@ -72,12 +91,17 @@ export default async function FaturamentoPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
-  // Tabela: ordenado por emissao desc, top 50
-  const tabela = fats.slice(0, 50);
+  const baseTabela = fats.slice(0, 50);
+  const tabela = sortRows(
+    baseTabela as unknown as Record<string, unknown>[],
+    sortState,
+  ) as unknown as FaturamentoRow[];
 
   return (
     <AppShell title="Faturamento" subtitle="Notas fiscais + margem + top vendedores">
       <div className="space-y-5">
+        <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
+
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KPICard
             label="Faturamento bruto"
@@ -141,8 +165,8 @@ export default async function FaturamentoPage() {
         </section>
 
         <CardSection
-          title="Notas fiscais recentes"
-          subtitle={`Top 50 mais recentes de ${fmtNum(fats.length)} itens`}
+          title="Notas fiscais"
+          subtitle={`${fmtNum(tabela.length)} de ${fmtNum(fats.length)} itens — clique em qualquer coluna pra ordenar`}
         >
           <DataTable
             columns={fatCols}
@@ -160,13 +184,15 @@ const fatCols: Column<FaturamentoRow>[] = [
   {
     key: "emissao",
     header: "Emissão",
+    sortKey: "emissao",
     cell: (r) => <span className="numeric text-[12px]">{fmtDate(r.emissao)}</span>,
   },
-  { key: "nf", header: "NF", cell: (r) => <span className="numeric">{r.numDocto}</span> },
-  { key: "pv", header: "PV", cell: (r) => <span className="numeric">{r.noPedido ?? "—"}</span> },
+  { key: "nf", header: "NF", sortKey: "numDocto", cell: (r) => <span className="numeric">{r.numDocto}</span> },
+  { key: "pv", header: "PV", sortKey: "noPedido", cell: (r) => <span className="numeric">{r.noPedido ?? "—"}</span> },
   {
     key: "produto",
     header: "Produto",
+    sortKey: "produto",
     cell: (r) => (
       <div>
         <code className="font-mono text-[12px]">{r.produto}</code>
@@ -183,6 +209,7 @@ const fatCols: Column<FaturamentoRow>[] = [
   {
     key: "cliente",
     header: "Cliente",
+    sortKey: "razaoSocial",
     cell: (r) => (
       <div>
         <span className="block max-w-[200px] truncate" title={r.razaoSocial ?? ""}>
@@ -196,28 +223,32 @@ const fatCols: Column<FaturamentoRow>[] = [
       </div>
     ),
   },
-  { key: "vendedor", header: "Vendedor", cell: (r) => <span className="text-[12px]">{r.nomeVendedor ?? "—"}</span> },
+  { key: "vendedor", header: "Vendedor", sortKey: "nomeVendedor", cell: (r) => <span className="text-[12px]">{r.nomeVendedor ?? "—"}</span> },
   {
     key: "qtd",
     header: "Qtd",
+    sortKey: "quantidade",
     align: "right",
     cell: (r) => <span className="numeric">{fmtNum(r.quantidade)}</span>,
   },
   {
     key: "bruto",
     header: "Bruto",
+    sortKey: "faturamentoBruto",
     align: "right",
     cell: (r) => <span className="numeric text-[12px]">{fmtCurrency(r.faturamentoBruto, { compact: true })}</span>,
   },
   {
     key: "liquido",
     header: "Líquido",
+    sortKey: "faturamentoLiquido",
     align: "right",
     cell: (r) => <span className="numeric font-medium">{fmtCurrency(r.faturamentoLiquido, { compact: true })}</span>,
   },
   {
     key: "margem",
     header: "Margem",
+    sortKey: "margemLiquidaPct",
     align: "right",
     cell: (r) => <span className="numeric text-[12px]">{fmtPct(r.margemLiquidaPct ?? null, 1)}</span>,
   },
