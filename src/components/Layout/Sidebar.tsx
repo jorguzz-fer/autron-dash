@@ -6,7 +6,9 @@ import {
   BarChart3,
   CalendarClock,
   CheckCircle2,
+  ClipboardList,
   LayoutDashboard,
+  LineChart,
   LogOut,
   Package,
   Receipt,
@@ -24,11 +26,13 @@ interface NavItem {
 
 const NAV_PRIMARY: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Visão Geral", href: "/visao-geral", icon: BarChart3, badge: "fase 5" },
-  { label: "Prontidão", href: "/prontidao", icon: CheckCircle2, badge: "fase 6" },
-  { label: "Previsão Entrega", href: "/previsao-entrega", icon: CalendarClock, badge: "fase 7" },
-  { label: "Estoque & SC/OP", href: "/estoque", icon: Package, badge: "fase 8" },
-  { label: "Faturamento", href: "/faturamento", icon: Receipt, badge: "fase 9" },
+  { label: "Visão Geral", href: "/visao-geral", icon: BarChart3 },
+  { label: "Entrada de Pedidos", href: "/entrada-pedidos", icon: ClipboardList },
+  { label: "Prontidão", href: "/prontidao", icon: CheckCircle2 },
+  { label: "Previsão Entrega", href: "/previsao-entrega", icon: CalendarClock },
+  { label: "Estoque & SC/OP", href: "/estoque", icon: Package },
+  { label: "Faturamento", href: "/faturamento", icon: Receipt },
+  { label: "Previsão Faturamento", href: "/previsao-faturamento", icon: LineChart },
 ];
 
 const NAV_TOOLS: NavItem[] = [
