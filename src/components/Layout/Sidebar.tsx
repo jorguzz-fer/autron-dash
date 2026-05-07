@@ -43,7 +43,8 @@ interface SidebarProps {
     role: string;
     tenantSlug: string;
   };
-  onSignOut: () => void;
+  /** Server Action de sign-out (passada como prop a partir do AppShell). */
+  onSignOut: () => Promise<void>;
 }
 
 export default function Sidebar({ user, onSignOut }: SidebarProps) {
@@ -52,9 +53,9 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
       className="hidden lg:flex h-screen w-64 shrink-0 flex-col sticky top-0 z-30"
       style={{ backgroundColor: "var(--sidebar-bg)", borderRight: "1px solid var(--sidebar-border)" }}
     >
-      {/* Header — logo */}
+      {/* Header — wordmark */}
       <div className="px-5 py-5" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
-        <Logo />
+        <Logo height={26} priority />
       </div>
 
       {/* Tenant card */}
@@ -97,7 +98,7 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* User block + signout */}
+      {/* User block + signout (form action — padrão idiomático Next 15) */}
       <div className="px-3 py-3" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
         <div className="flex items-center gap-3 px-2 py-1.5">
           <div
@@ -118,15 +119,16 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
               {user.role}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onSignOut}
-            aria-label="Sair"
-            title="Sair"
-            className="ring-focus flex size-8 items-center justify-center rounded-md text-[color:var(--sidebar-fg)] transition-colors hover:bg-[color:var(--sidebar-elev)] hover:text-[color:var(--sidebar-fg-strong)]"
-          >
-            <LogOut className="size-4" />
-          </button>
+          <form action={onSignOut}>
+            <button
+              type="submit"
+              aria-label="Sair"
+              title="Sair"
+              className="ring-focus flex size-8 items-center justify-center rounded-md text-[color:var(--sidebar-fg)] transition-colors hover:bg-[color:var(--sidebar-elev)] hover:text-[color:var(--sidebar-fg-strong)]"
+            >
+              <LogOut className="size-4" />
+            </button>
+          </form>
         </div>
       </div>
     </aside>

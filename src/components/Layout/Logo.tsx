@@ -1,39 +1,29 @@
 import Image from "next/image";
 
 interface LogoProps {
-  size?: number;
-  variant?: "stack" | "compact";
+  /** Altura em px. Largura é calculada do aspect ratio do wordmark (610×195). */
+  height?: number;
   className?: string;
+  priority?: boolean;
 }
 
+const ASPECT = 610 / 195; // ≈ 3.128
+
 /**
- * Marca Autron Dash — usa o logo em /public/logo.png + word-mark em texto.
- * "stack": logo + nome empilhado (sidebar header, login). "compact": só logo.
+ * Wordmark Autron — usa o logo em /public/logo.png. Mantém aspect ratio
+ * automaticamente. Use altura ~28-32 em sidebars, ~56-72 em hero/login.
  */
-export default function Logo({ size = 40, variant = "stack", className = "" }: LogoProps) {
+export default function Logo({ height = 28, className = "", priority = false }: LogoProps) {
+  const width = Math.round(height * ASPECT);
   return (
-    <div className={`inline-flex items-center gap-3 ${className}`}>
-      <div
-        className="relative flex shrink-0 items-center justify-center rounded-xl"
-        style={{ width: size, height: size }}
-      >
-        <Image
-          src="/logo.png"
-          alt="Autron"
-          width={size}
-          height={size}
-          className="rounded-xl"
-          priority
-        />
-      </div>
-      {variant === "stack" && (
-        <div className="leading-tight">
-          <div className="text-[15px] font-semibold tracking-tight text-[color:var(--sidebar-fg-strong)]">
-            Autron Dash
-          </div>
-          <div className="text-[11px] text-[color:var(--sidebar-fg)]">Painel de gestão</div>
-        </div>
-      )}
-    </div>
+    <Image
+      src="/logo.png"
+      alt="Autron"
+      width={width}
+      height={height}
+      priority={priority}
+      className={className}
+      style={{ height, width: "auto" }}
+    />
   );
 }
