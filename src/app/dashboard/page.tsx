@@ -151,7 +151,7 @@ export default async function DashboardPage() {
           <NavCard
             href="/visao-geral"
             tone="brand"
-            icon={BarChart3}
+            icon={<BarChart3 className="size-5" />}
             title="Visão Geral"
             subtitle="Status macro e entrada por mês"
             stat={`${fmtNum(totalPVs)} PVs · ${fmtCurrency(valorTotal, { compact: true })}`}
@@ -159,7 +159,7 @@ export default async function DashboardPage() {
           <NavCard
             href="/entrada-pedidos"
             tone="indigo"
-            icon={ClipboardList}
+            icon={<ClipboardList className="size-5" />}
             title="Entrada de Pedidos"
             subtitle={`Meta x Realizado ${anoAtual}`}
             stat={
@@ -171,7 +171,7 @@ export default async function DashboardPage() {
           <NavCard
             href="/prontidao"
             tone="violet"
-            icon={CheckCircle2}
+            icon={<CheckCircle2 className="size-5" />}
             title="Prontidão"
             subtitle="Pronto p/ Fazer + ações necessárias"
             stat={`${fmtNum(prontos)} prontos · ${fmtNum(errosCadastro)} erros`}
@@ -179,7 +179,7 @@ export default async function DashboardPage() {
           <NavCard
             href="/previsao-entrega"
             tone="amber"
-            icon={CalendarClock}
+            icon={<CalendarClock className="size-5" />}
             title="Previsão Entrega"
             subtitle="Atrasos e semana de entrega"
             stat={`${fmtNum(atrasados.length)} atrasados`}
@@ -187,7 +187,7 @@ export default async function DashboardPage() {
           <NavCard
             href="/estoque"
             tone="cyan"
-            icon={Package}
+            icon={<Package className="size-5" />}
             title="Estoque & SC/OP"
             subtitle="Disponibilidade e alocação FIFO"
             stat={`${fmtNum(necessitamSC)} SC · ${fmtNum(necessitamOP)} OP`}
@@ -195,7 +195,7 @@ export default async function DashboardPage() {
           <NavCard
             href="/faturamento"
             tone="emerald"
-            icon={Receipt}
+            icon={<Receipt className="size-5" />}
             title="Faturamento"
             subtitle="Notas fiscais + margem"
             stat={`${fmtCurrency(totalFatLiquido, { compact: true })} · ${fmtNum(totalNFs)} NFs`}
@@ -203,7 +203,7 @@ export default async function DashboardPage() {
           <NavCard
             href="/previsao-faturamento"
             tone="emerald"
-            icon={LineChart}
+            icon={<LineChart className="size-5" />}
             title="Previsão Faturamento"
             subtitle="Pipeline + projeção"
             stat={`Pipeline ${fmtCurrency(valorEmAberto, { compact: true })}`}
@@ -211,7 +211,7 @@ export default async function DashboardPage() {
           <NavCard
             href="/comparativo-ploomes"
             tone="rose"
-            icon={GitCompareArrows}
+            icon={<GitCompareArrows className="size-5" />}
             title="Comparativo Ploomes"
             subtitle="CRM × Pedidos efetivados"
             stat={

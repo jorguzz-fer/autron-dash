@@ -26,7 +26,7 @@ export const metadata = { title: "Entrada de Pedidos — Autron Dash" };
 
 const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
-interface SP { sort?: string; dir?: string; gran?: string }
+interface SP { sort?: string; dir?: string; sortC?: string; dirC?: string; gran?: string }
 
 const GRAN_OPTS = [
   { value: "day", label: "Dia" },
@@ -40,6 +40,7 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
 
   const sp = await searchParams;
   const sortState = parseSort(sp.sort, sp.dir);
+  const sortStateCli = parseSort(sp.sortC, sp.dirC);
   const gran: Granularity = parseGranularity(sp.gran, "month");
 
   const tenantId = session.user.tenantId;
@@ -248,9 +249,11 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
         >
           <DataTable
             columns={clienteCols(anoBase)}
-            rows={sortRows(topClientes as unknown as Record<string, unknown>[], sortState) as unknown as typeof topClientes}
+            rows={sortRows(topClientes as unknown as Record<string, unknown>[], sortStateCli) as unknown as typeof topClientes}
             rowKey={(c) => c.cliente}
             emptyMessage="Sem dados de cliente."
+            sortParam="sortC"
+            dirParam="dirC"
           />
         </CardSection>
 

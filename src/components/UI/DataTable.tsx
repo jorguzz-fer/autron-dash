@@ -17,6 +17,10 @@ interface Props<T> {
   rowKey: (row: T) => string;
   caption?: ReactNode;
   emptyMessage?: string;
+  /** Nome do query param de sort. Default: "sort". Passe um valor único por página se houver múltiplas tabelas. */
+  sortParam?: string;
+  /** Nome do query param de direção. Default: "dir". */
+  dirParam?: string;
 }
 
 export default function DataTable<T>({
@@ -25,6 +29,8 @@ export default function DataTable<T>({
   rowKey,
   caption,
   emptyMessage = "Nenhum registro.",
+  sortParam = "sort",
+  dirParam = "dir",
 }: Props<T>) {
   return (
     <div
@@ -68,7 +74,7 @@ export default function DataTable<T>({
                     className="px-4 py-2.5 font-medium whitespace-nowrap"
                   >
                     {c.sortKey ? (
-                      <SortableHeader sortKey={c.sortKey} align={c.align}>
+                      <SortableHeader sortKey={c.sortKey} align={c.align} sortParam={sortParam} dirParam={dirParam}>
                         {c.header}
                       </SortableHeader>
                     ) : (

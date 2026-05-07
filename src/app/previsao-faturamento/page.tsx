@@ -32,14 +32,15 @@ function shiftMonth(date: Date, deltaMonths: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + deltaMonths, 1);
 }
 
-interface SP { sort?: string; dir?: string }
+interface SP { sort?: string; dir?: string; sortT?: string; dirT?: string }
 
 export default async function PrevisaoFaturamentoPage({ searchParams }: { searchParams: Promise<SP> }) {
   const session = await auth();
   if (!session) redirect("/login");
 
   const sp = await searchParams;
-  const sortState = parseSort(sp.sort, sp.dir);
+  const sortStateTop = parseSort(sp.sort, sp.dir);
+  const sortStateTimeline = parseSort(sp.sortT, sp.dirT);
 
   const tenantId = session.user.tenantId;
   const [enriched, fats, metasAtual, metasAnterior] = await Promise.all([
@@ -171,12 +172,12 @@ export default async function PrevisaoFaturamentoPage({ searchParams }: { search
     .slice(0, 10);
   const top10Abertos = sortRows(
     baseTop10 as unknown as Record<string, unknown>[],
-    sortState,
+    sortStateTop,
   ) as unknown as PedidoEnriched[];
 
   const mesesSorted = sortRows(
     meses as unknown as Record<string, unknown>[],
-    sortState,
+    sortStateTimeline,
   ) as unknown as typeof meses;
 
   return (
@@ -281,6 +282,8 @@ export default async function PrevisaoFaturamentoPage({ searchParams }: { search
             rows={mesesSorted}
             rowKey={(m) => m.key}
             emptyMessage="Sem dados."
+            sortParam="sortT"
+            dirParam="dirT"
           />
         </CardSection>
 

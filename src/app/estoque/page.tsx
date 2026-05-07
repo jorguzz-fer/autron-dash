@@ -191,8 +191,8 @@ const estoqueCols: Column<PedidoEnriched>[] = [
 ];
 
 const errosCols: Column<PedidoEnriched>[] = [
-  { key: "pv", header: "PV", sortKey: "numPedido", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
-  { key: "item", header: "Item", sortKey: "item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
+  { key: "pv", header: "PV", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
+  { key: "item", header: "Item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
   {
     key: "produto",
     header: "Produto",
@@ -216,7 +216,6 @@ const errosCols: Column<PedidoEnriched>[] = [
   {
     key: "emissao",
     header: "Emissão",
-    sortKey: "dtEmissao",
     cell: (p) => <span className="numeric text-[12px]">{fmtDate(p.dtEmissao)}</span>,
   },
 ];

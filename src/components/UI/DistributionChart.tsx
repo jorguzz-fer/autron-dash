@@ -163,7 +163,7 @@ export default function DistributionChart({
         series={[{ name: "Valor", data: data.map((d) => d.value) }]}
         type="line"
         height={height}
-        remountKey={`line-${theme}`}
+        remountKey={`line-${theme}-${valueFormat}`}
       />
     );
   }
@@ -190,7 +190,7 @@ export default function DistributionChart({
       series={data.map((d) => d.value)}
       type={isDonut ? "donut" : "pie"}
       height={height}
-      remountKey={`${view}-${theme}-${data.length}`}
+      remountKey={`${view}-${theme}-${data.length}-${valueFormat}`}
     />
   );
 }

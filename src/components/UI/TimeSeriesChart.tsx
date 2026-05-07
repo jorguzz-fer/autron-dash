@@ -121,7 +121,7 @@ export default function TimeSeriesChart({
       series={series}
       type={type}
       height={height}
-      remountKey={`${type}-${theme}`}
+      remountKey={`${type}-${theme}-${valueFormat}`}
     />
   );
 }

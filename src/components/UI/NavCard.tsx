@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowUpRight, type LucideIcon } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 export type NavTone = "brand" | "violet" | "amber" | "emerald" | "rose" | "cyan" | "indigo";
 
@@ -9,7 +10,8 @@ interface NavCardProps {
   subtitle: string;
   /** Pequena estatística/destaque no rodapé (ex: "159 PVs · R$ 5.4M"). */
   stat?: string;
-  icon: LucideIcon;
+  /** Ícone como ReactNode (ex: <Activity className="size-5" />). Aceita ReactNode em vez de LucideIcon para evitar problemas de serialização em Client Components futuros. */
+  icon: ReactNode;
   tone: NavTone;
 }
 
@@ -61,7 +63,7 @@ const TONE_PALETTE: Record<
   },
 };
 
-export default function NavCard({ href, title, subtitle, stat, icon: Icon, tone }: NavCardProps) {
+export default function NavCard({ href, title, subtitle, stat, icon, tone }: NavCardProps) {
   const p = TONE_PALETTE[tone];
   return (
     <Link
@@ -78,7 +80,7 @@ export default function NavCard({ href, title, subtitle, stat, icon: Icon, tone 
           className="flex size-11 items-center justify-center rounded-xl"
           style={{ backgroundColor: p.iconBg, color: p.fg }}
         >
-          <Icon className="size-5" />
+          {icon}
         </div>
         <div
           className="flex size-7 items-center justify-center rounded-full transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5"

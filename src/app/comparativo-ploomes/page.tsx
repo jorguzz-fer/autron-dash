@@ -311,10 +311,10 @@ interface MesRow {
 
 const mesCols: Column<MesRow>[] = [
   { key: "mes", header: "Mês", cell: (m) => <span className="capitalize">{m.label}</span>, width: "100px" },
-  { key: "gc", header: "Ganhas (qtd)", sortKey: "ganhasCount", align: "right", cell: (m) => <span className="numeric">{fmtNum(m.ganhasCount)}</span> },
-  { key: "gv", header: "Ganhas (R$)", sortKey: "ganhasValor", align: "right", cell: (m) => <span className="numeric font-medium">{m.ganhasValor > 0 ? fmtCurrency(m.ganhasValor, { compact: true }) : "—"}</span> },
-  { key: "pc", header: "PVs (qtd)", sortKey: "pedidosCount", align: "right", cell: (m) => <span className="numeric">{fmtNum(m.pedidosCount)}</span> },
-  { key: "pv", header: "PVs (R$)", sortKey: "pedidosValor", align: "right", cell: (m) => <span className="numeric font-medium">{m.pedidosValor > 0 ? fmtCurrency(m.pedidosValor, { compact: true }) : "—"}</span> },
+  { key: "gc", header: "Ganhas (qtd)", align: "right", cell: (m) => <span className="numeric">{fmtNum(m.ganhasCount)}</span> },
+  { key: "gv", header: "Ganhas (R$)", align: "right", cell: (m) => <span className="numeric font-medium">{m.ganhasValor > 0 ? fmtCurrency(m.ganhasValor, { compact: true }) : "—"}</span> },
+  { key: "pc", header: "PVs (qtd)", align: "right", cell: (m) => <span className="numeric">{fmtNum(m.pedidosCount)}</span> },
+  { key: "pv", header: "PVs (R$)", align: "right", cell: (m) => <span className="numeric font-medium">{m.pedidosValor > 0 ? fmtCurrency(m.pedidosValor, { compact: true }) : "—"}</span> },
 ];
 
 interface TabelaRow extends PloomesOportunidade {
