@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ApexOptions } from "apexcharts";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
@@ -12,14 +12,38 @@ export interface TimeSeriesPoint {
   value: number;
 }
 
+export type ValueFormat = "number" | "currency" | "currencyCompact" | "percent";
+
+function makeFormatter(fmt: ValueFormat): (n: number) => string {
+  switch (fmt) {
+    case "currency":
+      return (n) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    case "currencyCompact":
+      return (n) =>
+        Math.abs(n) >= 1000
+          ? n.toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+              notation: "compact",
+              maximumFractionDigits: 1,
+            })
+          : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    case "percent":
+      return (n) => `${n.toFixed(1)}%`;
+    default:
+      return (n) => n.toLocaleString("pt-BR");
+  }
+}
+
 interface Props {
   data: TimeSeriesPoint[];
-  /** "bar" | "line" | "area". */
   type?: "bar" | "line" | "area";
-  /** Cor primária do trace. Default: brand. */
   color?: string;
-  /** Formatador do tooltip/eixo Y (ex: pra moeda). */
-  valueFormatter?: (n: number) => string;
+  /**
+   * Formato do eixo Y / tooltip. Use string identifier (não função, pra
+   * permitir passar de RSC sem quebrar serialização).
+   */
+  valueFormat?: ValueFormat;
   height?: number;
   seriesName?: string;
 }
@@ -28,7 +52,7 @@ export default function TimeSeriesChart({
   data,
   type = "bar",
   color = "#3b82f6",
-  valueFormatter = (n) => n.toLocaleString("pt-BR"),
+  valueFormat = "number",
   height = 280,
   seriesName = "Valor",
 }: Props) {
@@ -37,13 +61,15 @@ export default function TimeSeriesChart({
   useEffect(() => {
     const t = (document.documentElement.dataset.theme as "light" | "dark") || "dark";
     setTheme(t);
-    const observer = new MutationObserver(() => {
+    const obs = new MutationObserver(() => {
       const newTheme = (document.documentElement.dataset.theme as "light" | "dark") || "dark";
       setTheme(newTheme);
     });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    return () => observer.disconnect();
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
   }, []);
+
+  const formatter = useMemo(() => makeFormatter(valueFormat), [valueFormat]);
 
   const isDark = theme === "dark";
   const fgColor = isDark ? "#8a94a6" : "#64748b";
@@ -78,14 +104,11 @@ export default function TimeSeriesChart({
       axisTicks: { color: gridColor },
     },
     yaxis: {
-      labels: {
-        formatter: valueFormatter,
-        style: { fontSize: "11px" },
-      },
+      labels: { formatter, style: { fontSize: "11px" } },
     },
     tooltip: {
       theme: isDark ? "dark" : "light",
-      y: { formatter: valueFormatter },
+      y: { formatter },
     },
   };
 

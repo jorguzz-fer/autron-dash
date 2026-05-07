@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ApexOptions } from "apexcharts";
 import HBarRanking from "./HBarRanking";
 
@@ -14,33 +14,54 @@ export interface DistributionItem {
 }
 
 export type DistributionView = "bar" | "pie" | "donut" | "line" | "table";
+export type ValueFormat = "number" | "currency" | "currencyCompact" | "percent";
+
+function makeFormatter(fmt: ValueFormat): (n: number) => string {
+  switch (fmt) {
+    case "currency":
+      return (n) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    case "currencyCompact":
+      return (n) =>
+        Math.abs(n) >= 1000
+          ? n.toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+              notation: "compact",
+              maximumFractionDigits: 1,
+            })
+          : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    case "percent":
+      return (n) => `${n.toFixed(1)}%`;
+    default:
+      return (n) => n.toLocaleString("pt-BR");
+  }
+}
 
 interface Props {
   data: DistributionItem[];
   view: DistributionView;
-  valueFormatter?: (n: number) => string;
+  valueFormat?: ValueFormat;
   height?: number;
-  /** Tonalidade pra HBarRanking quando view=bar e modo Apex desabilitado. Default brand. */
   hbarTone?: "brand" | "success" | "warning" | "danger";
 }
 
 const PALETTE = [
-  "#3b82f6", // brand
-  "#10b981", // emerald
-  "#f59e0b", // amber
-  "#e11d48", // rose
-  "#8b5cf6", // violet
-  "#06b6d4", // cyan
-  "#6366f1", // indigo
-  "#84cc16", // lime
-  "#f97316", // orange
-  "#ec4899", // pink
+  "#3b82f6",
+  "#10b981",
+  "#f59e0b",
+  "#e11d48",
+  "#8b5cf6",
+  "#06b6d4",
+  "#6366f1",
+  "#84cc16",
+  "#f97316",
+  "#ec4899",
 ];
 
 export default function DistributionChart({
   data,
   view,
-  valueFormatter = (n) => n.toLocaleString("pt-BR"),
+  valueFormat = "number",
   height = 280,
   hbarTone = "brand",
 }: Props) {
@@ -55,6 +76,8 @@ export default function DistributionChart({
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     return () => obs.disconnect();
   }, []);
+
+  const formatter = useMemo(() => makeFormatter(valueFormat), [valueFormat]);
 
   if (data.length === 0) {
     return (
@@ -93,7 +116,7 @@ export default function DistributionChart({
                   className="numeric px-3 py-2 text-right font-medium"
                   style={{ color: "var(--fg-strong)" }}
                 >
-                  {d.display ?? valueFormatter(d.value)}
+                  {d.display ?? formatter(d.value)}
                 </td>
               </tr>
             ))}
@@ -112,7 +135,6 @@ export default function DistributionChart({
     );
   }
 
-  // pie / donut / line — usa ApexCharts
   const isDark = theme === "dark";
   const fgColor = isDark ? "#8a94a6" : "#64748b";
   const gridColor = isDark ? "rgba(255,255,255,0.06)" : "#e6ebf1";
@@ -135,8 +157,8 @@ export default function DistributionChart({
         categories: data.map((d) => d.label),
         labels: { style: { fontSize: "11px" } },
       },
-      yaxis: { labels: { formatter: valueFormatter, style: { fontSize: "11px" } } },
-      tooltip: { theme: isDark ? "dark" : "light", y: { formatter: valueFormatter } },
+      yaxis: { labels: { formatter, style: { fontSize: "11px" } } },
+      tooltip: { theme: isDark ? "dark" : "light", y: { formatter } },
     };
     return <Chart options={options} series={[{ name: "Valor", data: data.map((d) => d.value) }]} type="line" height={height} />;
   }
@@ -154,10 +176,8 @@ export default function DistributionChart({
     labels: data.map((d) => d.label),
     legend: { position: "bottom", fontSize: "12px" },
     dataLabels: { enabled: true, formatter: (v) => `${(v as number).toFixed(0)}%` },
-    plotOptions: isDonut
-      ? { pie: { donut: { size: "62%" } } }
-      : undefined,
-    tooltip: { theme: isDark ? "dark" : "light", y: { formatter: valueFormatter } },
+    plotOptions: isDonut ? { pie: { donut: { size: "62%" } } } : undefined,
+    tooltip: { theme: isDark ? "dark" : "light", y: { formatter } },
     stroke: { width: 1, colors: [isDark ? "#0d1322" : "#ffffff"] },
   };
   return (

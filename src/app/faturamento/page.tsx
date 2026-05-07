@@ -168,7 +168,7 @@ export default async function FaturamentoPage({
             <TimeSeriesChart
               data={fatSeries}
               type="area"
-              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              valueFormat="currencyCompact"
               seriesName="Faturamento líquido"
             />
           </CardSection>
@@ -182,7 +182,7 @@ export default async function FaturamentoPage({
             <DistributionChart
               data={topVendedores.map((v) => ({ ...v, display: fmtCurrency(v.value, { compact: true }) }))}
               view={vendView}
-              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              valueFormat="currencyCompact"
               hbarTone="success"
             />
           </CardSection>
@@ -196,7 +196,7 @@ export default async function FaturamentoPage({
             <DistributionChart
               data={topClientes.map((v) => ({ ...v, display: fmtCurrency(v.value, { compact: true }) }))}
               view={cliView}
-              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              valueFormat="currencyCompact"
               hbarTone="brand"
             />
           </CardSection>

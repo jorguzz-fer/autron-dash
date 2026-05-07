@@ -13,6 +13,8 @@ const VALID_DATASETS = new Set<Dataset>([
   "ESTOQUE",
   "FATURAMENTO",
   "CLASSIFICACAO",
+  "META",
+  "PLOOMES",
 ]);
 
 export const maxDuration = 120;

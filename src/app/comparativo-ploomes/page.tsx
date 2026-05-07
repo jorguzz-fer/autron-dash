@@ -261,7 +261,7 @@ export default async function ComparativoPloomesPage({
                 display: fmtCurrency(r.value, { compact: true }),
               }))}
               view={respView}
-              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              valueFormat="currencyCompact"
               hbarTone="success"
             />
           </CardSection>
@@ -278,7 +278,7 @@ export default async function ComparativoPloomesPage({
                 display: fmtCurrency(c.value, { compact: true }),
               }))}
               view={cliView}
-              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              valueFormat="currencyCompact"
               hbarTone="brand"
             />
           </CardSection>

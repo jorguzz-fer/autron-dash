@@ -194,7 +194,7 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
           <TimeSeriesChart
             data={entradaSeries}
             type="bar"
-            valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+            valueFormat="currencyCompact"
             seriesName="Valor"
             height={320}
           />
