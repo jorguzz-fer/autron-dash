@@ -15,6 +15,8 @@ const DATASET_ORDER: Dataset[] = [
   "ESTOQUE",
   "FATURAMENTO",
   "CLASSIFICACAO",
+  "META",
+  "PLOOMES",
 ];
 
 const ROLES_WRITE = new Set(["ADMIN", "DIRETOR", "GERENTE", "OPERADOR"]);

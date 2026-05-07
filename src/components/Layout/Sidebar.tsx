@@ -7,6 +7,7 @@ import {
   CalendarClock,
   CheckCircle2,
   ClipboardList,
+  GitCompareArrows,
   LayoutDashboard,
   LineChart,
   LogOut,
@@ -33,6 +34,7 @@ const NAV_PRIMARY: NavItem[] = [
   { label: "Estoque & SC/OP", href: "/estoque", icon: Package },
   { label: "Faturamento", href: "/faturamento", icon: Receipt },
   { label: "Previsão Faturamento", href: "/previsao-faturamento", icon: LineChart },
+  { label: "Comparativo Ploomes", href: "/comparativo-ploomes", icon: GitCompareArrows },
 ];
 
 const NAV_TOOLS: NavItem[] = [

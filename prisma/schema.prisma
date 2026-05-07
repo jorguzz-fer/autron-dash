@@ -25,6 +25,7 @@ model Tenant {
   faturamentos          Faturamento[]
   classificacoesProduto ClassificacaoProduto[]
   metas                 Meta[]
+  ploomesOportunidades  PloomesOportunidade[]
   dataUploads           DataUpload[]
 }
 
@@ -128,6 +129,7 @@ enum Dataset {
   FATURAMENTO
   CLASSIFICACAO
   META
+  PLOOMES
 }
 
 enum MetaCategoria {
@@ -300,4 +302,33 @@ model Meta {
 
   @@unique([tenantId, unidade, categoria, ano, mes])
   @@index([tenantId, ano, categoria])
+}
+
+// ── 7. PloomesOportunidade (Ganhas.xlsx — export do CRM Ploomes) ──────────
+// Cada linha = 1 oportunidade ganha no CRM. Cruzamento com Pedido via
+// "Número do Pedido de Compra do cliente" (= Pedido.pedCliente).
+model PloomesOportunidade {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  ploomesId           String
+  titulo              String
+  codigoCliente       String?
+  cliente             String?
+  responsavel         String?
+  valor               Decimal?  @db.Decimal(15, 2)
+  termino             DateTime? // quando a oportunidade foi GANHA
+  criacao             DateTime? // quando foi criada no CRM
+  marcadores          String?
+  cidadeCliente       String?
+  ufCliente           String?
+  emailContato        String?
+  pedidoCompraCliente String?   // chave de cruzamento com Pedido.pedCliente
+  createdAt           DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, ploomesId])
+  @@index([tenantId, termino])
+  @@index([tenantId, pedidoCompraCliente])
+  @@index([tenantId, responsavel])
 }

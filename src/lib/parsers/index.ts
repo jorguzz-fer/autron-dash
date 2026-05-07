@@ -5,6 +5,7 @@ import { parseEstoque } from "./estoque";
 import { parseFaturamento } from "./faturamento";
 import { parseClassificacao } from "./classificacao";
 import { parseMetas } from "./metas";
+import { parsePloomes } from "./ploomes";
 
 export const PARSERS = {
   PEDIDO: parsePedido,
@@ -13,6 +14,7 @@ export const PARSERS = {
   FATURAMENTO: parseFaturamento,
   CLASSIFICACAO: parseClassificacao,
   META: parseMetas,
+  PLOOMES: parsePloomes,
 } as const;
 
 export const DATASET_LABELS: Record<Dataset, string> = {
@@ -22,6 +24,7 @@ export const DATASET_LABELS: Record<Dataset, string> = {
   FATURAMENTO: "Faturamento (faturamento.xlsx)",
   CLASSIFICACAO: "Classificação Comprando/Produzindo (sciozvs0.csv)",
   META: "Metas Budget (Metas_Budget_Grupo_Autron_<ano>.xlsx)",
+  PLOOMES: "Ploomes — Oportunidades Ganhas (Ganhas.xlsx)",
 };
 
 export const DATASET_ACCEPTS: Record<Dataset, string> = {
@@ -31,6 +34,7 @@ export const DATASET_ACCEPTS: Record<Dataset, string> = {
   FATURAMENTO: ".xlsx",
   CLASSIFICACAO: ".csv",
   META: ".xlsx",
+  PLOOMES: ".xlsx",
 };
 
 export type { PedidoRow } from "./pedido";
@@ -39,3 +43,4 @@ export type { EstoqueRow } from "./estoque";
 export type { FaturamentoRow } from "./faturamento";
 export type { ClassificacaoRow } from "./classificacao";
 export type { MetaRow } from "./metas";
+export type { PloomesRow } from "./ploomes";
