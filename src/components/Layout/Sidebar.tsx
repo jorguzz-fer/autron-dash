@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
-  Building2,
   CalendarClock,
   CheckCircle2,
   LayoutDashboard,
@@ -59,29 +58,6 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
         style={{ borderBottom: "1px solid var(--sidebar-border)" }}
       >
         <Logo height={34} priority />
-      </div>
-
-      {/* Tenant card */}
-      <div className="px-3 pt-4">
-        <div
-          className="flex items-center gap-2.5 rounded-lg px-2.5 py-2"
-          style={{ backgroundColor: "var(--sidebar-elev)" }}
-        >
-          <div
-            className="flex size-8 items-center justify-center rounded-md text-[color:var(--sidebar-fg-strong)]"
-            style={{ backgroundColor: "rgb(59 130 246 / 0.15)" }}
-          >
-            <Building2 className="size-4" />
-          </div>
-          <div className="min-w-0 leading-tight">
-            <div className="text-[12px] font-medium text-[color:var(--sidebar-fg-strong)] truncate">
-              @{user.tenantSlug}
-            </div>
-            <div className="text-[10px] uppercase tracking-wider text-[color:var(--sidebar-fg)]">
-              Tenant ativo
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Nav */}
