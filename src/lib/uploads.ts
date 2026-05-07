@@ -69,13 +69,21 @@ export async function processUpload(input: ProcessUploadInput): Promise<ProcessU
       { timeout: 120_000, maxWait: 10_000 },
     );
 
-    const finished = await prisma.dataUpload.update({
-      where: { id: upload.id },
+    // Defense-in-depth: filtro tenantId mesmo o id sendo cuid recém-gerado
+    // (vem de upload.id da linha 40, não de input de usuário).
+    const updatedCount = await prisma.dataUpload.updateMany({
+      where: { id: upload.id, tenantId },
       data: {
         status: "SUCCESS",
         rowCount: parsed.rows.length,
         finishedAt: new Date(),
       },
+    });
+    if (updatedCount.count === 0) {
+      throw new Error("DataUpload não encontrado para o tenant atual");
+    }
+    const finished = await prisma.dataUpload.findUniqueOrThrow({
+      where: { id: upload.id },
     });
 
     await logAudit({
@@ -105,8 +113,8 @@ export async function processUpload(input: ProcessUploadInput): Promise<ProcessU
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await prisma.dataUpload.update({
-      where: { id: upload.id },
+    await prisma.dataUpload.updateMany({
+      where: { id: upload.id, tenantId },
       data: {
         status: "FAILED",
         errorMessage: message.slice(0, 500),

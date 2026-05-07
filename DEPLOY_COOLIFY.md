@@ -108,3 +108,59 @@ Após o domínio estar OK, mantenha `AUTH_TRUST_HOST=true` (não precisa setar `
 - CPU: 1 core (parser de Excel é CPU-bound)
 - RAM: 1 GB (mínimo) / 2 GB (confortável p/ planilhas grandes)
 - Disco: 5 GB pra Postgres + logs
+
+## Rotação periódica de AUTH_SECRET (security)
+
+Recomendado **a cada 90 dias** ou imediatamente se houver suspeita de
+comprometimento. A rotação invalida todos os JWTs ativos — todos os usuários
+precisarão fazer login de novo, mas é a defesa mais forte contra session
+hijacking persistente.
+
+```bash
+# 1) Gere um novo secret no seu Mac (NÃO no servidor — o terminal Coolify
+#    pode loggar histórico)
+openssl rand -base64 32
+
+# 2) No painel Coolify → app autron-dash → Environment Variables
+#    Atualize AUTH_SECRET com o novo valor
+
+# 3) Redeploy (manual ou via push)
+#    O Coolify recria o container com o novo secret
+
+# 4) Avise os usuários que vão precisar logar de novo
+```
+
+**Não confunda com `SEED_ADMIN_PASSWORD`** — esse só é usado pelo `seed-admin.js`
+no primeiro setup. Trocá-lo no env não muda a senha do admin no banco.
+Para alterar a senha do admin, use o terminal Coolify:
+
+```sh
+node -e "
+const{PrismaClient}=require('@prisma/client');
+const bcrypt=require('bcryptjs');
+const p=new PrismaClient();
+(async()=>{
+  const senha='NOVA_SENHA_FORTE';  // edite (10+ chars, 3 classes)
+  const hash=await bcrypt.hash(senha,12);
+  await p.user.updateMany({where:{email:'fer.jorge@gmail.com'},data:{passwordHash:hash}});
+  console.log('OK');
+})().finally(()=>p.\$disconnect());
+"
+```
+
+## Cuidados de segurança operacional
+
+- **Nunca** colocar secrets em ARGs do Dockerfile (o Coolify avisa
+  `SecretsUsedInArgOrEnv` se houver) — secrets devem entrar via env vars do
+  Coolify em runtime, não em build time.
+- **Nunca** subir planilhas reais (`*.xlsx`, `*.csv`) pelo Git — o `.gitignore`
+  bloqueia mas o GitHub Web UI não respeita gitignore. Se subir por engano,
+  apague o histórico via `git filter-repo` (não basta `git rm`).
+- Imagens Docker antigas se acumulam. Rode `docker system prune -af` no
+  servidor mensalmente ou quando o disco passar de 70%.
+- Audit log fica em `AuditLog` (table). Para review periódica:
+  ```sql
+  SELECT action, COUNT(*) FROM "AuditLog"
+  WHERE "createdAt" > NOW() - INTERVAL '7 days'
+  GROUP BY action ORDER BY COUNT(*) DESC;
+  ```
