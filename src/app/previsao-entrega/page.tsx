@@ -8,7 +8,7 @@ import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
 import HBarRanking from "@/components/UI/HBarRanking";
 import { fmtDate, fmtNum } from "@/lib/format";
-import { Clock, CheckCircle2, HelpCircle, Timer } from "lucide-react";
+import { Clock, CheckCircle2, HelpCircle, Timer, AlertOctagon } from "lucide-react";
 import type { PedidoEnriched } from "@/lib/domain";
 
 export const metadata = { title: "Previsão Entrega — Autron Dash" };
@@ -28,6 +28,10 @@ export default async function PrevisaoEntregaPage() {
     atrasados.length > 0
       ? Math.round(atrasados.reduce((a, p) => a + (p.diasAtrasoCliente ?? 0), 0) / atrasados.length)
       : 0;
+  const maiorAtraso = atrasados.reduce(
+    (max, p) => Math.max(max, p.diasAtrasoCliente ?? 0),
+    0,
+  );
 
   // Top 10 mais atrasados
   const top10 = [...atrasados]
@@ -53,7 +57,7 @@ export default async function PrevisaoEntregaPage() {
   return (
     <AppShell title="Previsão Entrega" subtitle="Atrasos vs DT. Fat. Cli + semana de entrega">
       <div className="space-y-5">
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <KPICard
             label="Atrasados"
             value={fmtNum(atrasados.length)}
@@ -61,6 +65,13 @@ export default async function PrevisaoEntregaPage() {
             icon={<Clock className="size-4" />}
             tone="danger"
             active={atrasados.length > 0}
+          />
+          <KPICard
+            label="Maior atraso"
+            value={`${maiorAtraso}d`}
+            hint="Pior caso de atraso vs cliente"
+            icon={<AlertOctagon className="size-4" />}
+            tone="danger"
           />
           <KPICard
             label="No prazo"

@@ -61,6 +61,17 @@ export default async function FaturamentoPage() {
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
 
+  // Top clientes por fat. líquido
+  const byCliente = new Map<string, number>();
+  for (const r of fats) {
+    const c = r.razaoSocial ?? "Sem cliente";
+    byCliente.set(c, (byCliente.get(c) ?? 0) + (r.faturamentoLiquido ?? 0));
+  }
+  const topClientes = Array.from(byCliente.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
   // Tabela: ordenado por emissao desc, top 50
   const tabela = fats.slice(0, 50);
 
@@ -98,7 +109,7 @@ export default async function FaturamentoPage() {
           />
         </section>
 
-        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <CardSection title="Faturamento líquido por mês" subtitle="Últimos 12 meses">
             <HBarRanking
               items={monthsSorted.map(([k, v]) => ({
@@ -116,6 +127,15 @@ export default async function FaturamentoPage() {
                 display: fmtCurrency(v.value, { compact: true }),
               }))}
               tone="success"
+            />
+          </CardSection>
+          <CardSection title="Top clientes" subtitle="Por faturamento líquido">
+            <HBarRanking
+              items={topClientes.map((v) => ({
+                ...v,
+                display: fmtCurrency(v.value, { compact: true }),
+              }))}
+              tone="brand"
             />
           </CardSection>
         </section>
