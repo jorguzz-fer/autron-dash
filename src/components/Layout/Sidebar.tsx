@@ -53,9 +53,12 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
       className="hidden lg:flex h-screen w-64 shrink-0 flex-col sticky top-0 z-30"
       style={{ backgroundColor: "var(--sidebar-bg)", borderRight: "1px solid var(--sidebar-border)" }}
     >
-      {/* Header — wordmark */}
-      <div className="px-5 py-5" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
-        <Logo height={26} priority />
+      {/* Header — wordmark centralizado */}
+      <div
+        className="flex items-center justify-center px-5 py-5"
+        style={{ borderBottom: "1px solid var(--sidebar-border)" }}
+      >
+        <Logo height={34} priority />
       </div>
 
       {/* Tenant card */}

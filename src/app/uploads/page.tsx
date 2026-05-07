@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { Dataset } from "@prisma/client";
 import { DATASET_LABELS } from "@/lib/parsers";
 import UploadCard from "./UploadCard";
+import GenerateReportsBanner from "@/components/UI/GenerateReportsBanner";
 
 export const metadata = { title: "Upload de planilhas — Autron Dash" };
 
@@ -57,6 +58,11 @@ export default async function UploadsPage() {
             GERENTE e OPERADOR podem fazer upload.
           </div>
         )}
+
+        {/* Banner: gerar relatórios (habilita quando os 5 datasets têm upload SUCCESS) */}
+        <GenerateReportsBanner
+          state={{ loaded: lastByDataset.size, total: DATASET_ORDER.length }}
+        />
 
         {/* Cards de upload */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
