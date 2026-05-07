@@ -76,10 +76,7 @@ async function main() {
       entry,
     );
 
-    const statements = sql
-      .split(/;\s*\n/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
+    const statements = splitSql(sql);
 
     // Sanity check: cada statement deve começar com uma keyword SQL conhecida
     // (proteção contra warnings/erros do Prisma CLI vazando pro arquivo).
@@ -115,6 +112,36 @@ async function main() {
   }
 
   console.log("Migrations OK");
+}
+
+/**
+ * Split SQL respeitando blocos `$$ ... $$` (PostgreSQL anonymous code blocks).
+ * Não quebra ponto-e-vírgula DENTRO de DO $$ ... EXCEPTION ... END $$;.
+ */
+function splitSql(sql) {
+  const stmts = [];
+  let buf = "";
+  let inDollar = false;
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    const c2 = sql[i + 1];
+    if (c === "$" && c2 === "$") {
+      inDollar = !inDollar;
+      buf += "$$";
+      i++;
+      continue;
+    }
+    if (c === ";" && !inDollar) {
+      const trimmed = buf.trim();
+      if (trimmed) stmts.push(trimmed);
+      buf = "";
+      continue;
+    }
+    buf += c;
+  }
+  const tail = buf.trim();
+  if (tail) stmts.push(tail);
+  return stmts;
 }
 
 main()
