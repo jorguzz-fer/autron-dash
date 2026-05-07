@@ -180,7 +180,7 @@ export default function DistributionChart({
     labels: data.map((d) => d.label),
     legend: { position: "bottom", fontSize: "12px" },
     dataLabels: { enabled: true, formatter: (v) => `${(v as number).toFixed(0)}%` },
-    plotOptions: isDonut ? { pie: { donut: { size: "62%" } } } : undefined,
+    plotOptions: isDonut ? { pie: { donut: { size: "62%" } } } : {},
     tooltip: { theme: isDark ? "dark" : "light", y: { formatter } },
     stroke: { width: 1, colors: [isDark ? "#0d1322" : "#ffffff"] },
   };

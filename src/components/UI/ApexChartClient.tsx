@@ -51,14 +51,40 @@ export default function ApexChartClient({ options, series, type, height = 280, r
     (async () => {
       const mod = await import("apexcharts");
       if (cancelled || !node) return;
+
+      // Aguarda um frame para garantir que o container tem dimensões CSS resolvidas.
+      // Necessário para pie/donut que precisam de largura definida no constructor.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (cancelled || !node) return;
+
       const ApexCharts = mod.default;
       const fullOptions = {
         ...options,
-        chart: { ...options.chart, type, height },
+        chart: { ...options.chart, type, height, width: "100%" },
         series,
       };
-      const chart = new ApexCharts(node, fullOptions);
-      await chart.render();
+      let chart: InstanceType<typeof ApexCharts> | null = null;
+      try {
+        chart = new ApexCharts(node, fullOptions);
+      } catch (e) {
+        console.error("[ApexChartClient] constructor error", e);
+        return;
+      }
+      if (cancelled) {
+        try { chart.destroy(); } catch { /* já destruído */ }
+        return;
+      }
+      try {
+        await chart.render();
+      } catch (e) {
+        console.error("[ApexChartClient] render error", e);
+        try { chart.destroy(); } catch { /* já destruído */ }
+        return;
+      }
+      if (cancelled) {
+        try { chart.destroy(); } catch { /* já destruído */ }
+        return;
+      }
       chartRef.current = chart;
     })();
 
