@@ -1,11 +1,9 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { ApexOptions } from "apexcharts";
 import HBarRanking from "./HBarRanking";
-
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
+import ApexChartClient from "./ApexChartClient";
 
 export interface DistributionItem {
   label: string;
@@ -142,7 +140,6 @@ export default function DistributionChart({
   if (view === "line") {
     const options: ApexOptions = {
       chart: {
-        type: "line",
         toolbar: { show: false },
         background: "transparent",
         foreColor: fgColor,
@@ -160,13 +157,20 @@ export default function DistributionChart({
       yaxis: { labels: { formatter, style: { fontSize: "11px" } } },
       tooltip: { theme: isDark ? "dark" : "light", y: { formatter } },
     };
-    return <Chart options={options} series={[{ name: "Valor", data: data.map((d) => d.value) }]} type="line" height={height} />;
+    return (
+      <ApexChartClient
+        options={options}
+        series={[{ name: "Valor", data: data.map((d) => d.value) }]}
+        type="line"
+        height={height}
+        remountKey={`line-${theme}`}
+      />
+    );
   }
 
   const isDonut = view === "donut";
   const options: ApexOptions = {
     chart: {
-      type: isDonut ? "donut" : "pie",
       background: "transparent",
       foreColor: fgColor,
       fontFamily: "var(--font-geist-sans), system-ui, sans-serif",
@@ -181,11 +185,12 @@ export default function DistributionChart({
     stroke: { width: 1, colors: [isDark ? "#0d1322" : "#ffffff"] },
   };
   return (
-    <Chart
+    <ApexChartClient
       options={options}
       series={data.map((d) => d.value)}
       type={isDonut ? "donut" : "pie"}
       height={height}
+      remountKey={`${view}-${theme}-${data.length}`}
     />
   );
 }

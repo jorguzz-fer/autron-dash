@@ -1,10 +1,8 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { ApexOptions } from "apexcharts";
-
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
+import ApexChartClient from "./ApexChartClient";
 
 export interface TimeSeriesPoint {
   key: string;
@@ -39,10 +37,6 @@ interface Props {
   data: TimeSeriesPoint[];
   type?: "bar" | "line" | "area";
   color?: string;
-  /**
-   * Formato do eixo Y / tooltip. Use string identifier (não função, pra
-   * permitir passar de RSC sem quebrar serialização).
-   */
   valueFormat?: ValueFormat;
   height?: number;
   seriesName?: string;
@@ -77,7 +71,6 @@ export default function TimeSeriesChart({
 
   const options: ApexOptions = {
     chart: {
-      type,
       toolbar: { show: false },
       background: "transparent",
       foreColor: fgColor,
@@ -122,5 +115,13 @@ export default function TimeSeriesChart({
     );
   }
 
-  return <Chart options={options} series={series} type={type} height={height} />;
+  return (
+    <ApexChartClient
+      options={options}
+      series={series}
+      type={type}
+      height={height}
+      remountKey={`${type}-${theme}`}
+    />
+  );
 }

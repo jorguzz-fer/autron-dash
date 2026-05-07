@@ -30,7 +30,6 @@
     "next-auth": "^5.0.0-beta.29",
     "papaparse": "^5.5.3",
     "react": "^19.0.0",
-    "react-apexcharts": "^1.9.0",
     "react-dom": "^19.0.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
     "zod": "^3.24.4"
