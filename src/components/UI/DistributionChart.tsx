@@ -1,0 +1,171 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import type { ApexOptions } from "apexcharts";
+import HBarRanking from "./HBarRanking";
+
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
+
+export interface DistributionItem {
+  label: string;
+  value: number;
+  display?: string;
+}
+
+export type DistributionView = "bar" | "pie" | "donut" | "line" | "table";
+
+interface Props {
+  data: DistributionItem[];
+  view: DistributionView;
+  valueFormatter?: (n: number) => string;
+  height?: number;
+  /** Tonalidade pra HBarRanking quando view=bar e modo Apex desabilitado. Default brand. */
+  hbarTone?: "brand" | "success" | "warning" | "danger";
+}
+
+const PALETTE = [
+  "#3b82f6", // brand
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#e11d48", // rose
+  "#8b5cf6", // violet
+  "#06b6d4", // cyan
+  "#6366f1", // indigo
+  "#84cc16", // lime
+  "#f97316", // orange
+  "#ec4899", // pink
+];
+
+export default function DistributionChart({
+  data,
+  view,
+  valueFormatter = (n) => n.toLocaleString("pt-BR"),
+  height = 280,
+  hbarTone = "brand",
+}: Props) {
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  useEffect(() => {
+    const t = (document.documentElement.dataset.theme as "light" | "dark") || "dark";
+    setTheme(t);
+    const obs = new MutationObserver(() => {
+      const newTheme = (document.documentElement.dataset.theme as "light" | "dark") || "dark";
+      setTheme(newTheme);
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, []);
+
+  if (data.length === 0) {
+    return (
+      <p className="py-8 text-center text-[13px]" style={{ color: "var(--fg-muted)" }}>
+        Sem dados.
+      </p>
+    );
+  }
+
+  if (view === "table") {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr
+              className="text-[10.5px] uppercase tracking-wider"
+              style={{
+                color: "var(--fg-muted)",
+                backgroundColor: "var(--surface-2)",
+              }}
+            >
+              <th className="px-3 py-2 text-left font-medium">Item</th>
+              <th className="px-3 py-2 text-right font-medium">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((d, i) => (
+              <tr
+                key={`${i}-${d.label}`}
+                style={{ borderTop: "1px solid var(--border-soft)" }}
+              >
+                <td className="px-3 py-2" style={{ color: "var(--fg)" }}>
+                  {d.label}
+                </td>
+                <td
+                  className="numeric px-3 py-2 text-right font-medium"
+                  style={{ color: "var(--fg-strong)" }}
+                >
+                  {d.display ?? valueFormatter(d.value)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (view === "bar") {
+    return (
+      <HBarRanking
+        items={data.map((d) => ({ label: d.label, value: d.value, display: d.display }))}
+        tone={hbarTone}
+      />
+    );
+  }
+
+  // pie / donut / line — usa ApexCharts
+  const isDark = theme === "dark";
+  const fgColor = isDark ? "#8a94a6" : "#64748b";
+  const gridColor = isDark ? "rgba(255,255,255,0.06)" : "#e6ebf1";
+
+  if (view === "line") {
+    const options: ApexOptions = {
+      chart: {
+        type: "line",
+        toolbar: { show: false },
+        background: "transparent",
+        foreColor: fgColor,
+        fontFamily: "var(--font-geist-sans), system-ui, sans-serif",
+      },
+      theme: { mode: isDark ? "dark" : "light" },
+      colors: [PALETTE[0]],
+      dataLabels: { enabled: false },
+      stroke: { curve: "smooth", width: 2.5 },
+      grid: { borderColor: gridColor },
+      xaxis: {
+        categories: data.map((d) => d.label),
+        labels: { style: { fontSize: "11px" } },
+      },
+      yaxis: { labels: { formatter: valueFormatter, style: { fontSize: "11px" } } },
+      tooltip: { theme: isDark ? "dark" : "light", y: { formatter: valueFormatter } },
+    };
+    return <Chart options={options} series={[{ name: "Valor", data: data.map((d) => d.value) }]} type="line" height={height} />;
+  }
+
+  const isDonut = view === "donut";
+  const options: ApexOptions = {
+    chart: {
+      type: isDonut ? "donut" : "pie",
+      background: "transparent",
+      foreColor: fgColor,
+      fontFamily: "var(--font-geist-sans), system-ui, sans-serif",
+    },
+    theme: { mode: isDark ? "dark" : "light" },
+    colors: PALETTE,
+    labels: data.map((d) => d.label),
+    legend: { position: "bottom", fontSize: "12px" },
+    dataLabels: { enabled: true, formatter: (v) => `${(v as number).toFixed(0)}%` },
+    plotOptions: isDonut
+      ? { pie: { donut: { size: "62%" } } }
+      : undefined,
+    tooltip: { theme: isDark ? "dark" : "light", y: { formatter: valueFormatter } },
+    stroke: { width: 1, colors: [isDark ? "#0d1322" : "#ffffff"] },
+  };
+  return (
+    <Chart
+      options={options}
+      series={data.map((d) => d.value)}
+      type={isDonut ? "donut" : "pie"}
+      height={height}
+    />
+  );
+}

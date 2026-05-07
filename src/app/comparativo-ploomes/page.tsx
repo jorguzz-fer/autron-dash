@@ -7,8 +7,9 @@ import KPICard from "@/components/UI/KPICard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
-import HBarRanking from "@/components/UI/HBarRanking";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
+import SegmentedControl from "@/components/UI/SegmentedControl";
+import DistributionChart, { type DistributionView } from "@/components/UI/DistributionChart";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import {
@@ -27,6 +28,19 @@ interface SP {
   to?: string;
   sort?: string;
   dir?: string;
+  respView?: string;
+  cliView?: string;
+}
+
+const VIEW_OPTS = [
+  { value: "bar", label: "Barras" },
+  { value: "pie", label: "Pizza" },
+  { value: "table", label: "Tabela" },
+];
+function parseView(v: string | undefined, fb: DistributionView = "bar"): DistributionView {
+  return (["bar", "pie", "donut", "line", "table"] as const).includes(v as DistributionView)
+    ? (v as DistributionView)
+    : fb;
 }
 
 export default async function ComparativoPloomesPage({
@@ -41,6 +55,8 @@ export default async function ComparativoPloomesPage({
   const desde = parseDateInput(sp.from);
   const ate = parseDateInput(sp.to, true);
   const sortState = parseSort(sp.sort, sp.dir);
+  const respView = parseView(sp.respView, "bar");
+  const cliView = parseView(sp.cliView, "bar");
 
   const tenantId = session.user.tenantId;
   const [oportunidades, enriched] = await Promise.all([
@@ -231,23 +247,39 @@ export default async function ComparativoPloomesPage({
         </CardSection>
 
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <CardSection title="Top responsáveis" subtitle="Por valor de oportunidades ganhas">
-            <HBarRanking
-              items={topResponsaveis.map((r) => ({
+          <CardSection
+            title="Top responsáveis"
+            subtitle="Por valor de oportunidades ganhas"
+            actions={
+              <SegmentedControl name="respView" value={respView} options={VIEW_OPTS} size="sm" ariaLabel="Visualização" />
+            }
+          >
+            <DistributionChart
+              data={topResponsaveis.map((r) => ({
                 label: `${r.label} (${r.count})`,
                 value: r.value,
                 display: fmtCurrency(r.value, { compact: true }),
               }))}
-              tone="success"
+              view={respView}
+              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              hbarTone="success"
             />
           </CardSection>
-          <CardSection title="Top clientes" subtitle="Por valor de oportunidades ganhas">
-            <HBarRanking
-              items={topClientes.map((c) => ({
+          <CardSection
+            title="Top clientes"
+            subtitle="Por valor de oportunidades ganhas"
+            actions={
+              <SegmentedControl name="cliView" value={cliView} options={VIEW_OPTS} size="sm" ariaLabel="Visualização" />
+            }
+          >
+            <DistributionChart
+              data={topClientes.map((c) => ({
                 ...c,
                 display: fmtCurrency(c.value, { compact: true }),
               }))}
-              tone="brand"
+              view={cliView}
+              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              hbarTone="brand"
             />
           </CardSection>
         </section>

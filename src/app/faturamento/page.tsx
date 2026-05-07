@@ -5,10 +5,13 @@ import { getFaturamentos, type FaturamentoRow } from "@/lib/services/faturamento
 import KPICard from "@/components/UI/KPICard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
-import HBarRanking from "@/components/UI/HBarRanking";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
-import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
+import SegmentedControl from "@/components/UI/SegmentedControl";
+import TimeSeriesChart from "@/components/UI/TimeSeriesChart";
+import DistributionChart, { type DistributionView } from "@/components/UI/DistributionChart";
+import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
+import { aggregateByGranularity, parseGranularity, type Granularity } from "@/lib/aggregate";
 import { Receipt, TrendingUp, FileText, Percent } from "lucide-react";
 
 export const metadata = { title: "Faturamento — Autron Dash" };
@@ -18,6 +21,25 @@ interface SP {
   to?: string;
   sort?: string;
   dir?: string;
+  gran?: string;
+  vendView?: string;
+  cliView?: string;
+}
+
+const GRAN_OPTS = [
+  { value: "day", label: "Dia" },
+  { value: "week", label: "Semana" },
+  { value: "month", label: "Mês" },
+];
+const VIEW_OPTS = [
+  { value: "bar", label: "Barras" },
+  { value: "pie", label: "Pizza" },
+  { value: "table", label: "Tabela" },
+];
+function parseView(v: string | undefined, fb: DistributionView = "bar"): DistributionView {
+  return (["bar", "pie", "donut", "line", "table"] as const).includes(v as DistributionView)
+    ? (v as DistributionView)
+    : fb;
 }
 
 export default async function FaturamentoPage({
@@ -32,6 +54,9 @@ export default async function FaturamentoPage({
   const dataInicio = parseDateInput(sp.from);
   const dataFim = parseDateInput(sp.to, true);
   const sortState = parseSort(sp.sort, sp.dir);
+  const gran: Granularity = parseGranularity(sp.gran, "month");
+  const vendView = parseView(sp.vendView, "bar");
+  const cliView = parseView(sp.cliView, "bar");
 
   const fats = await getFaturamentos({
     tenantId: session.user.tenantId,
@@ -61,15 +86,12 @@ export default async function FaturamentoPage({
   const margemMediaPct = totalLiquido === 0 ? 0 : (totalMargemR / totalLiquido) * 100;
   const totalNFs = new Set(fats.map((r) => r.numDocto)).size;
 
-  const byMonth = new Map<string, number>();
-  for (const r of fats) {
-    if (!r.emissao) continue;
-    const k = monthKey(r.emissao);
-    byMonth.set(k, (byMonth.get(k) ?? 0) + (r.faturamentoLiquido ?? 0));
-  }
-  const monthsSorted = Array.from(byMonth.entries())
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .slice(-12);
+  const fatSeries = aggregateByGranularity(
+    fats,
+    (r) => r.emissao,
+    (r) => r.faturamentoLiquido ?? 0,
+    gran,
+  ).slice(gran === "month" ? -12 : gran === "week" ? -16 : -30);
 
   const byVendedor = new Map<string, number>();
   for (const r of fats) {
@@ -134,32 +156,48 @@ export default async function FaturamentoPage({
         </section>
 
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <CardSection title="Faturamento líquido por mês" subtitle="Últimos 12 meses">
-            <HBarRanking
-              items={monthsSorted.map(([k, v]) => ({
-                label: monthLabel(k),
-                value: v,
-                display: fmtCurrency(v, { compact: true }),
-              }))}
-              tone="brand"
+          <CardSection
+            title="Faturamento líquido"
+            subtitle={
+              gran === "day" ? "Últimos 30 dias" : gran === "week" ? "Últimas 16 semanas" : "Últimos 12 meses"
+            }
+            actions={
+              <SegmentedControl name="gran" value={gran} options={GRAN_OPTS} size="sm" ariaLabel="Granularidade" />
+            }
+          >
+            <TimeSeriesChart
+              data={fatSeries}
+              type="area"
+              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              seriesName="Faturamento líquido"
             />
           </CardSection>
-          <CardSection title="Top vendedores" subtitle="Por faturamento líquido">
-            <HBarRanking
-              items={topVendedores.map((v) => ({
-                ...v,
-                display: fmtCurrency(v.value, { compact: true }),
-              }))}
-              tone="success"
+          <CardSection
+            title="Top vendedores"
+            subtitle="Por faturamento líquido"
+            actions={
+              <SegmentedControl name="vendView" value={vendView} options={VIEW_OPTS} size="sm" ariaLabel="Visualização" />
+            }
+          >
+            <DistributionChart
+              data={topVendedores.map((v) => ({ ...v, display: fmtCurrency(v.value, { compact: true }) }))}
+              view={vendView}
+              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              hbarTone="success"
             />
           </CardSection>
-          <CardSection title="Top clientes" subtitle="Por faturamento líquido">
-            <HBarRanking
-              items={topClientes.map((v) => ({
-                ...v,
-                display: fmtCurrency(v.value, { compact: true }),
-              }))}
-              tone="brand"
+          <CardSection
+            title="Top clientes"
+            subtitle="Por faturamento líquido"
+            actions={
+              <SegmentedControl name="cliView" value={cliView} options={VIEW_OPTS} size="sm" ariaLabel="Visualização" />
+            }
+          >
+            <DistributionChart
+              data={topClientes.map((v) => ({ ...v, display: fmtCurrency(v.value, { compact: true }) }))}
+              view={cliView}
+              valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+              hbarTone="brand"
             />
           </CardSection>
         </section>

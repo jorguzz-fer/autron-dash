@@ -6,10 +6,12 @@ import { getMetas, type Unidade } from "@/lib/services/metas";
 import KPICard from "@/components/UI/KPICard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
-import HBarRanking from "@/components/UI/HBarRanking";
 import StatusBadge from "@/components/UI/StatusBadge";
-import { fmtCurrency, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
+import SegmentedControl from "@/components/UI/SegmentedControl";
+import TimeSeriesChart from "@/components/UI/TimeSeriesChart";
+import { fmtCurrency, fmtNum, fmtPct } from "@/lib/format";
 import { parseSort, sortRows } from "@/lib/sort";
+import { aggregateByGranularity, parseGranularity, type Granularity } from "@/lib/aggregate";
 import {
   ClipboardList,
   TrendingUp,
@@ -24,7 +26,13 @@ export const metadata = { title: "Entrada de Pedidos — Autron Dash" };
 
 const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
-interface SP { sort?: string; dir?: string }
+interface SP { sort?: string; dir?: string; gran?: string }
+
+const GRAN_OPTS = [
+  { value: "day", label: "Dia" },
+  { value: "week", label: "Semana" },
+  { value: "month", label: "Mês" },
+];
 
 export default async function EntradaPedidosPage({ searchParams }: { searchParams: Promise<SP> }) {
   const session = await auth();
@@ -32,6 +40,7 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
 
   const sp = await searchParams;
   const sortState = parseSort(sp.sort, sp.dir);
+  const gran: Granularity = parseGranularity(sp.gran, "month");
 
   const tenantId = session.user.tenantId;
   const all = await getEnrichedPedidos({ tenantId });
@@ -58,16 +67,13 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
   const pctAtingimentoGrupo =
     metaGrupoAno === 0 ? 0 : (valorAno / metaGrupoAno) * 100;
 
-  // ── Histórico mensal ──────────────────────────────────────────────
-  const byMonthValor = new Map<string, number>();
-  for (const p of all) {
-    if (!p.dtEmissao) continue;
-    const k = monthKey(p.dtEmissao);
-    byMonthValor.set(k, (byMonthValor.get(k) ?? 0) + (p.vlrTotal ?? 0));
-  }
-  const monthsHist = Array.from(byMonthValor.entries())
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .slice(-24); // 24 meses
+  // ── Histórico (granularidade configurável) ────────────────────────
+  const entradaSeries = aggregateByGranularity(
+    all,
+    (p) => p.dtEmissao,
+    (p) => p.vlrTotal ?? 0,
+    gran,
+  ).slice(gran === "month" ? -24 : gran === "week" ? -26 : -60);
 
   // ── Por Unidade de Negócio (no anoBase) ───────────────────────────
   const byUnidade = new Map<string, { pvs: Set<string>; pecas: number; valor: number }>();
@@ -175,15 +181,22 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
           />
         </section>
 
-        {/* Histórico mensal */}
-        <CardSection title="Entrada de pedidos — valor por mês" subtitle="Últimos 24 meses (DT Emissão)">
-          <HBarRanking
-            items={monthsHist.map(([k, v]) => ({
-              label: monthLabel(k),
-              value: v,
-              display: fmtCurrency(v, { compact: true }),
-            }))}
-            tone="brand"
+        {/* Histórico (granularidade dinâmica) */}
+        <CardSection
+          title="Entrada de pedidos — valor"
+          subtitle={
+            gran === "day" ? "Últimos 60 dias" : gran === "week" ? "Últimas 26 semanas" : "Últimos 24 meses"
+          }
+          actions={
+            <SegmentedControl name="gran" value={gran} options={GRAN_OPTS} size="sm" ariaLabel="Granularidade" />
+          }
+        >
+          <TimeSeriesChart
+            data={entradaSeries}
+            type="bar"
+            valueFormatter={(n) => fmtCurrency(n, { compact: true })}
+            seriesName="Valor"
+            height={320}
           />
         </CardSection>
 

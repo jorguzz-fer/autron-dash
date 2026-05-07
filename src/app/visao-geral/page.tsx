@@ -5,11 +5,14 @@ import { getEnrichedPedidos } from "@/lib/services/dashboard";
 import KPICard from "@/components/UI/KPICard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
-import HBarRanking from "@/components/UI/HBarRanking";
 import StatusBadge from "@/components/UI/StatusBadge";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
-import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey, monthLabel } from "@/lib/format";
+import SegmentedControl from "@/components/UI/SegmentedControl";
+import TimeSeriesChart from "@/components/UI/TimeSeriesChart";
+import DistributionChart, { type DistributionView } from "@/components/UI/DistributionChart";
+import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
+import { aggregateByGranularity, parseGranularity, type Granularity } from "@/lib/aggregate";
 import { ClipboardList, Activity, CheckCircle2, Wallet } from "lucide-react";
 import type { PedidoEnriched } from "@/lib/domain";
 
@@ -20,6 +23,26 @@ interface SP {
   to?: string;
   sort?: string;
   dir?: string;
+  gran?: string;
+  vendView?: string;
+}
+
+const GRAN_OPTS = [
+  { value: "day", label: "Dia" },
+  { value: "week", label: "Semana" },
+  { value: "month", label: "Mês" },
+];
+
+const VIEW_OPTS = [
+  { value: "bar", label: "Barras" },
+  { value: "pie", label: "Pizza" },
+  { value: "table", label: "Tabela" },
+];
+
+function parseView(v: string | undefined, fallback: DistributionView = "bar"): DistributionView {
+  return (["bar", "pie", "donut", "line", "table"] as const).includes(v as DistributionView)
+    ? (v as DistributionView)
+    : fallback;
 }
 
 export default async function VisaoGeralPage({
@@ -34,6 +57,8 @@ export default async function VisaoGeralPage({
   const dataInicio = parseDateInput(sp.from);
   const dataFim = parseDateInput(sp.to, true);
   const sortState = parseSort(sp.sort, sp.dir);
+  const gran: Granularity = parseGranularity(sp.gran, "month");
+  const vendView = parseView(sp.vendView, "bar");
 
   const pedidos = await getEnrichedPedidos({
     tenantId: session.user.tenantId,
@@ -48,15 +73,12 @@ export default async function VisaoGeralPage({
   const valorEmAberto = emAberto.reduce((acc, p) => acc + (p.vlrTotal ?? 0), 0);
   const pctConclusao = totalLinhas === 0 ? 0 : (finalizados.length / totalLinhas) * 100;
 
-  const byMonth = new Map<string, number>();
-  for (const p of pedidos) {
-    if (!p.dtEmissao) continue;
-    const k = monthKey(p.dtEmissao);
-    byMonth.set(k, (byMonth.get(k) ?? 0) + 1);
-  }
-  const monthsSorted = Array.from(byMonth.entries())
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .slice(-12);
+  const entradaSeries = aggregateByGranularity(
+    pedidos,
+    (p) => p.dtEmissao,
+    () => 1,
+    gran,
+  ).slice(gran === "month" ? -12 : gran === "week" ? -16 : -30);
 
   const byVendedor = new Map<string, number>();
   for (const p of pedidos) {
@@ -111,14 +133,37 @@ export default async function VisaoGeralPage({
         </section>
 
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <CardSection title="Pedidos por mês" subtitle="Últimos 12 meses">
-            <HBarRanking
-              items={monthsSorted.map(([k, v]) => ({ label: monthLabel(k), value: v }))}
-              tone="brand"
-            />
+          <CardSection
+            title="Entrada de pedidos"
+            subtitle={
+              gran === "day" ? "Últimos 30 dias" : gran === "week" ? "Últimas 16 semanas" : "Últimos 12 meses"
+            }
+            actions={
+              <SegmentedControl
+                name="gran"
+                value={gran}
+                options={GRAN_OPTS}
+                size="sm"
+                ariaLabel="Granularidade"
+              />
+            }
+          >
+            <TimeSeriesChart data={entradaSeries} type="bar" seriesName="Pedidos" />
           </CardSection>
-          <CardSection title="Top vendedores" subtitle="Por número de linhas">
-            <HBarRanking items={topVendedores} tone="success" topN={8} />
+          <CardSection
+            title="Top vendedores"
+            subtitle="Por número de linhas"
+            actions={
+              <SegmentedControl
+                name="vendView"
+                value={vendView}
+                options={VIEW_OPTS}
+                size="sm"
+                ariaLabel="Visualização"
+              />
+            }
+          >
+            <DistributionChart data={topVendedores} view={vendView} hbarTone="brand" />
           </CardSection>
         </section>
 
