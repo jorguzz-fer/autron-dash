@@ -65,6 +65,7 @@ export function consolidateFollowUp(
   // combine_first: SC tem prioridade; PV preenche campos nulos
   const fuDtConfirma = fuSc?.dtConfirma ?? fuPv?.dtConfirma ?? null;
   const fuDtPreEntr = fuSc?.dtPreEntr ?? fuPv?.dtPreEntr ?? null;
+  const fuDtChegadaAutron = fuSc?.dtChegadaAutron ?? fuPv?.dtChegadaAutron ?? null;
   const fuPasta = fuSc?.pasta ?? fuPv?.pasta ?? null;
   const fuOpNaSC = fuSc?.opNaSC ?? fuPv?.opNaSC ?? null;
 
@@ -87,6 +88,7 @@ export function consolidateFollowUp(
   return {
     fuDtConfirma,
     fuDtPreEntr,
+    fuDtChegadaAutron,
     fuPasta,
     fuOpNaSC,
     prazoRealEntrega,

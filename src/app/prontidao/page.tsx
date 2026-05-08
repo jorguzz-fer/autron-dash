@@ -250,11 +250,32 @@ function acaoBadge(a: AcaoNecessaria) {
     case "Necessario gerar SC":
     case "Necessario gerar OP":
       return <StatusBadge tone="warning">{a}</StatusBadge>;
+    case "SC Manual":
+      return <StatusBadge tone="brand">{a}</StatusBadge>;
     case "Finalizado":
       return <StatusBadge tone="muted">{a}</StatusBadge>;
     default:
       return <StatusBadge tone="brand">{a}</StatusBadge>;
   }
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+function diasEntre(de: Date | null, ate: Date | null): number | null {
+  if (!de || !ate) return null;
+  const a = Date.UTC(de.getUTCFullYear(), de.getUTCMonth(), de.getUTCDate());
+  const b = Date.UTC(ate.getUTCFullYear(), ate.getUTCMonth(), ate.getUTCDate());
+  return Math.round((b - a) / MS_PER_DAY);
+}
+
+function diasCell(n: number | null) {
+  if (n == null) return <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>—</span>;
+  const tone =
+    n < 0 ? "var(--fg-muted)" : n <= 30 ? "#10b981" : n <= 60 ? "#f59e0b" : "#e11d48";
+  return (
+    <span className="numeric text-[12px] font-medium" style={{ color: tone }}>
+      {n}
+    </span>
+  );
 }
 
 const prontidaoCols: Column<PedidoEnriched>[] = [
@@ -288,6 +309,14 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
   { key: "pronto", header: "Pronto?", sortKey: "prontoParaFazer", cell: (p) => prontidaoBadge(p.prontoParaFazer) },
   { key: "acao", header: "Ação", sortKey: "acaoNecessaria", cell: (p) => acaoBadge(p.acaoNecessaria) },
   {
+    key: "emissao",
+    header: "Emissão",
+    sortKey: "dtEmissao",
+    cell: (p) => (
+      <span className="numeric text-[12px]">{p.dtEmissao ? fmtDate(p.dtEmissao) : "—"}</span>
+    ),
+  },
+  {
     key: "prazo",
     header: "Prazo",
     cell: (p) => (
@@ -295,5 +324,17 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
         {p.prazoRealEntrega instanceof Date ? fmtDate(p.prazoRealEntrega) : p.prazoRealEntrega ?? "—"}
       </span>
     ),
+  },
+  {
+    key: "diasNec",
+    header: "Dias → Nec.",
+    align: "right",
+    cell: (p) => diasCell(diasEntre(p.dtEmissao, p.dtFatCli)),
+  },
+  {
+    key: "diasAut",
+    header: "Dias → Aut.",
+    align: "right",
+    cell: (p) => diasCell(diasEntre(p.dtEmissao, p.fuDtChegadaAutron)),
   },
 ];

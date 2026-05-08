@@ -38,6 +38,14 @@ export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
 
   const allocation = allocateStock(args.pedidos, args.estoques);
 
+  // Coleta todos os "PV informado na SC" (Obs da SC) não-nulos para detectar
+  // SCs criadas manualmente — quando o comprador gera SC sem vincular ao PV
+  // no Protheus mas anota o número do PV no campo de observação.
+  const obsScList: string[] = [];
+  for (const fu of args.followUps) {
+    if (fu.pvInformadoSC) obsScList.push(fu.pvInformadoSC);
+  }
+
   return args.pedidos.map((p) => {
     const status = statusPedido(p);
     const servico = ehServico(p.descricaoProduto);
@@ -53,6 +61,15 @@ export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
     const temSC = p.numeroSC != null;
     const temOP = p.numeroOP != null || fu.fuOpNaSC != null;
 
+    // Só vale verificar "SC Manual" quando seria "Necessario gerar SC":
+    // Comprando, sem SC vinculada, sem OP, sem estoque suficiente.
+    const temSCManual =
+      !temSC &&
+      !temOP &&
+      tipoProduto === "Comprando" &&
+      alloc.disponibilidadeEstoque !== "SIM" &&
+      obsScList.some((obs) => obs.includes(p.numPedido));
+
     const pronto = prontoParaFazer({
       status,
       disponibilidade: alloc.disponibilidadeEstoque,
@@ -65,6 +82,7 @@ export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
       tipoProduto,
       temSC,
       temOP,
+      temSCManual,
     });
 
     return {
@@ -75,6 +93,7 @@ export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
 
       fuDtConfirma: fu.fuDtConfirma,
       fuDtPreEntr: fu.fuDtPreEntr,
+      fuDtChegadaAutron: fu.fuDtChegadaAutron,
       fuPasta: fu.fuPasta,
       fuOpNaSC: fu.fuOpNaSC,
       prazoRealEntrega: fu.prazoRealEntrega,

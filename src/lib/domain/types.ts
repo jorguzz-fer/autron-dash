@@ -68,6 +68,7 @@ export type AcaoNecessaria =
   | "Estoque OK"
   | "Prazo a confirmar"
   | "Necessario gerar SC"
+  | "SC Manual"
   | "Necessario gerar OP"
   | "SC gerada - Aguardando"
   | "OP gerada - Aguardando"
@@ -80,6 +81,7 @@ export const PRAZO_A_DEFINIR = "A definir" as const;
 export interface FollowUpConsolidated {
   fuDtConfirma: Date | null;
   fuDtPreEntr: Date | null;
+  fuDtChegadaAutron: Date | null;
   fuPasta: string | null;
   fuOpNaSC: string | null;
   prazoRealEntrega: Date | typeof PRAZO_A_DEFINIR | null;
@@ -101,6 +103,7 @@ export interface PedidoEnriched extends PedidoInput {
   // follow-up
   fuDtConfirma: Date | null;
   fuDtPreEntr: Date | null;
+  fuDtChegadaAutron: Date | null;
   fuPasta: string | null;
   fuOpNaSC: string | null;
   prazoRealEntrega: Date | typeof PRAZO_A_DEFINIR | null;
