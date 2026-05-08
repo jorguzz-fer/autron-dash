@@ -2,6 +2,7 @@ import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
+import { getPrazosEngByTenant } from "@/lib/services/prazoEngenhariaIND21";
 import KPICard from "@/components/UI/KPICard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
@@ -9,8 +10,10 @@ import StatusBadge from "@/components/UI/StatusBadge";
 import HBarRanking from "@/components/UI/HBarRanking";
 import FilterSelect from "@/components/UI/FilterSelect";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
+import PrazoEngCell from "@/components/UI/PrazoEngCell";
 import { fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
+import { ROLES_MANAGE, type Role } from "@/lib/authz";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -23,6 +26,7 @@ import {
   CalendarOff,
   Layers,
   Percent,
+  Wrench,
 } from "lucide-react";
 import type {
   AcaoNecessaria,
@@ -35,10 +39,50 @@ export const metadata = { title: "Prontidão — Autron Dash" };
 interface SP {
   dispo?: string;
   tipo?: string;
+  atend?: string;   // dentro | fora | sem
+  mesFat?: string;  // 1..12 (mês de prazoRealEntrega)
   from?: string;
   to?: string;
   sort?: string;
   dir?: string;
+  // tabela Ergomec (IND21):
+  eAtend?: string;
+  eMesFat?: string;
+  eSort?: string;
+  eDir?: string;
+}
+
+const MES_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MES_OPTIONS = MES_LABELS.map((nome, i) => ({
+  value: String(i + 1),
+  label: `${nome.charAt(0).toUpperCase()}${nome.slice(1)}`,
+}));
+const ATEND_OPTIONS = [
+  { value: "dentro", label: "Dentro do prazo" },
+  { value: "fora", label: "Fora do prazo" },
+  { value: "sem", label: "Sem prazo definido" },
+];
+
+/**
+ * Tipo de atendimento de prazo do pedido — derivado de diasAtrasoCliente.
+ * Espelha os 3 buckets do print do Streamlit.
+ */
+function classifAtend(p: PedidoEnriched): "dentro" | "fora" | "sem" {
+  if (p.dtFatCli == null) return "sem";
+  if (p.diasAtrasoCliente != null && p.diasAtrasoCliente > 0) return "fora";
+  return "dentro";
+}
+
+/**
+ * Mês (1-12) do prazo real de entrega — usado pelo filtro "Mês de Faturamento".
+ * Quando prazoRealEntrega é "A definir" ou null, retorna null e o pedido fica
+ * fora do filtro quando há mês selecionado.
+ */
+function mesFatKey(p: PedidoEnriched): number | null {
+  const prazo = p.prazoRealEntrega;
+  if (prazo instanceof Date) return prazo.getMonth() + 1;
+  if (p.dtFatCli) return p.dtFatCli.getMonth() + 1;
+  return null;
 }
 
 export default async function ProntidaoPage({
@@ -53,12 +97,19 @@ export default async function ProntidaoPage({
   const dataInicio = parseDateInput(sp.from);
   const dataFim = parseDateInput(sp.to, true);
   const sortState = parseSort(sp.sort, sp.dir);
+  const sortStateErg = parseSort(sp.eSort, sp.eDir);
 
-  const all = await getEnrichedPedidos({
-    tenantId: session.user.tenantId,
-    dataInicio,
-    dataFim,
-  });
+  const userRole = session.user.role as Role;
+  const canEditPrazoEng = ROLES_MANAGE.includes(userRole);
+
+  const [all, prazosEngMap] = await Promise.all([
+    getEnrichedPedidos({
+      tenantId: session.user.tenantId,
+      dataInicio,
+      dataFim,
+    }),
+    getPrazosEngByTenant(session.user.tenantId),
+  ]);
   const pedidos = all.filter((p) => p.statusPedido === "EM ABERTO");
 
   const sim = pedidos.filter((p) => p.prontoParaFazer === "SIM").length;
@@ -108,6 +159,11 @@ export default async function ProntidaoPage({
   const filtered = pedidos.filter((p) => {
     if (sp.dispo && p.disponibilidadeEstoque !== sp.dispo) return false;
     if (sp.tipo && p.tipoProduto !== sp.tipo) return false;
+    if (sp.atend && classifAtend(p) !== sp.atend) return false;
+    if (sp.mesFat) {
+      const m = mesFatKey(p);
+      if (m == null || m !== Number(sp.mesFat)) return false;
+    }
     return true;
   });
   const baseTabela = [...filtered]
@@ -122,6 +178,38 @@ export default async function ProntidaoPage({
     baseTabela as unknown as Record<string, unknown>[],
     sortState,
   ) as unknown as PedidoEnriched[];
+
+  // ─── Pedidos Ergomec (IND21) — visualização separada com prazo de engenharia
+  const ergomecPedidos = pedidos.filter((p) => p.unidadeNegocio === "IND21");
+  const ergomecFiltrados = ergomecPedidos.filter((p) => {
+    if (sp.eAtend && classifAtend(p) !== sp.eAtend) return false;
+    if (sp.eMesFat) {
+      const m = mesFatKey(p);
+      if (m == null || m !== Number(sp.eMesFat)) return false;
+    }
+    return true;
+  });
+  // Ordenar Ergomec por prazo de engenharia (atual ou null) ASC, depois por dtFatCli
+  const ergomecOrdenado = [...ergomecFiltrados].sort((a, b) => {
+    const pa = prazosEngMap.get(a.numPedido)?.prazoAtual?.getTime() ?? Number.POSITIVE_INFINITY;
+    const pb = prazosEngMap.get(b.numPedido)?.prazoAtual?.getTime() ?? Number.POSITIVE_INFINITY;
+    if (pa !== pb) return pa - pb;
+    const fa = a.dtFatCli?.getTime() ?? Number.POSITIVE_INFINITY;
+    const fb = b.dtFatCli?.getTime() ?? Number.POSITIVE_INFINITY;
+    return fa - fb;
+  });
+  const ergomecTabela = sortRows(
+    ergomecOrdenado as unknown as Record<string, unknown>[],
+    sortStateErg,
+  ) as unknown as PedidoEnriched[];
+
+  const ergomecPVsUnicos = new Set(ergomecPedidos.map((p) => p.numPedido)).size;
+  const ergomecPVsComPrazo = new Set(
+    ergomecPedidos
+      .filter((p) => prazosEngMap.get(p.numPedido)?.prazoAtual != null)
+      .map((p) => p.numPedido),
+  ).size;
+  const ergomecPVsSemPrazo = ergomecPVsUnicos - ergomecPVsComPrazo;
 
   return (
     <AppShell title="Prontidão" subtitle="Pronto para fazer? Estoque + follow-up + ação necessária">
@@ -219,12 +307,75 @@ export default async function ProntidaoPage({
                 { value: "Indefinido", label: "Indefinido" },
               ]}
             />
+            <FilterSelect
+              name="atend"
+              label="Atendimento Prazo"
+              value={sp.atend}
+              options={ATEND_OPTIONS}
+            />
+            <FilterSelect
+              name="mesFat"
+              label="Mês de Faturamento"
+              value={sp.mesFat}
+              options={MES_OPTIONS}
+            />
           </div>
           <DataTable
             columns={prontidaoCols}
             rows={tabela}
             rowKey={(p) => p.id}
             emptyMessage="Sem pedidos com os filtros selecionados."
+          />
+        </CardSection>
+
+        <CardSection
+          title="Pedidos Ergomec (IND21) — Controle de Prazo de Engenharia"
+          subtitle={`${fmtNum(ergomecFiltrados.length)} de ${fmtNum(ergomecPedidos.length)} linhas em aberto · ${fmtNum(ergomecPVsUnicos)} PVs (${fmtNum(ergomecPVsComPrazo)} com prazo · ${fmtNum(ergomecPVsSemPrazo)} pendentes)`}
+          actions={
+            <div
+              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 12%, transparent)",
+                color: "var(--color-brand-600)",
+              }}
+            >
+              <Wrench className="size-3.5" /> Ergomec
+            </div>
+          }
+        >
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <FilterSelect
+              name="eMesFat"
+              label="Mês de Faturamento"
+              value={sp.eMesFat}
+              options={MES_OPTIONS}
+            />
+            <FilterSelect
+              name="eAtend"
+              label="Atendimento Prazo"
+              value={sp.eAtend}
+              options={ATEND_OPTIONS}
+            />
+            <div
+              className="flex items-end justify-end pb-1 text-[11.5px]"
+              style={{ color: "var(--fg-muted)" }}
+            >
+              {canEditPrazoEng
+                ? "Você pode atualizar prazos."
+                : "Acesso somente leitura — perfil ADMIN/DIRETOR/GERENTE necessário para editar."}
+            </div>
+          </div>
+          <DataTable
+            columns={ergomecCols(prazosEngMap, canEditPrazoEng)}
+            rows={ergomecTabela}
+            rowKey={(p) => p.id}
+            emptyMessage={
+              ergomecPedidos.length === 0
+                ? "Nenhum pedido IND21 em aberto."
+                : "Sem pedidos com os filtros selecionados."
+            }
+            sortParam="eSort"
+            dirParam="eDir"
           />
         </CardSection>
       </div>
@@ -338,3 +489,103 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     cell: (p) => diasCell(diasEntre(p.dtEmissao, p.fuDtChegadaAutron)),
   },
 ];
+
+function atendBadge(p: PedidoEnriched) {
+  const c = classifAtend(p);
+  if (c === "dentro") return <StatusBadge tone="success">Dentro</StatusBadge>;
+  if (c === "fora") return <StatusBadge tone="danger">Fora</StatusBadge>;
+  return <StatusBadge tone="muted">Sem prazo</StatusBadge>;
+}
+
+function ergomecCols(
+  prazosMap: Awaited<ReturnType<typeof getPrazosEngByTenant>>,
+  canEdit: boolean,
+): Column<PedidoEnriched>[] {
+  return [
+    {
+      key: "pv",
+      header: "PV",
+      sortKey: "numPedido",
+      cell: (p) => <span className="numeric">{p.numPedido}</span>,
+      width: "90px",
+    },
+    {
+      key: "item",
+      header: "Item",
+      sortKey: "item",
+      cell: (p) => <span className="numeric">{p.item}</span>,
+      width: "60px",
+    },
+    {
+      key: "produto",
+      header: "Produto",
+      sortKey: "produto",
+      cell: (p) => (
+        <div>
+          <code className="font-mono text-[12px]">{p.produto}</code>
+          <div
+            className="max-w-[260px] truncate text-[11.5px]"
+            title={p.descricaoProduto ?? ""}
+            style={{ color: "var(--fg-muted)" }}
+          >
+            {p.descricaoProduto ?? ""}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "qtd",
+      header: "Qtd",
+      sortKey: "quantidade",
+      align: "right",
+      cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span>,
+    },
+    {
+      key: "dtOfertada",
+      header: "Dt. Ofertada",
+      sortKey: "dtOfertada",
+      cell: (p) => (
+        <span className="numeric text-[12px]">
+          {p.dtOfertada ? fmtDate(p.dtOfertada) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "dtFatCli",
+      header: "Dt. Fat. Cli.",
+      sortKey: "dtFatCli",
+      cell: (p) => (
+        <span className="numeric text-[12px]">
+          {p.dtFatCli ? fmtDate(p.dtFatCli) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "atend",
+      header: "Atendim.",
+      cell: atendBadge,
+    },
+    {
+      key: "pronto",
+      header: "Pronto?",
+      sortKey: "prontoParaFazer",
+      cell: (p) => prontidaoBadge(p.prontoParaFazer),
+    },
+    {
+      key: "prazoEng",
+      header: "Prazo Engenharia",
+      cell: (p) => {
+        const info = prazosMap.get(p.numPedido);
+        return (
+          <PrazoEngCell
+            numPedido={p.numPedido}
+            prazoAtual={info?.prazoAtual ?? null}
+            ultimaAtualizacao={info?.ultimaAtualizacao ?? null}
+            historico={info?.historico ?? []}
+            canEdit={canEdit}
+          />
+        );
+      },
+    },
+  ];
+}

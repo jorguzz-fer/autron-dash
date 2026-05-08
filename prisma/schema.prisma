@@ -27,6 +27,7 @@ model Tenant {
   metas                 Meta[]
   ploomesOportunidades  PloomesOportunidade[]
   dataUploads           DataUpload[]
+  prazosEngenhariaIND21 PrazoEngenhariaIND21[]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -43,10 +44,11 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sessions    Session[]
-  auditLogs   AuditLog[]
-  dataUploads DataUpload[]
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions              Session[]
+  auditLogs             AuditLog[]
+  dataUploads           DataUpload[]
+  prazosEngenhariaIND21 PrazoEngenhariaIND21[]
 
   @@unique([tenantId, email])
   @@index([email])
@@ -331,4 +333,27 @@ model PloomesOportunidade {
   @@index([tenantId, termino])
   @@index([tenantId, pedidoCompraCliente])
   @@index([tenantId, responsavel])
+}
+
+// ── 8. PrazoEngenhariaIND21 — Controle interno Ergomec ─────────────────────
+// Pedidos da unidade IND21 (Ergomec) têm prazo de entrega definido em reuniões
+// semanais com engenharia. Cada atualização vira um registro novo (audit-trail
+// por design): "prazo atual" = registro mais recente; histórico = lista
+// completa por (tenantId, numPedido) ordenada por criadoEm DESC.
+// Granularidade: por PV (numPedido), não por item — já que engenharia
+// define um prazo único para o pedido inteiro.
+model PrazoEngenhariaIND21 {
+  id         String   @id @default(cuid())
+  tenantId   String
+  numPedido  String
+  dataPrazo  DateTime
+  observacao String?
+  criadoPor  String
+  criadoEm   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [criadoPor], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, numPedido, criadoEm(sort: Desc)])
+  @@index([tenantId, criadoEm])
 }
