@@ -22,7 +22,7 @@ export default async function LoginPage() {
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at 50% 35%, #1d4ed8 0%, #0c1e44 48%, #050817 100%)",
+              "radial-gradient(circle at 50% 35%, #3d8e94 0%, #1c4044 48%, #142526 100%)",
           }}
         />
         <div
@@ -39,7 +39,7 @@ export default async function LoginPage() {
         <div
           aria-hidden
           className="absolute left-1/2 top-1/4 size-[520px] -translate-x-1/2 rounded-full opacity-25 blur-3xl"
-          style={{ background: "radial-gradient(circle, #3b82f6 0%, transparent 60%)" }}
+          style={{ background: "radial-gradient(circle, #5ea6ac 0%, transparent 60%)" }}
         />
 
         <div className="relative flex max-w-md flex-col items-center text-center">

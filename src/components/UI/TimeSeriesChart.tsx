@@ -45,7 +45,7 @@ interface Props {
 export default function TimeSeriesChart({
   data,
   type = "bar",
-  color = "#3b82f6",
+  color = "#5ea6ac",
   valueFormat = "number",
   height = 280,
   seriesName = "Valor",

@@ -4,18 +4,19 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Brand Autron — azul, escala completa pra usar em utility classes (bg-brand-500, text-brand-300, etc.) */
-  --color-brand-50: #eff6ff;
-  --color-brand-100: #dbeafe;
-  --color-brand-200: #bfdbfe;
-  --color-brand-300: #93c5fd;
-  --color-brand-400: #60a5fa;
-  --color-brand-500: #3b82f6;
-  --color-brand-600: #2563eb;
-  --color-brand-700: #1d4ed8;
-  --color-brand-800: #1e40af;
-  --color-brand-900: #1e3a8a;
-  --color-brand-950: #172554;
+  /* Brand Autron — teal, escala completa pra usar em utility classes (bg-brand-500, text-brand-300, etc.) */
+  /* Azul Autron: #5EA6AC · Cinza Autron: #142526 */
+  --color-brand-50:  #f0f9fa;
+  --color-brand-100: #ddf2f3;
+  --color-brand-200: #b8e5e8;
+  --color-brand-300: #84cdd3;
+  --color-brand-400: #52b5bc;
+  --color-brand-500: #5ea6ac;
+  --color-brand-600: #3d8e94;
+  --color-brand-700: #2d6d72;
+  --color-brand-800: #225457;
+  --color-brand-900: #1a4044;
+  --color-brand-950: #142526;
 
   /* Easings */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -60,15 +61,16 @@
 }
 
 /* Sidebar tokens — constantes. Não respondem ao data-theme. */
+/* Fundo: Cinza Autron #142526 · Ativo: Teal Autron #5EA6AC */
 :root {
-  --sidebar-bg: #07091a;
-  --sidebar-elev: #0e1124;
-  --sidebar-border: rgb(255 255 255 / 0.06);
-  --sidebar-fg: #8a94a6;
+  --sidebar-bg: #142526;
+  --sidebar-elev: #1d3435;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar-fg: #8a9e9f;
   --sidebar-fg-strong: #f1f5f9;
-  --sidebar-active-bg: rgb(59 130 246 / 0.12);
-  --sidebar-active-fg: #93c5fd;
-  --sidebar-active-bar: #3b82f6;
+  --sidebar-active-bg: rgb(94 166 172 / 0.16);
+  --sidebar-active-fg: #84cdd3;
+  --sidebar-active-bar: #5ea6ac;
 }
 
 html, body {

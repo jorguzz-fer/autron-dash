@@ -44,12 +44,12 @@ interface Props {
 }
 
 const PALETTE = [
-  "#3b82f6",
+  "#5ea6ac",
   "#10b981",
   "#f59e0b",
   "#e11d48",
   "#8b5cf6",
-  "#06b6d4",
+  "#3d8e94",
   "#6366f1",
   "#84cc16",
   "#f97316",
