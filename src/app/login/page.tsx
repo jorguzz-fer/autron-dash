@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import LoginForm from "./LoginForm";
-import { Lock } from "lucide-react";
+import { Lock, ShieldCheck, Zap, BarChart3 } from "lucide-react";
 import Logo from "@/components/Layout/Logo";
 
 export const metadata = {
@@ -64,22 +64,35 @@ export default async function LoginPage() {
             estoque por prioridade e detecção de erros de cadastro.
           </p>
 
-          {/* Stats */}
+          {/* Feature pills — sem dados sensíveis, apenas valores do produto */}
           <div className="mt-10 grid w-full grid-cols-3 gap-2.5">
             {[
-              { v: "5.4k", l: "Pedidos" },
-              { v: "4.2k", l: "Em estoque" },
-              { v: "6.1k", l: "NFs" },
-            ].map((s) => (
+              {
+                Icon: Zap,
+                t: "Tempo real",
+                d: "Dados sempre atualizados",
+              },
+              {
+                Icon: ShieldCheck,
+                t: "Multi-tenant",
+                d: "Isolamento total",
+              },
+              {
+                Icon: BarChart3,
+                t: "Decisão",
+                d: "Análise consolidada",
+              },
+            ].map((f) => (
               <div
-                key={s.l}
+                key={f.t}
                 className="rounded-xl border border-white/10 bg-white/[0.025] p-3.5 text-left"
               >
-                <div className="numeric text-[22px] font-semibold leading-none text-white">
-                  {s.v}
+                <f.Icon className="size-4 text-brand-300" strokeWidth={2.25} />
+                <div className="mt-2 text-[13px] font-semibold leading-none text-white">
+                  {f.t}
                 </div>
-                <div className="mt-1 text-[11px] uppercase tracking-wider text-white/55">
-                  {s.l}
+                <div className="mt-1 text-[11px] leading-tight text-white/55">
+                  {f.d}
                 </div>
               </div>
             ))}

@@ -14,6 +14,7 @@ import {
   Package,
   Receipt,
   Upload,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import Logo from "./Logo";
@@ -41,6 +42,10 @@ const NAV_TOOLS: NavItem[] = [
   { label: "Upload de planilhas", href: "/uploads", icon: Upload },
 ];
 
+const NAV_ADMIN: NavItem[] = [
+  { label: "Usuários", href: "/admin/usuarios", icon: Users },
+];
+
 interface SidebarProps {
   user: {
     name: string;
@@ -53,6 +58,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ user, onSignOut }: SidebarProps) {
+  const isAdmin = user.role === "ADMIN";
   return (
     <aside
       className="hidden lg:flex h-screen w-64 shrink-0 flex-col sticky top-0 z-30"
@@ -81,6 +87,17 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
             <NavLink key={item.href} item={item} />
           ))}
         </ul>
+
+        {isAdmin && (
+          <>
+            <SectionLabel className="mt-6">Administração</SectionLabel>
+            <ul className="space-y-0.5">
+              {NAV_ADMIN.map((item) => (
+                <NavLink key={item.href} item={item} />
+              ))}
+            </ul>
+          </>
+        )}
       </nav>
 
       {/* User block + signout (form action — padrão idiomático Next 15) */}
