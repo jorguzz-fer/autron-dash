@@ -8,9 +8,16 @@ export const metadata = {
   title: "Entrar — Autron Dash",
 };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ changed?: string }>;
+}) {
   const session = await auth();
   if (session) redirect("/dashboard");
+
+  const sp = await searchParams;
+  const passwordChanged = sp.changed === "1";
 
   return (
     <main className="grid min-h-screen grid-cols-1 lg:grid-cols-[1.1fr_1fr]">
@@ -123,7 +130,7 @@ export default async function LoginPage() {
             </p>
           </div>
 
-          <LoginForm />
+          <LoginForm passwordChanged={passwordChanged} />
 
           <div
             className="flex items-center justify-center gap-1.5 text-[11px]"

@@ -2,14 +2,12 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import PasswordInput from "@/components/UI/PasswordInput";
 
-export default function LoginForm() {
+export default function LoginForm({ passwordChanged = false }: { passwordChanged?: boolean }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const passwordChanged = searchParams.get("changed") === "1";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
