@@ -105,7 +105,7 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
         <div className="flex items-center gap-3 px-2 py-1.5">
           <div
             className="flex size-9 items-center justify-center rounded-full text-[12px] font-semibold text-[color:var(--sidebar-fg-strong)]"
-            style={{ backgroundColor: "rgb(94 166 172 / 0.18)" }}
+            style={{ backgroundColor: "rgb(0 157 164 / 0.22)" }}
           >
             {initials(user.name)}
           </div>

@@ -4,19 +4,20 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Brand Autron — teal, escala completa pra usar em utility classes (bg-brand-500, text-brand-300, etc.) */
-  /* Azul Autron: #5EA6AC · Cinza Autron: #142526 */
-  --color-brand-50:  #f0f9fa;
-  --color-brand-100: #ddf2f3;
-  --color-brand-200: #b8e5e8;
-  --color-brand-300: #84cdd3;
-  --color-brand-400: #52b5bc;
-  --color-brand-500: #5ea6ac;
-  --color-brand-600: #3d8e94;
-  --color-brand-700: #2d6d72;
-  --color-brand-800: #225457;
-  --color-brand-900: #1a4044;
-  --color-brand-950: #142526;
+  /* Brand Autron — paleta oficial */
+  /* Teal primário: #009DA4 · Teal acento: #16DED0 */
+  /* Escuro: #363636 · Cinza médio: #525252 */
+  --color-brand-50:  #e5fafb;
+  --color-brand-100: #bff1f3;
+  --color-brand-200: #7ee4e8;
+  --color-brand-300: #16ded0;
+  --color-brand-400: #00bec6;
+  --color-brand-500: #009da4;
+  --color-brand-600: #007d83;
+  --color-brand-700: #005d62;
+  --color-brand-800: #004044;
+  --color-brand-900: #002528;
+  --color-brand-950: #001618;
 
   /* Easings */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -61,16 +62,16 @@
 }
 
 /* Sidebar tokens — constantes. Não respondem ao data-theme. */
-/* Fundo: Cinza Autron #142526 · Ativo: Teal Autron #5EA6AC */
+/* Escuro: #363636 · Médio: #525252 · Teal: #009DA4 · Acento: #16DED0 */
 :root {
-  --sidebar-bg: #142526;
-  --sidebar-elev: #1d3435;
-  --sidebar-border: rgb(255 255 255 / 0.07);
-  --sidebar-fg: #8a9e9f;
-  --sidebar-fg-strong: #f1f5f9;
-  --sidebar-active-bg: rgb(94 166 172 / 0.16);
-  --sidebar-active-fg: #84cdd3;
-  --sidebar-active-bar: #5ea6ac;
+  --sidebar-bg: #363636;
+  --sidebar-elev: #525252;
+  --sidebar-border: rgb(255 255 255 / 0.08);
+  --sidebar-fg: #a8a8a8;
+  --sidebar-fg-strong: #f5f5f5;
+  --sidebar-active-bg: rgb(0 157 164 / 0.18);
+  --sidebar-active-fg: #16ded0;
+  --sidebar-active-bar: #009da4;
 }
 
 html, body {

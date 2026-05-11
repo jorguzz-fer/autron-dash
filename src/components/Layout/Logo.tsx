@@ -7,19 +7,18 @@ interface LogoProps {
   priority?: boolean;
 }
 
-const ASPECT = 610 / 195; // ≈ 3.128
-
 /**
- * Wordmark Autron — usa o logo em /public/logo.png. Mantém aspect ratio
- * automaticamente. Use altura ~28-32 em sidebars, ~56-72 em hero/login.
+ * Wordmark Autron (versão branca) — usa /public/logo-branco.png.
+ * Ideal para fundos escuros (sidebar, painel do login).
+ * width="auto" + height fixo = aspect ratio preservado automaticamente.
+ * Use altura ~28-34 em sidebars, ~56-72 em hero/login.
  */
 export default function Logo({ height = 28, className = "", priority = false }: LogoProps) {
-  const width = Math.round(height * ASPECT);
   return (
     <Image
-      src="/logo.png"
+      src="/logo-branco.png"
       alt="Autron"
-      width={width}
+      width={400}
       height={height}
       priority={priority}
       className={className}

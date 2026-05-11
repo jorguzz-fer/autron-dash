@@ -58,7 +58,7 @@ export default function BarCompareChart({
       fontFamily: "var(--font-geist-sans), system-ui, sans-serif",
     },
     theme: { mode: isDark ? "dark" : "light" },
-    colors: ["#64748b", "#5ea6ac"],
+    colors: ["#525252", "#009da4"],
     dataLabels: { enabled: false },
     stroke: { width: 0 },
     plotOptions: {
