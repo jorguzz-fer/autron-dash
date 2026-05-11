@@ -2,12 +2,15 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowRight, AlertCircle } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import PasswordInput from "@/components/UI/PasswordInput";
 
 export default function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const passwordChanged = searchParams.get("changed") === "1";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +77,20 @@ export default function LoginForm() {
           placeholder="••••••••••"
         />
       </div>
+
+      {passwordChanged && !error && (
+        <div
+          className="flex items-start gap-2 rounded-lg border px-3 py-2.5 text-[12.5px]"
+          style={{
+            color: "#10b981",
+            backgroundColor: "color-mix(in srgb, #10b981 8%, transparent)",
+            borderColor: "color-mix(in srgb, #10b981 28%, transparent)",
+          }}
+        >
+          <CheckCircle2 className="size-4 shrink-0 mt-px" />
+          <span>Senha atualizada com sucesso. Entre com a nova senha.</span>
+        </div>
+      )}
 
       {error && (
         <div

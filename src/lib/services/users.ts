@@ -72,6 +72,7 @@ export async function createUserInTenant(args: {
       role: args.role,
       passwordHash: args.passwordHash,
       active: true,
+      mustChangePassword: true, // força troca na primeira entrada
     },
     select: SELECT_USER_ROW,
   });
@@ -105,14 +106,20 @@ export async function updateUserInTenant(
   return result.count;
 }
 
+/**
+ * Atualiza hash de senha de um usuário do tenant.
+ * @param mustChangePassword true = reset pelo admin (força troca no próximo login);
+ *                           false = troca feita pelo próprio usuário.
+ */
 export async function setPasswordHashInTenant(
   tenantId: string,
   id: string,
   passwordHash: string,
+  mustChangePassword = true,
 ): Promise<number> {
   const result = await prisma.user.updateMany({
     where: { id, tenantId },
-    data: { passwordHash },
+    data: { passwordHash, mustChangePassword },
   });
   return result.count;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
-import { UserPlus } from "lucide-react";
+import { Eye, EyeOff, UserPlus } from "lucide-react";
 import { criarUsuario } from "./actions";
 
 const ROLE_OPTIONS = [
@@ -17,6 +17,7 @@ export default function UsuarioCriarBtn() {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showPwd, setShowPwd] = useState(false);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -133,15 +134,27 @@ export default function UsuarioCriarBtn() {
               label="Senha inicial *"
               hint="mín. 10 caracteres, 3 classes (maiúscula, minúscula, número, símbolo)"
             >
-              <input
-                type="password"
-                name="password"
-                required
-                minLength={10}
-                autoComplete="new-password"
-                className={INPUT_CLASS}
-                style={INPUT_STYLE}
-              />
+              <div className="relative">
+                <input
+                  type={showPwd ? "text" : "password"}
+                  name="password"
+                  required
+                  minLength={10}
+                  autoComplete="new-password"
+                  className={`${INPUT_CLASS} pr-10`}
+                  style={INPUT_STYLE}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowPwd((v) => !v)}
+                  aria-label={showPwd ? "Ocultar senha" : "Mostrar senha"}
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center transition-colors"
+                  style={{ color: "var(--fg-subtle)" }}
+                >
+                  {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </Field>
           </div>
 

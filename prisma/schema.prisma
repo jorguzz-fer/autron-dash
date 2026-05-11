@@ -33,16 +33,17 @@ model Tenant {
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 model User {
-  id           String    @id @default(cuid())
-  tenantId     String
-  name         String
-  email        String
-  passwordHash String
-  role         Role      @default(VIEWER)
-  active       Boolean   @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  tenantId           String
+  name               String
+  email              String
+  passwordHash       String
+  role               Role      @default(VIEWER)
+  active             Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   sessions              Session[]

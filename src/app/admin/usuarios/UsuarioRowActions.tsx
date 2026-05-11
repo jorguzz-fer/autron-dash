@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
-import { MoreVertical, Pencil, KeyRound, UserMinus, UserCheck } from "lucide-react";
+import { Eye, EyeOff, MoreVertical, Pencil, KeyRound, UserMinus, UserCheck } from "lucide-react";
 import type { Role } from "@/lib/authz";
 import { atualizarUsuario, resetarSenha, setUsuarioAtivo } from "./actions";
 
@@ -36,6 +36,7 @@ export default function UsuarioRowActions({
   const pwdRef = useRef<HTMLDialogElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [showPwd, setShowPwd] = useState(false);
 
   function close() {
     setMenuOpen(false);
@@ -242,15 +243,27 @@ export default function UsuarioRowActions({
 
           <label className="mt-4 block">
             <span className={LABEL_CLASS} style={LABEL_STYLE}>Nova senha</span>
-            <input
-              name="password"
-              type="password"
-              required
-              minLength={10}
-              autoComplete="new-password"
-              className={INPUT_CLASS}
-              style={INPUT_STYLE}
-            />
+            <div className="relative">
+              <input
+                name="password"
+                type={showPwd ? "text" : "password"}
+                required
+                minLength={10}
+                autoComplete="new-password"
+                className={`${INPUT_CLASS} pr-10`}
+                style={INPUT_STYLE}
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPwd((v) => !v)}
+                aria-label={showPwd ? "Ocultar senha" : "Mostrar senha"}
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center transition-colors"
+                style={{ color: "var(--fg-subtle)" }}
+              >
+                {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
             <span className="mt-1 block text-[11px]" style={{ color: "var(--fg-subtle)" }}>
               Mín. 10 caracteres, 3 classes (maiúscula, minúscula, número, símbolo).
             </span>

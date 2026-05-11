@@ -18,6 +18,16 @@ export default auth(function middleware(req) {
   if (req.auth && pathname === "/login") {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
+
+  // Troca de senha obrigatória: redireciona para /mudar-senha antes de qualquer rota
+  if (
+    req.auth?.user?.mustChangePassword &&
+    !pathname.startsWith("/mudar-senha") &&
+    !pathname.startsWith("/api/auth")
+  ) {
+    return NextResponse.redirect(new URL("/mudar-senha", req.url));
+  }
+
   return NextResponse.next();
 });
 
