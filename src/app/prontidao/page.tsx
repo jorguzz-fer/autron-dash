@@ -300,8 +300,8 @@ export default async function ProntidaoPage({
         </section>
 
         <CardSection
-          title="Pedidos com atenção"
-          subtitle={`${fmtNum(filtered.length)} de ${fmtNum(pedidos.length)} pedidos em aberto · top 100 (erros e bloqueios primeiro)`}
+          title="Pedidos"
+          subtitle={`${fmtNum(filtered.length)} de ${fmtNum(pedidos.length)} pedidos · top 100 (erros e bloqueios primeiro)`}
         >
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <FilterSelect
@@ -465,6 +465,20 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
           {p.descricaoProduto ?? ""}
         </div>
       </div>
+    ),
+  },
+  {
+    key: "cliente",
+    header: "Cliente",
+    sortKey: "cliente",
+    cell: (p) => (
+      <span
+        className="max-w-[180px] truncate block text-[12.5px]"
+        title={p.cliente ?? ""}
+        style={{ color: "var(--fg)" }}
+      >
+        {p.cliente ?? "—"}
+      </span>
     ),
   },
   {
