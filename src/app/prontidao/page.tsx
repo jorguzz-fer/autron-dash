@@ -42,6 +42,9 @@ interface SP {
   tipo?: string;
   atend?: string;   // dentro | fora | sem
   mesFat?: string;  // 1..12 (mês de prazoRealEntrega)
+  // KPIs clicáveis:
+  pronto?: string;     // "sim" | "fu" | "est" | "nao" | "erro" (filtro pelos KPIs)
+  prazoEntr?: string;  // "com" | "sem" (filtro pelos cards de Prazo Entrega)
   from?: string;
   to?: string;
   sort?: string;
@@ -51,6 +54,28 @@ interface SP {
   eMesFat?: string;
   eSort?: string;
   eDir?: string;
+}
+
+/**
+ * Helper: gera URL togglada para uma chave do searchParams.
+ *  - Se a chave já está com o valor → remove (toggle off).
+ *  - Se está vazia ou tem outro valor → seta para o novo valor.
+ * Sempre preserva os outros params (sort, dir, from, to, etc.).
+ */
+function toggleParam(
+  base: string,
+  sp: Record<string, string | undefined>,
+  key: string,
+  value: string,
+): string {
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (k === key) continue;
+    if (v) usp.set(k, String(v));
+  }
+  if (sp[key] !== value) usp.set(key, value);
+  const qs = usp.toString();
+  return qs ? `${base}?${qs}` : base;
 }
 
 const MES_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -163,6 +188,12 @@ export default async function ProntidaoPage({
     "PARCIAL - Sem Estoque": 2,
     "NAO": 1,
   };
+  // Cards de Prazo Entrega (computados sobre o universo `pedidos` — counts
+  // estáveis, independente do filtro aplicado pela tabela).
+  const prazoComPrazo = pedidos.filter((p) => p.prazoRealEntrega instanceof Date).length;
+  const prazoSemPrazo = pedidos.length - prazoComPrazo;
+
+  // Filtros aplicáveis à TABELA — incluem os clicáveis (pronto, prazoEntr).
   const filtered = pedidos.filter((p) => {
     if (sp.dispo && p.disponibilidadeEstoque !== sp.dispo) return false;
     if (sp.tipo && p.tipoProduto !== sp.tipo) return false;
@@ -171,14 +202,51 @@ export default async function ProntidaoPage({
       const m = mesFatKey(p);
       if (m == null || m !== Number(sp.mesFat)) return false;
     }
+    if (sp.pronto) {
+      switch (sp.pronto) {
+        case "sim":
+          if (p.prontoParaFazer !== "SIM") return false;
+          break;
+        case "fu":
+          if (p.prontoParaFazer !== "PARCIAL - Sem Follow-up") return false;
+          break;
+        case "est":
+          if (p.prontoParaFazer !== "PARCIAL - Sem Estoque") return false;
+          break;
+        case "nao":
+          if (p.prontoParaFazer !== "NAO") return false;
+          break;
+        case "erro":
+          if (p.acaoNecessaria !== "ERRO no CADASTRO") return false;
+          break;
+      }
+    }
+    if (sp.prazoEntr === "com" && !(p.prazoRealEntrega instanceof Date)) return false;
+    if (sp.prazoEntr === "sem" && p.prazoRealEntrega instanceof Date) return false;
     return true;
   });
 
-  // Cards de Prazo Entrega (prazoRealEntrega = FU_Dt_Confirma OR FU_Dt_Pre_Entr)
-  // Espelha a regra do Streamlit antigo (app.py linha 372).
-  // "Com prazo" = data definida. "Sem prazo" = null OU marker "A definir" (IND21 posto/cabine).
-  const prazoComPrazo = filtered.filter((p) => p.prazoRealEntrega instanceof Date).length;
-  const prazoSemPrazo = filtered.length - prazoComPrazo;
+  // Há algum filtro de KPI/dropdown ativo? (status não conta, é o default da página).
+  const temFiltroAtivo = !!(
+    sp.dispo ||
+    sp.tipo ||
+    sp.atend ||
+    sp.mesFat ||
+    sp.pronto ||
+    sp.prazoEntr
+  );
+
+  // URL base preservando apenas filtros "estruturais" (período, status, sort).
+  const baseFiltrosLimpos = (() => {
+    const usp = new URLSearchParams();
+    if (sp.status) usp.set("status", sp.status);
+    if (sp.from) usp.set("from", sp.from);
+    if (sp.to) usp.set("to", sp.to);
+    if (sp.sort) usp.set("sort", sp.sort);
+    if (sp.dir) usp.set("dir", sp.dir);
+    const qs = usp.toString();
+    return qs ? `/prontidao?${qs}` : "/prontidao";
+  })();
 
   // Tabela completa — paridade com Streamlit (app.py:1198), sem truncamento.
   const baseTabela = [...filtered].sort((a, b) => {
@@ -240,13 +308,72 @@ export default async function ProntidaoPage({
           </div>
         </div>
 
+        {/* KPIs de Prontidão — clicáveis: cada um filtra a tabela pelo bucket. */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <KPICard label="Prontos" value={fmtNum(sim)} icon={<CheckCircle2 className="size-4" />} tone="success" />
-          <KPICard label="Sem follow-up" value={fmtNum(parcialFU)} hint="Estoque ok, falta confirmação" icon={<Circle className="size-4" />} tone="warning" />
-          <KPICard label="Sem estoque" value={fmtNum(parcialEst)} hint="Confirmado, falta material" icon={<AlertTriangle className="size-4" />} tone="warning" />
-          <KPICard label="Não prontos" value={fmtNum(nao)} hint="Sem estoque e sem follow-up" icon={<Circle className="size-4" />} tone="danger" />
-          <KPICard label="Erros cadastro" value={fmtNum(erros)} hint="Comprando com OP" icon={<CircleAlert className="size-4" />} tone="danger" active={erros > 0} />
+          <KPICard
+            label="Prontos"
+            value={fmtNum(sim)}
+            icon={<CheckCircle2 className="size-4" />}
+            tone="success"
+            href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "pronto", "sim")}
+            active={sp.pronto === "sim"}
+          />
+          <KPICard
+            label="Sem follow-up"
+            value={fmtNum(parcialFU)}
+            hint="Estoque ok, falta confirmação"
+            icon={<Circle className="size-4" />}
+            tone="warning"
+            href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "pronto", "fu")}
+            active={sp.pronto === "fu"}
+          />
+          <KPICard
+            label="Sem estoque"
+            value={fmtNum(parcialEst)}
+            hint="Confirmado, falta material"
+            icon={<AlertTriangle className="size-4" />}
+            tone="warning"
+            href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "pronto", "est")}
+            active={sp.pronto === "est"}
+          />
+          <KPICard
+            label="Não prontos"
+            value={fmtNum(nao)}
+            hint="Sem estoque e sem follow-up"
+            icon={<Circle className="size-4" />}
+            tone="danger"
+            href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "pronto", "nao")}
+            active={sp.pronto === "nao"}
+          />
+          <KPICard
+            label="Erros cadastro"
+            value={fmtNum(erros)}
+            hint="Comprando com OP"
+            icon={<CircleAlert className="size-4" />}
+            tone="danger"
+            href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "pronto", "erro")}
+            active={sp.pronto === "erro"}
+          />
         </section>
+
+        {/* Badge "Limpar filtros" — aparece quando há algum KPI/filtro ativo. */}
+        {temFiltroAtivo && (
+          <div className="flex items-center gap-2">
+            <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+              Filtros ativos —
+            </span>
+            <a
+              href={baseFiltrosLimpos}
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium transition-colors hover:brightness-110"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 14%, transparent)",
+                color: "var(--color-brand-600)",
+              }}
+            >
+              Limpar todos ✕
+            </a>
+          </div>
+        )}
 
         <CardSection
           title="Datas por PV — atendimento do prazo do cliente"
@@ -254,8 +381,24 @@ export default async function ProntidaoPage({
         >
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <KPICard label="Total PVs" value={fmtNum(totalPVs)} icon={<Layers className="size-4" />} tone="brand" />
-            <KPICard label="Dentro do prazo" value={fmtNum(pvDentro)} hint={fmtPct(pctDentro)} icon={<CalendarCheck className="size-4" />} tone="success" />
-            <KPICard label="Fora do prazo" value={fmtNum(pvFora)} hint={fmtPct(pctFora)} icon={<CalendarX className="size-4" />} tone="danger" />
+            <KPICard
+              label="Dentro do prazo"
+              value={fmtNum(pvDentro)}
+              hint={fmtPct(pctDentro)}
+              icon={<CalendarCheck className="size-4" />}
+              tone="success"
+              href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "atend", "dentro")}
+              active={sp.atend === "dentro"}
+            />
+            <KPICard
+              label="Fora do prazo"
+              value={fmtNum(pvFora)}
+              hint={fmtPct(pctFora)}
+              icon={<CalendarX className="size-4" />}
+              tone="danger"
+              href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "atend", "fora")}
+              active={sp.atend === "fora"}
+            />
             <KPICard
               label="% Dentro / Fora"
               value={`${pctDentro.toFixed(0)}% / ${pctFora.toFixed(0)}%`}
@@ -263,7 +406,15 @@ export default async function ProntidaoPage({
               icon={<Percent className="size-4" />}
               tone="neutral"
             />
-            <KPICard label="Sem prazo definido" value={fmtNum(pvSem)} hint="Sem DT. Fat. Cli em algum item" icon={<CalendarOff className="size-4" />} tone="warning" />
+            <KPICard
+              label="Sem prazo definido"
+              value={fmtNum(pvSem)}
+              hint="Sem DT. Fat. Cli em algum item"
+              icon={<CalendarOff className="size-4" />}
+              tone="warning"
+              href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "atend", "sem")}
+              active={sp.atend === "sem"}
+            />
           </div>
 
           <div className="mt-5">
@@ -344,11 +495,11 @@ export default async function ProntidaoPage({
               options={MES_OPTIONS}
             />
           </div>
-          {/* Cards: resumo do campo Prazo Entrega (fuDtChegadaAutron) */}
+          {/* Cards: resumo do campo Prazo Entrega — clicáveis (filtram a tabela). */}
           <div className="mb-5 grid grid-cols-3 gap-3">
             <KPICard
               label="Total Pedidos"
-              value={fmtNum(filtered.length)}
+              value={fmtNum(pedidos.length)}
               icon={<Layers className="size-4" />}
               tone="brand"
             />
@@ -358,6 +509,8 @@ export default async function ProntidaoPage({
               hint="Prazo Entrega preenchido"
               icon={<CalendarCheck className="size-4" />}
               tone="success"
+              href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "prazoEntr", "com")}
+              active={sp.prazoEntr === "com"}
             />
             <KPICard
               label="Sem prazo"
@@ -365,6 +518,8 @@ export default async function ProntidaoPage({
               hint="Prazo Entrega em branco"
               icon={<CalendarOff className="size-4" />}
               tone="warning"
+              href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "prazoEntr", "sem")}
+              active={sp.prazoEntr === "sem"}
             />
           </div>
 

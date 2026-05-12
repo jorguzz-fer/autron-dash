@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 type Trend = "up" | "down" | "flat";
@@ -21,6 +22,12 @@ interface KPICardProps {
   tone?: KPITone;
   /** Se passado, o card vira clicável e dispara o callback (para usar como filtro). */
   onClick?: () => void;
+  /**
+   * Alternativa server-rendered ao onClick: passa o card a navegar para essa
+   * URL no clique. Use com query params para filtrar a página, ex.:
+   * `href={active ? "/prontidao" : "/prontidao?kpi=prontos"}`.
+   */
+  href?: string;
   /** Se true, mostra estado visual de "filtro ativo". */
   active?: boolean;
 }
@@ -49,22 +56,33 @@ export default function KPICard({
   icon,
   tone = "neutral",
   onClick,
+  href,
   active = false,
 }: KPICardProps) {
   const accent = TONE_ACCENT[tone];
   const tintBg = TONE_BG_TINT[tone];
-  const clickable = !!onClick;
+  const clickable = !!onClick || !!href;
 
-  const Component: React.ElementType = clickable ? "button" : "div";
+  // Server-rendered link (URL-driven filter) tem prioridade.
+  // Senão, button + onClick (interatividade client-side).
+  // Senão, div estático.
+  const Component: React.ElementType = href ? Link : onClick ? "button" : "div";
+  const extraProps: Record<string, unknown> = {};
+  if (href) {
+    extraProps.href = href;
+  } else if (onClick) {
+    extraProps.type = "button";
+    extraProps.onClick = onClick;
+  }
 
   return (
     <Component
-      type={clickable ? "button" : undefined}
-      onClick={onClick}
-      aria-pressed={clickable ? active : undefined}
+      {...extraProps}
+      aria-pressed={onClick ? active : undefined}
+      aria-current={href && active ? "true" : undefined}
       className={`group ring-focus relative flex w-full flex-col gap-3 rounded-xl border p-4 text-left transition-all ${
         clickable ? "cursor-pointer hover:-translate-y-px" : ""
-      }`}
+      } ${href ? "no-underline" : ""}`}
       style={{
         backgroundColor: "var(--surface)",
         borderColor: active ? accent : "var(--border-soft)",

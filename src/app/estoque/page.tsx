@@ -26,6 +26,25 @@ interface SP {
   to?: string;
   sort?: string;
   dir?: string;
+  /** KPI clicado: filtra a tabela. */
+  kpi?: string; // "sim" | "parcial" | "nao" | "necsc" | "necop" | "erro"
+}
+
+/** Toggle de query param preservando os outros (mesmo padrão da Prontidão). */
+function toggleParam(
+  base: string,
+  sp: Record<string, string | undefined>,
+  key: string,
+  value: string,
+): string {
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (k === key) continue;
+    if (v) usp.set(k, String(v));
+  }
+  if (sp[key] !== value) usp.set(key, value);
+  const qs = usp.toString();
+  return qs ? `${base}?${qs}` : base;
 }
 
 export default async function EstoquePage({
@@ -48,6 +67,7 @@ export default async function EstoquePage({
   });
   const pedidos = all.filter((p) => p.statusPedido === "EM ABERTO");
 
+  // KPIs computados sobre o universo (não muda quando filtra).
   const sim = pedidos.filter((p) => p.disponibilidadeEstoque === "SIM").length;
   const parcial = pedidos.filter((p) => p.disponibilidadeEstoque === "PARCIAL").length;
   const nao = pedidos.filter((p) => p.disponibilidadeEstoque === "NAO").length;
@@ -55,8 +75,40 @@ export default async function EstoquePage({
   const necOP = pedidos.filter((p) => p.acaoNecessaria === "Necessario gerar OP").length;
   const erros = pedidos.filter((p) => p.acaoNecessaria === "ERRO no CADASTRO");
 
-  // Tabela completa — paridade com Streamlit (app.py:1469), sem truncamento.
-  const baseTabela = [...pedidos].sort((a, b) => {
+  // Aplicar filtro de KPI clicado à tabela.
+  const filtered = pedidos.filter((p) => {
+    if (!sp.kpi) return true;
+    switch (sp.kpi) {
+      case "sim":
+        return p.disponibilidadeEstoque === "SIM";
+      case "parcial":
+        return p.disponibilidadeEstoque === "PARCIAL";
+      case "nao":
+        return p.disponibilidadeEstoque === "NAO";
+      case "necsc":
+        return p.acaoNecessaria === "Necessario gerar SC";
+      case "necop":
+        return p.acaoNecessaria === "Necessario gerar OP";
+      case "erro":
+        return p.acaoNecessaria === "ERRO no CADASTRO";
+      default:
+        return true;
+    }
+  });
+
+  // URL base preservando período/sort, removendo o KPI selecionado.
+  const baseFiltrosLimpos = (() => {
+    const usp = new URLSearchParams();
+    if (sp.from) usp.set("from", sp.from);
+    if (sp.to) usp.set("to", sp.to);
+    if (sp.sort) usp.set("sort", sp.sort);
+    if (sp.dir) usp.set("dir", sp.dir);
+    const qs = usp.toString();
+    return qs ? `/estoque?${qs}` : "/estoque";
+  })();
+
+  // Tabela — paridade com Streamlit (app.py:1469), sem truncamento.
+  const baseTabela = [...filtered].sort((a, b) => {
     const ordem: Record<DisponibilidadeEstoque, number> = {
       "NAO": 1,
       "PARCIAL": 2,
@@ -79,6 +131,7 @@ export default async function EstoquePage({
       <div className="space-y-5">
         <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
 
+        {/* KPIs clicáveis — cada um filtra a tabela pelo bucket. */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <KPICard
             label="Com estoque"
@@ -86,6 +139,8 @@ export default async function EstoquePage({
             hint="Disponibilidade SIM"
             icon={<CheckCircle2 className="size-4" />}
             tone="success"
+            href={toggleParam("/estoque", sp as Record<string, string | undefined>, "kpi", "sim")}
+            active={sp.kpi === "sim"}
           />
           <KPICard
             label="Estoque parcial"
@@ -93,6 +148,8 @@ export default async function EstoquePage({
             hint="Saldo insuficiente"
             icon={<AlertTriangle className="size-4" />}
             tone="warning"
+            href={toggleParam("/estoque", sp as Record<string, string | undefined>, "kpi", "parcial")}
+            active={sp.kpi === "parcial"}
           />
           <KPICard
             label="Sem estoque"
@@ -100,6 +157,8 @@ export default async function EstoquePage({
             hint="Disponibilidade NÃO"
             icon={<CircleSlash className="size-4" />}
             tone="danger"
+            href={toggleParam("/estoque", sp as Record<string, string | undefined>, "kpi", "nao")}
+            active={sp.kpi === "nao"}
           />
           <KPICard
             label="Necessitam SC"
@@ -107,6 +166,8 @@ export default async function EstoquePage({
             hint="Comprando sem SC"
             icon={<ShoppingCart className="size-4" />}
             tone="brand"
+            href={toggleParam("/estoque", sp as Record<string, string | undefined>, "kpi", "necsc")}
+            active={sp.kpi === "necsc"}
           />
           <KPICard
             label="Necessitam OP"
@@ -114,18 +175,45 @@ export default async function EstoquePage({
             hint="Produzindo sem OP"
             icon={<Factory className="size-4" />}
             tone="brand"
+            href={toggleParam("/estoque", sp as Record<string, string | undefined>, "kpi", "necop")}
+            active={sp.kpi === "necop"}
           />
         </section>
+
+        {/* Badge "Limpar filtros" quando há KPI ativo. */}
+        {sp.kpi && (
+          <div className="flex items-center gap-2">
+            <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+              Filtro ativo —
+            </span>
+            <a
+              href={baseFiltrosLimpos}
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium transition-colors hover:brightness-110"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 14%, transparent)",
+                color: "var(--color-brand-600)",
+              }}
+            >
+              Limpar ✕
+            </a>
+          </div>
+        )}
 
         {erros.length > 0 && (
           <CardSection
             title={
               <span className="flex items-center gap-2" style={{ color: "#e11d48" }}>
                 <CircleAlert className="size-4" />
-                {fmtNum(erros.length)} erro(s) de cadastro detectado(s)
+                <a
+                  href={toggleParam("/estoque", sp as Record<string, string | undefined>, "kpi", "erro")}
+                  className="hover:underline"
+                  style={{ color: "#e11d48" }}
+                >
+                  {fmtNum(erros.length)} erro(s) de cadastro detectado(s)
+                </a>
               </span>
             }
-            subtitle="Itens classificados como 'Comprando' que possuem OP gerada — verificar cadastro."
+            subtitle="Itens classificados como 'Comprando' que possuem OP gerada — verificar cadastro. Clique no título para filtrar."
           >
             <DataTable
               columns={errosCols}

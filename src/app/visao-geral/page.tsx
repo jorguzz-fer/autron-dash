@@ -25,6 +25,27 @@ interface SP {
   dir?: string;
   gran?: string;
   vendView?: string;
+  /** KPI clicado: "aberto" | "finalizado" */
+  kpi?: string;
+  /** Filtro por vendedor (clique no chart top vendedores). */
+  vend?: string;
+}
+
+/** Toggle de query param preservando os outros. */
+function toggleParam(
+  base: string,
+  sp: Record<string, string | undefined>,
+  key: string,
+  value: string,
+): string {
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (k === key) continue;
+    if (v) usp.set(k, String(v));
+  }
+  if (sp[key] !== value) usp.set(key, value);
+  const qs = usp.toString();
+  return qs ? `${base}?${qs}` : base;
 }
 
 const GRAN_OPTS = [
@@ -60,11 +81,16 @@ export default async function VisaoGeralPage({
   const gran: Granularity = parseGranularity(sp.gran, "month");
   const vendView = parseView(sp.vendView, "bar");
 
-  const pedidos = await getEnrichedPedidos({
+  const allPedidos = await getEnrichedPedidos({
     tenantId: session.user.tenantId,
     dataInicio,
     dataFim,
   });
+
+  // Filtro por vendedor (vem do clique no chart top vendedores).
+  const pedidos = sp.vend
+    ? allPedidos.filter((p) => (p.nomeVendedor ?? "Sem vendedor") === sp.vend)
+    : allPedidos;
 
   const totalPVs = new Set(pedidos.map((p) => p.numPedido)).size;
   const totalLinhas = pedidos.length;
@@ -90,17 +116,34 @@ export default async function VisaoGeralPage({
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
 
-  // Tabela default: top 30 por valor desc. Se houver sort URL, aplica em cima do top 30.
-  const baseTabela = [...emAberto]
+  // Tabela default: top 30 por valor desc. Filtro `kpi` define a fonte.
+  const fontePedidos =
+    sp.kpi === "finalizado" ? finalizados : sp.kpi === "aberto" ? emAberto : emAberto;
+  const baseTabela = [...fontePedidos]
     .sort((a, b) => (b.vlrTotal ?? 0) - (a.vlrTotal ?? 0))
     .slice(0, 30);
   const tabela = sortRows(baseTabela as unknown as Record<string, unknown>[], sortState) as unknown as PedidoEnriched[];
+
+  // URL base preservando período/sort/granularidade — pra limpar filtros KPI/vend.
+  const baseFiltrosLimpos = (() => {
+    const usp = new URLSearchParams();
+    if (sp.from) usp.set("from", sp.from);
+    if (sp.to) usp.set("to", sp.to);
+    if (sp.sort) usp.set("sort", sp.sort);
+    if (sp.dir) usp.set("dir", sp.dir);
+    if (sp.gran) usp.set("gran", sp.gran);
+    if (sp.vendView) usp.set("vendView", sp.vendView);
+    const qs = usp.toString();
+    return qs ? `/visao-geral?${qs}` : "/visao-geral";
+  })();
+  const temFiltroAtivo = !!(sp.kpi || sp.vend);
 
   return (
     <AppShell title="Visão Geral" subtitle="Status macro e entrada de pedidos por mês">
       <div className="space-y-5">
         <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
 
+        {/* KPIs clicáveis — Em aberto / Finalizados filtram a tabela inferior. */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KPICard
             label="Total de PVs"
@@ -115,6 +158,8 @@ export default async function VisaoGeralPage({
             hint={fmtCurrency(valorEmAberto, { compact: true })}
             icon={<Activity className="size-4" />}
             tone="warning"
+            href={toggleParam("/visao-geral", sp as Record<string, string | undefined>, "kpi", "aberto")}
+            active={sp.kpi === "aberto"}
           />
           <KPICard
             label="Finalizados"
@@ -122,6 +167,8 @@ export default async function VisaoGeralPage({
             hint={fmtPct(pctConclusao, 1) + " conclusão"}
             icon={<CheckCircle2 className="size-4" />}
             tone="success"
+            href={toggleParam("/visao-geral", sp as Record<string, string | undefined>, "kpi", "finalizado")}
+            active={sp.kpi === "finalizado"}
           />
           <KPICard
             label="Valor em aberto"
@@ -131,6 +178,46 @@ export default async function VisaoGeralPage({
             tone="neutral"
           />
         </section>
+
+        {temFiltroAtivo && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+              Filtros ativos:
+            </span>
+            {sp.vend && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-medium"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--color-brand-500) 12%, transparent)",
+                  color: "var(--color-brand-600)",
+                }}
+              >
+                Vendedor: {sp.vend}
+              </span>
+            )}
+            {sp.kpi && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11.5px] font-medium"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--color-brand-500) 12%, transparent)",
+                  color: "var(--color-brand-600)",
+                }}
+              >
+                Status: {sp.kpi === "aberto" ? "Em aberto" : "Finalizados"}
+              </span>
+            )}
+            <a
+              href={baseFiltrosLimpos}
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium transition-colors hover:brightness-110"
+              style={{
+                backgroundColor: "var(--surface-2)",
+                color: "var(--fg)",
+              }}
+            >
+              Limpar ✕
+            </a>
+          </div>
+        )}
 
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <CardSection

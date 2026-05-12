@@ -20,6 +20,25 @@ interface SP {
   to?: string;
   sort?: string;
   dir?: string;
+  /** KPI clicado: "atrasados" | "noprazo" | "semdata" */
+  kpi?: string;
+}
+
+/** Toggle de query param preservando os outros. */
+function toggleParam(
+  base: string,
+  sp: Record<string, string | undefined>,
+  key: string,
+  value: string,
+): string {
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (k === key) continue;
+    if (v) usp.set(k, String(v));
+  }
+  if (sp[key] !== value) usp.set(key, value);
+  const qs = usp.toString();
+  return qs ? `${base}?${qs}` : base;
 }
 
 export default async function PrevisaoEntregaPage({
@@ -70,8 +89,34 @@ export default async function PrevisaoEntregaPage({
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
 
+  // Aplicar filtro de KPI clicado à tabela.
+  const filtered = pedidos.filter((p) => {
+    if (!sp.kpi) return true;
+    switch (sp.kpi) {
+      case "atrasados":
+        return (p.diasAtrasoCliente ?? 0) > 0;
+      case "noprazo":
+        return p.diasAtrasoCliente != null && p.diasAtrasoCliente <= 0;
+      case "semdata":
+        return p.diasAtrasoCliente == null;
+      default:
+        return true;
+    }
+  });
+
+  // URL base para "Limpar" preservando período/sort.
+  const baseFiltrosLimpos = (() => {
+    const usp = new URLSearchParams();
+    if (sp.from) usp.set("from", sp.from);
+    if (sp.to) usp.set("to", sp.to);
+    if (sp.sort) usp.set("sort", sp.sort);
+    if (sp.dir) usp.set("dir", sp.dir);
+    const qs = usp.toString();
+    return qs ? `/previsao-entrega?${qs}` : "/previsao-entrega";
+  })();
+
   // Tabela completa — paridade com Streamlit (app.py:1325), sem truncamento.
-  const baseTabela = [...pedidos].sort(
+  const baseTabela = [...filtered].sort(
     (a, b) => (b.diasAtrasoCliente ?? -9999) - (a.diasAtrasoCliente ?? -9999),
   );
   const tabela = sortRows(
@@ -84,6 +129,7 @@ export default async function PrevisaoEntregaPage({
       <div className="space-y-5">
         <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
 
+        {/* KPIs clicáveis — Atrasados/No prazo/Sem data filtram a tabela. */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <KPICard
             label="Atrasados"
@@ -91,7 +137,8 @@ export default async function PrevisaoEntregaPage({
             hint={`Média: ${mediaAtraso} dias`}
             icon={<Clock className="size-4" />}
             tone="danger"
-            active={atrasados.length > 0}
+            href={toggleParam("/previsao-entrega", sp as Record<string, string | undefined>, "kpi", "atrasados")}
+            active={sp.kpi === "atrasados"}
           />
           <KPICard
             label="Maior atraso"
@@ -106,6 +153,8 @@ export default async function PrevisaoEntregaPage({
             hint="DT. Fat. Cli ainda no futuro"
             icon={<CheckCircle2 className="size-4" />}
             tone="success"
+            href={toggleParam("/previsao-entrega", sp as Record<string, string | undefined>, "kpi", "noprazo")}
+            active={sp.kpi === "noprazo"}
           />
           <KPICard
             label="Sem data"
@@ -113,6 +162,8 @@ export default async function PrevisaoEntregaPage({
             hint="Pedidos sem DT. Fat. Cli"
             icon={<HelpCircle className="size-4" />}
             tone="warning"
+            href={toggleParam("/previsao-entrega", sp as Record<string, string | undefined>, "kpi", "semdata")}
+            active={sp.kpi === "semdata"}
           />
           <KPICard
             label="Média de atraso"
@@ -122,6 +173,24 @@ export default async function PrevisaoEntregaPage({
             tone="neutral"
           />
         </section>
+
+        {sp.kpi && (
+          <div className="flex items-center gap-2">
+            <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+              Filtro ativo —
+            </span>
+            <a
+              href={baseFiltrosLimpos}
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium transition-colors hover:brightness-110"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 14%, transparent)",
+                color: "var(--color-brand-600)",
+              }}
+            >
+              Limpar ✕
+            </a>
+          </div>
+        )}
 
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <CardSection title="Top 10 mais atrasados" subtitle="Por dias de atraso vs cliente">
