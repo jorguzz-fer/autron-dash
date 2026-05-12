@@ -17,13 +17,13 @@ export default function TopBar({ title, subtitle, actions }: TopBarProps) {
     >
       <div className="min-w-0 flex-1 leading-tight">
         <h1
-          className="truncate text-[15px] font-semibold tracking-tight"
+          className="truncate text-[17px] font-bold tracking-tight"
           style={{ color: "var(--fg-strong)" }}
         >
           {title}
         </h1>
         {subtitle && (
-          <p className="truncate text-[12px]" style={{ color: "var(--fg-muted)" }}>
+          <p className="truncate text-[12.5px]" style={{ color: "var(--fg-muted)" }}>
             {subtitle}
           </p>
         )}

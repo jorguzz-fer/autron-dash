@@ -170,7 +170,7 @@ export default async function FaturamentoPage() {
 
   return (
     <AppShell title="Faturamento" subtitle="Meta × Realizado · Carteira · Comparativo Anual">
-      <div className="space-y-7">
+      <div className="space-y-10">
 
         {/* ── Resultado mês fechado ── */}
         <SectionBlock title={`Resultado ${labelMesFechado}`}>
@@ -475,13 +475,26 @@ export default async function FaturamentoPage() {
 
 function SectionBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="space-y-3">
-      <h2
-        className="text-[16px] font-semibold tracking-tight"
-        style={{ color: "var(--fg-strong)" }}
-      >
-        {title}
-      </h2>
+    <div
+      className="space-y-4 rounded-2xl px-6 py-5"
+      style={{
+        backgroundColor: "color-mix(in srgb, var(--color-brand-500) 4%, var(--canvas))",
+        border: "1px solid color-mix(in srgb, var(--color-brand-500) 14%, var(--border-soft))",
+      }}
+    >
+      {/* Título da seção com barra lateral teal */}
+      <div className="flex items-center gap-3">
+        <span
+          className="block h-6 w-1 shrink-0 rounded-full"
+          style={{ backgroundColor: "var(--color-brand-500)" }}
+        />
+        <h2
+          className="text-[20px] font-bold tracking-tight"
+          style={{ color: "var(--fg-strong)" }}
+        >
+          {title}
+        </h2>
+      </div>
       {children}
     </div>
   );
