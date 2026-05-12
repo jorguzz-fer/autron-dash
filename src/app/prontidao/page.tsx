@@ -174,9 +174,11 @@ export default async function ProntidaoPage({
     return true;
   });
 
-  // Cards de Prazo Entrega (fuDtChegadaAutron) sobre o conjunto filtrado
-  const prazoComPrazo = filtered.filter((p) => p.fuDtChegadaAutron != null).length;
-  const prazoSemPrazo = filtered.filter((p) => p.fuDtChegadaAutron == null).length;
+  // Cards de Prazo Entrega (prazoRealEntrega = FU_Dt_Confirma OR FU_Dt_Pre_Entr)
+  // Espelha a regra do Streamlit antigo (app.py linha 372).
+  // "Com prazo" = data definida. "Sem prazo" = null OU marker "A definir" (IND21 posto/cabine).
+  const prazoComPrazo = filtered.filter((p) => p.prazoRealEntrega instanceof Date).length;
+  const prazoSemPrazo = filtered.length - prazoComPrazo;
 
   const baseTabela = [...filtered]
     .sort((a, b) => {
@@ -457,24 +459,6 @@ function acaoBadge(a: AcaoNecessaria) {
   }
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-function diasEntre(de: Date | null, ate: Date | null): number | null {
-  if (!de || !ate) return null;
-  const a = Date.UTC(de.getUTCFullYear(), de.getUTCMonth(), de.getUTCDate());
-  const b = Date.UTC(ate.getUTCFullYear(), ate.getUTCMonth(), ate.getUTCDate());
-  return Math.round((b - a) / MS_PER_DAY);
-}
-
-/** Semana ISO: "W19.26" a partir de uma data. */
-function semanaStr(date: Date): string {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const week = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `W${String(week).padStart(2, "0")}.${String(d.getUTCFullYear()).slice(2)}`;
-}
-
 /** "SC 5576" | "OP 20437" | "—" */
 function scOpCell(p: PedidoEnriched) {
   const txt = p.numeroSC ? `SC ${p.numeroSC}` : p.numeroOP ? `OP ${p.numeroOP}` : null;
@@ -573,13 +557,6 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     cell: (p) => dispoCell(p.disponibilidadeEstoque),
   },
   {
-    key: "estoque",
-    header: "Estoque",
-    sortKey: "estoqueDisponivel",
-    align: "right",
-    cell: (p) => <span className="numeric text-[12px]">{fmtNum(p.estoqueDisponivel)}</span>,
-  },
-  {
     key: "scop",
     header: "SC / OP",
     cell: scOpCell,
@@ -597,20 +574,14 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     cell: (p) => <span className="numeric text-[12px]">{p.dtFatCli ? fmtDate(p.dtFatCli) : "—"}</span>,
   },
   {
-    key: "dtAdapt",
-    header: "Dt. Entrega Adaptada",
+    // No Streamlit antigo (app.py linha 372): Prazo_Real_Entrega = FU_Dt_Confirma OR FU_Dt_Pre_Entr.
+    // Para IND21 posto/cabine vira o marker "A definir" (app.py linha 424).
+    key: "prazoEnt",
+    header: "Prazo Entrega",
     cell: (p) => (
       <span className="numeric text-[12px]">
         {p.prazoRealEntrega instanceof Date ? fmtDate(p.prazoRealEntrega) : p.prazoRealEntrega ?? "—"}
       </span>
-    ),
-  },
-  {
-    key: "prazoEnt",
-    header: "Prazo Entrega",
-    sortKey: "fuDtChegadaAutron",
-    cell: (p) => (
-      <span className="numeric text-[12px]">{p.fuDtChegadaAutron ? fmtDate(p.fuDtChegadaAutron) : "—"}</span>
     ),
   },
   {
@@ -619,11 +590,14 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     cell: atendTexto,
   },
   {
+    // No Streamlit antigo (app.py linha 373): Semana_Entrega = FU_Pasta (string crua do follow-up,
+    // ex. "17/04 a 23/04"), apenas se FU_Dt_Confirma estiver preenchido.
     key: "semana",
     header: "Semana",
+    sortKey: "semanaEntrega",
     cell: (p) => (
       <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
-        {p.fuDtChegadaAutron ? semanaStr(p.fuDtChegadaAutron) : "—"}
+        {p.semanaEntrega ?? "—"}
       </span>
     ),
   },
