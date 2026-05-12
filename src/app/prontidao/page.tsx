@@ -173,6 +173,11 @@ export default async function ProntidaoPage({
     }
     return true;
   });
+
+  // Cards de Prazo Entrega (fuDtChegadaAutron) sobre o conjunto filtrado
+  const prazoComPrazo = filtered.filter((p) => p.fuDtChegadaAutron != null).length;
+  const prazoSemPrazo = filtered.filter((p) => p.fuDtChegadaAutron == null).length;
+
   const baseTabela = [...filtered]
     .sort((a, b) => {
       const eA = a.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
@@ -338,6 +343,30 @@ export default async function ProntidaoPage({
               options={MES_OPTIONS}
             />
           </div>
+          {/* Cards: resumo do campo Prazo Entrega (fuDtChegadaAutron) */}
+          <div className="mb-5 grid grid-cols-3 gap-3">
+            <KPICard
+              label="Total Pedidos"
+              value={fmtNum(filtered.length)}
+              icon={<Layers className="size-4" />}
+              tone="brand"
+            />
+            <KPICard
+              label="Com prazo"
+              value={fmtNum(prazoComPrazo)}
+              hint="Prazo Entrega preenchido"
+              icon={<CalendarCheck className="size-4" />}
+              tone="success"
+            />
+            <KPICard
+              label="Sem prazo"
+              value={fmtNum(prazoSemPrazo)}
+              hint="Prazo Entrega em branco"
+              icon={<CalendarOff className="size-4" />}
+              tone="warning"
+            />
+          </div>
+
           <DataTable
             columns={prontidaoCols}
             rows={tabela}
