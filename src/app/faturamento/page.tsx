@@ -1,14 +1,25 @@
 import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getFaturamentos } from "@/lib/services/faturamento";
+import { getFaturamentos, type FaturamentoRow } from "@/lib/services/faturamento";
 import { getMetas } from "@/lib/services/metas";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
 import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import BarCompareChart from "@/components/UI/BarCompareChart";
-import { fmtCurrency, fmtNum, fmtPct, monthKey } from "@/lib/format";
-import { Target, TrendingUp, Wallet, ShoppingCart, Package } from "lucide-react";
+import DataTable, { type Column } from "@/components/UI/DataTable";
+import HBarRanking from "@/components/UI/HBarRanking";
+import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey } from "@/lib/format";
+import { parseSort, sortRows } from "@/lib/sort";
+import {
+  Target,
+  TrendingUp,
+  Wallet,
+  ShoppingCart,
+  Package,
+  FileText,
+  Percent,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 export const metadata = { title: "Faturamento — Autron Dash" };
@@ -18,10 +29,22 @@ const MES_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set
 const Q1_MONTHS = [1, 2, 3];
 const Q2_MONTHS = [4, 5, 6];
 
-export default async function FaturamentoPage() {
+interface SP {
+  sort?: string;
+  dir?: string;
+}
+
+export default async function FaturamentoPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
   const session = await auth();
   if (!session) redirect("/login");
   const tenantId = session.user.tenantId;
+
+  const sp = await searchParams;
+  const sortState = parseSort(sp.sort, sp.dir);
 
   const now = new Date();
   const anoAtual = now.getFullYear();
@@ -167,6 +190,45 @@ export default async function FaturamentoPage() {
   // Labels de cabeçalho dos meses
   const labelMesFechado = `${MES_LABELS[mesFechado - 1].toUpperCase()}/${String(anoMesFechado).slice(2)}`;
   const labelMesAtual = `${MES_LABELS[mesAtual - 1].toUpperCase()}/${String(anoAtual).slice(2)}`;
+
+  // ── Detalhamento (paridade com Streamlit tab5: app.py:1494-1581) ─────
+  // Trabalha em cima de TODAS as notas (sem filtro de período).
+  const fatBrutoTotal = fats.reduce((a, r) => a + (r.faturamentoBruto ?? 0), 0);
+  const fatLiquidoTotal = fats.reduce((a, r) => a + (r.faturamentoLiquido ?? 0), 0);
+
+  // Margem média simples (não ponderada), igual ao .mean() do pandas (app.py:1496).
+  const margensPct = fats.map((r) => r.margemLiquidaPct).filter((v): v is number => v != null);
+  const margemMediaPct =
+    margensPct.length > 0 ? margensPct.reduce((a, v) => a + v, 0) / margensPct.length : 0;
+
+  // Contagem de NFs únicas (app.py:1497).
+  const nfsUnicas = new Set(fats.map((r) => r.numDocto)).size;
+
+  // Top 10 vendedores por faturamento líquido (app.py:1526-1540).
+  const liqByVendedor = new Map<string, number>();
+  for (const r of fats) {
+    const v = r.nomeVendedor ?? "—";
+    liqByVendedor.set(v, (liqByVendedor.get(v) ?? 0) + (r.faturamentoLiquido ?? 0));
+  }
+  const topVendedores = Array.from(liqByVendedor.entries())
+    .map(([label, value]) => ({
+      label,
+      value,
+      display: fmtCurrency(value, { compact: true }),
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
+  // Detalhe ordenado por emissão desc por default (app.py:1579), com override URL-driven.
+  const fatDetalheDefault = [...fats].sort(
+    (a, b) => (b.emissao?.getTime() ?? 0) - (a.emissao?.getTime() ?? 0),
+  );
+  const fatDetalhe = sortState
+    ? (sortRows(
+        fatDetalheDefault as unknown as Record<string, unknown>[],
+        sortState,
+      ) as unknown as FaturamentoRow[])
+    : fatDetalheDefault;
 
   return (
     <AppShell title="Faturamento" subtitle="Meta × Realizado · Carteira · Comparativo Anual">
@@ -468,10 +530,238 @@ export default async function FaturamentoPage() {
           </CardSection>
         </SectionBlock>
 
+        {/* ── Detalhamento do Faturamento (paridade com Streamlit tab5) ── */}
+        <SectionBlock title="Detalhamento do Faturamento">
+          {/* 4 KPIs principais */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <KPICard
+              label="Faturamento Bruto"
+              value={fmtCurrency(fatBrutoTotal, { compact: true })}
+              hint="soma de todas as NFs"
+              tone="neutral"
+              icon={<TrendingUp className="size-4" />}
+            />
+            <KPICard
+              label="Faturamento Líquido"
+              value={fmtCurrency(fatLiquidoTotal, { compact: true })}
+              hint="soma após impostos"
+              tone="success"
+              icon={<Wallet className="size-4" />}
+            />
+            <KPICard
+              label="Margem Líquida Média"
+              value={fmtPct(margemMediaPct, 1)}
+              hint="média simples por NF"
+              tone={margemMediaPct >= 30 ? "success" : "warning"}
+              icon={<Percent className="size-4" />}
+            />
+            <KPICard
+              label="Notas Fiscais"
+              value={fmtNum(nfsUnicas)}
+              hint="documentos únicos"
+              tone="neutral"
+              icon={<FileText className="size-4" />}
+            />
+          </div>
+
+          {/* Top 10 Vendedores */}
+          <CardSection
+            title="Top 10 Vendedores"
+            subtitle="Por faturamento líquido acumulado"
+          >
+            <HBarRanking items={topVendedores} tone="brand" />
+          </CardSection>
+
+          {/* Tabela de detalhe */}
+          <CardSection
+            title="Detalhe das Notas"
+            subtitle={`${fmtNum(fatDetalhe.length)} notas · ordenadas por emissão desc`}
+          >
+            <DataTable
+              columns={faturamentoCols}
+              rows={fatDetalhe}
+              rowKey={(r) => r.id}
+              emptyMessage="Nenhuma nota fiscal carregada."
+            />
+          </CardSection>
+        </SectionBlock>
+
       </div>
     </AppShell>
   );
 }
+
+// Colunas espelham o Streamlit antigo (app.py:1574-1578):
+// Emissao, Num. Docto., No do Pedido, Produto, Descricao Produto, Quantidade,
+// Razao Social, Nome Fantasia, UF, Faturamento Bruto, Faturamento Liquido,
+// Margem Liquida (R$), Margem Liquida (%), Nome do Vendedor, Tipo Negocio.
+const faturamentoCols: Column<FaturamentoRow>[] = [
+  {
+    key: "emissao",
+    header: "Emissão",
+    sortKey: "emissao",
+    cell: (r) => (
+      <span className="numeric text-[12px]">{r.emissao ? fmtDate(r.emissao) : "—"}</span>
+    ),
+    width: "110px",
+  },
+  {
+    key: "numDocto",
+    header: "Num. Docto.",
+    sortKey: "numDocto",
+    cell: (r) => <span className="numeric text-[12px]">{r.numDocto}</span>,
+    width: "110px",
+  },
+  {
+    key: "noPedido",
+    header: "No do Pedido",
+    sortKey: "noPedido",
+    cell: (r) => (
+      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        {r.noPedido ?? "—"}
+      </span>
+    ),
+    width: "100px",
+  },
+  {
+    key: "produto",
+    header: "Produto",
+    sortKey: "produto",
+    cell: (r) => (
+      <div>
+        <code className="font-mono text-[12px]">{r.produto}</code>
+        <div
+          className="max-w-[220px] truncate text-[11.5px]"
+          title={r.descricaoProduto ?? ""}
+          style={{ color: "var(--fg-muted)" }}
+        >
+          {r.descricaoProduto ?? ""}
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "qtd",
+    header: "Qtd",
+    sortKey: "quantidade",
+    align: "right",
+    cell: (r) => <span className="numeric text-[12px]">{fmtNum(r.quantidade)}</span>,
+  },
+  {
+    key: "razaoSocial",
+    header: "Razão Social",
+    sortKey: "razaoSocial",
+    cell: (r) => (
+      <span
+        className="block max-w-[180px] truncate text-[12px]"
+        title={r.razaoSocial ?? ""}
+        style={{ color: "var(--fg)" }}
+      >
+        {r.razaoSocial ?? "—"}
+      </span>
+    ),
+  },
+  {
+    key: "nomeFantasia",
+    header: "Nome Fantasia",
+    sortKey: "nomeFantasia",
+    cell: (r) => (
+      <span
+        className="block max-w-[160px] truncate text-[12px]"
+        title={r.nomeFantasia ?? ""}
+        style={{ color: "var(--fg-muted)" }}
+      >
+        {r.nomeFantasia ?? "—"}
+      </span>
+    ),
+  },
+  {
+    key: "uf",
+    header: "UF",
+    sortKey: "uf",
+    align: "center",
+    cell: (r) => <span className="numeric text-[12px]">{r.uf ?? "—"}</span>,
+    width: "55px",
+  },
+  {
+    key: "fatBruto",
+    header: "Fat. Bruto",
+    sortKey: "faturamentoBruto",
+    align: "right",
+    cell: (r) => (
+      <span className="numeric text-[12px]">
+        {r.faturamentoBruto != null ? fmtCurrency(r.faturamentoBruto) : "—"}
+      </span>
+    ),
+  },
+  {
+    key: "fatLiquido",
+    header: "Fat. Líquido",
+    sortKey: "faturamentoLiquido",
+    align: "right",
+    cell: (r) => (
+      <span className="numeric text-[12px]" style={{ color: "var(--fg-strong)" }}>
+        {r.faturamentoLiquido != null ? fmtCurrency(r.faturamentoLiquido) : "—"}
+      </span>
+    ),
+  },
+  {
+    key: "margemR",
+    header: "Margem R$",
+    sortKey: "margemLiquidaR",
+    align: "right",
+    cell: (r) => (
+      <span className="numeric text-[12px]">
+        {r.margemLiquidaR != null ? fmtCurrency(r.margemLiquidaR) : "—"}
+      </span>
+    ),
+  },
+  {
+    key: "margemPct",
+    header: "Margem %",
+    sortKey: "margemLiquidaPct",
+    align: "right",
+    cell: (r) => {
+      const v = r.margemLiquidaPct;
+      if (v == null)
+        return (
+          <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+            —
+          </span>
+        );
+      const color = v >= 30 ? "#10b981" : v >= 15 ? "#f59e0b" : "#e11d48";
+      return (
+        <span className="numeric text-[12px] font-medium" style={{ color }}>
+          {fmtPct(v, 1)}
+        </span>
+      );
+    },
+  },
+  {
+    key: "vendedor",
+    header: "Vendedor",
+    sortKey: "nomeVendedor",
+    cell: (r) => (
+      <span
+        className="block max-w-[140px] truncate text-[12px]"
+        title={r.nomeVendedor ?? ""}
+        style={{ color: "var(--fg)" }}
+      >
+        {r.nomeVendedor ?? "—"}
+      </span>
+    ),
+  },
+  {
+    key: "tipoNegocio",
+    header: "Tipo Negócio",
+    sortKey: "tipoNegocio",
+    cell: (r) => (
+      <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        {r.tipoNegocio ?? "—"}
+      </span>
+    ),
+  },
+];
 
 function SectionBlock({ title, children }: { title: string; children: ReactNode }) {
   return (

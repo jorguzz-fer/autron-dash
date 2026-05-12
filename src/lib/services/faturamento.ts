@@ -21,7 +21,9 @@ export interface FaturamentoRow {
   margemLiquidaPct: number | null;
   nomeVendedor: string | null;
   razaoSocial: string | null;
+  nomeFantasia: string | null;
   uf: string | null;
+  tipoNegocio: string | null;
 }
 
 function toNum(d: Prisma.Decimal | null | undefined): number | null {
@@ -54,6 +56,8 @@ export async function getFaturamentos(f: FaturamentoFilters): Promise<Faturament
     margemLiquidaPct: toNum(r.margemLiquidaPct),
     nomeVendedor: r.nomeVendedor,
     razaoSocial: r.razaoSocial,
+    nomeFantasia: r.nomeFantasia,
     uf: r.uf,
+    tipoNegocio: r.tipoNegocio,
   }));
 }
