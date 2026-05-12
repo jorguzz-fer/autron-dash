@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Logo from "./Logo";
+import { useSidebar } from "./SidebarProvider";
 
 interface NavItem {
   label: string;
@@ -59,10 +60,18 @@ interface SidebarProps {
 
 export default function Sidebar({ user, onSignOut }: SidebarProps) {
   const isAdmin = user.role === "ADMIN";
+  const { collapsed } = useSidebar();
+  // Quando collapsed: sidebar fica completamente oculta (transição suave de largura).
+  // Em telas menores que lg, segue oculta também (responsivo).
   return (
     <aside
-      className="hidden lg:flex h-screen w-64 shrink-0 flex-col sticky top-0 z-30"
-      style={{ backgroundColor: "var(--sidebar-bg)", borderRight: "1px solid var(--sidebar-border)" }}
+      className={`h-screen shrink-0 flex-col sticky top-0 z-30 overflow-hidden transition-[width] duration-200 ease-out ${
+        collapsed ? "w-0 lg:w-0" : "hidden w-64 lg:flex"
+      }`}
+      style={{
+        backgroundColor: "var(--sidebar-bg)",
+        borderRight: collapsed ? "0" : "1px solid var(--sidebar-border)",
+      }}
     >
       {/* Header — wordmark centralizado */}
       <div
