@@ -11,7 +11,7 @@ import HBarRanking from "@/components/UI/HBarRanking";
 import FilterSelect from "@/components/UI/FilterSelect";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import PrazoEngCell from "@/components/UI/PrazoEngCell";
-import { fmtDate, fmtNum, fmtPct } from "@/lib/format";
+import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import { ROLES_MANAGE, type Role } from "@/lib/authz";
 import {
@@ -436,20 +436,60 @@ function diasEntre(de: Date | null, ate: Date | null): number | null {
   return Math.round((b - a) / MS_PER_DAY);
 }
 
-function diasCell(n: number | null) {
-  if (n == null) return <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>—</span>;
-  const tone =
-    n < 0 ? "var(--fg-muted)" : n <= 30 ? "#10b981" : n <= 60 ? "#f59e0b" : "#e11d48";
+/** Semana ISO: "W19.26" a partir de uma data. */
+function semanaStr(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `W${String(week).padStart(2, "0")}.${String(d.getUTCFullYear()).slice(2)}`;
+}
+
+/** "SC 5576" | "OP 20437" | "—" */
+function scOpCell(p: PedidoEnriched) {
+  const txt = p.numeroSC ? `SC ${p.numeroSC}` : p.numeroOP ? `OP ${p.numeroOP}` : null;
   return (
-    <span className="numeric text-[12px] font-medium" style={{ color: tone }}>
-      {n}
+    <span className="numeric text-[12px]" style={{ color: txt ? "var(--fg)" : "var(--fg-muted)" }}>
+      {txt ?? "—"}
     </span>
   );
 }
 
+/** Disponibilidade colorida: SIM=verde, PARCIAL=laranja, NAO=vermelho */
+function dispoCell(dispo: string) {
+  const color =
+    dispo === "SIM" ? "#10b981" : dispo === "NAO" ? "#e11d48" : dispo.startsWith("PARCIAL") ? "#f59e0b" : "var(--fg-muted)";
+  return (
+    <span className="text-[12px] font-medium" style={{ color }}>
+      {dispo}
+    </span>
+  );
+}
+
+/** Texto de atendimento de prazo (igual ao classifAtend mas como texto corrido). */
+function atendTexto(p: PedidoEnriched) {
+  const c = classifAtend(p);
+  const label = c === "dentro" ? "Dentro do prazo" : c === "fora" ? "Fora do prazo" : "Sem prazo definido";
+  const color = c === "dentro" ? "#10b981" : c === "fora" ? "#e11d48" : "var(--fg-muted)";
+  return <span className="text-[12px]" style={{ color }}>{label}</span>;
+}
+
 const prontidaoCols: Column<PedidoEnriched>[] = [
-  { key: "pv", header: "PV", sortKey: "numPedido", cell: (p) => <span className="numeric">{p.numPedido}</span>, width: "90px" },
-  { key: "item", header: "Item", sortKey: "item", cell: (p) => <span className="numeric">{p.item}</span>, width: "60px" },
+  {
+    key: "pv",
+    header: "PV",
+    sortKey: "numPedido",
+    cell: (p) => <span className="numeric text-[12px]">{p.numPedido}</span>,
+    width: "90px",
+  },
+  {
+    key: "item",
+    header: "Item",
+    sortKey: "item",
+    cell: (p) => <span className="numeric text-[12px]">{p.item}</span>,
+    width: "55px",
+  },
   {
     key: "produto",
     header: "Produto",
@@ -457,11 +497,7 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     cell: (p) => (
       <div>
         <code className="font-mono text-[12px]">{p.produto}</code>
-        <div
-          className="max-w-[260px] truncate text-[11.5px]"
-          title={p.descricaoProduto ?? ""}
-          style={{ color: "var(--fg-muted)" }}
-        >
+        <div className="max-w-[220px] truncate text-[11.5px]" title={p.descricaoProduto ?? ""} style={{ color: "var(--fg-muted)" }}>
           {p.descricaoProduto ?? ""}
         </div>
       </div>
@@ -472,11 +508,7 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     header: "Cliente",
     sortKey: "cliente",
     cell: (p) => (
-      <span
-        className="max-w-[180px] truncate block text-[12.5px]"
-        title={p.cliente ?? ""}
-        style={{ color: "var(--fg)" }}
-      >
+      <span className="block max-w-[160px] truncate text-[12px]" title={p.cliente ?? ""} style={{ color: "var(--fg)" }}>
         {p.cliente ?? "—"}
       </span>
     ),
@@ -487,21 +519,57 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     sortKey: "tipoProduto",
     cell: (p) => <StatusBadge tone={p.tipoProduto === "Indefinido" ? "warning" : "muted"}>{p.tipoProduto}</StatusBadge>,
   },
-  { key: "qtd", header: "Qtd", sortKey: "quantidade", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span> },
-  { key: "estoque", header: "Estoque", sortKey: "estoqueDisponivel", align: "right", cell: (p) => <span className="numeric">{fmtNum(p.estoqueDisponivel)}</span> },
-  { key: "pronto", header: "Pronto?", sortKey: "prontoParaFazer", cell: (p) => prontidaoBadge(p.prontoParaFazer) },
-  { key: "acao", header: "Ação", sortKey: "acaoNecessaria", cell: (p) => acaoBadge(p.acaoNecessaria) },
   {
-    key: "emissao",
-    header: "Emissão",
-    sortKey: "dtEmissao",
+    key: "qtd",
+    header: "Qtd",
+    sortKey: "quantidade",
+    align: "right",
+    cell: (p) => <span className="numeric text-[12px]">{fmtNum(p.quantidade)}</span>,
+  },
+  {
+    key: "vlrTotal",
+    header: "Valor Total",
+    sortKey: "vlrTotal",
+    align: "right",
     cell: (p) => (
-      <span className="numeric text-[12px]">{p.dtEmissao ? fmtDate(p.dtEmissao) : "—"}</span>
+      <span className="numeric text-[12px]">
+        {p.vlrTotal != null ? fmtCurrency(Number(p.vlrTotal)) : "—"}
+      </span>
     ),
   },
   {
-    key: "prazo",
-    header: "Prazo",
+    key: "dispo",
+    header: "Disponível?",
+    sortKey: "disponibilidadeEstoque",
+    cell: (p) => dispoCell(p.disponibilidadeEstoque),
+  },
+  {
+    key: "estoque",
+    header: "Estoque",
+    sortKey: "estoqueDisponivel",
+    align: "right",
+    cell: (p) => <span className="numeric text-[12px]">{fmtNum(p.estoqueDisponivel)}</span>,
+  },
+  {
+    key: "scop",
+    header: "SC / OP",
+    cell: scOpCell,
+  },
+  {
+    key: "acao",
+    header: "Ação",
+    sortKey: "acaoNecessaria",
+    cell: (p) => acaoBadge(p.acaoNecessaria),
+  },
+  {
+    key: "dtNec",
+    header: "Dt. Necessidade Cliente",
+    sortKey: "dtFatCli",
+    cell: (p) => <span className="numeric text-[12px]">{p.dtFatCli ? fmtDate(p.dtFatCli) : "—"}</span>,
+  },
+  {
+    key: "dtAdapt",
+    header: "Dt. Entrega Adaptada",
     cell: (p) => (
       <span className="numeric text-[12px]">
         {p.prazoRealEntrega instanceof Date ? fmtDate(p.prazoRealEntrega) : p.prazoRealEntrega ?? "—"}
@@ -509,16 +577,36 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     ),
   },
   {
-    key: "diasNec",
-    header: "Dias → Nec.",
-    align: "right",
-    cell: (p) => diasCell(diasEntre(p.dtEmissao, p.dtFatCli)),
+    key: "prazoEnt",
+    header: "Prazo Entrega",
+    sortKey: "fuDtChegadaAutron",
+    cell: (p) => (
+      <span className="numeric text-[12px]">{p.fuDtChegadaAutron ? fmtDate(p.fuDtChegadaAutron) : "—"}</span>
+    ),
   },
   {
-    key: "diasAut",
-    header: "Dias → Aut.",
-    align: "right",
-    cell: (p) => diasCell(diasEntre(p.dtEmissao, p.fuDtChegadaAutron)),
+    key: "atend",
+    header: "Atendimento Prazo",
+    cell: atendTexto,
+  },
+  {
+    key: "semana",
+    header: "Semana",
+    cell: (p) => (
+      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        {p.fuDtChegadaAutron ? semanaStr(p.fuDtChegadaAutron) : "—"}
+      </span>
+    ),
+  },
+  {
+    key: "pedCliente",
+    header: "Ped. Cliente",
+    sortKey: "pedCliente",
+    cell: (p) => (
+      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        {p.pedCliente ?? "—"}
+      </span>
+    ),
   },
 ];
 
