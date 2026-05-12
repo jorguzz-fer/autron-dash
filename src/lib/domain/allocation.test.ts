@@ -45,7 +45,22 @@ describe("allocateStock", () => {
     const r = allocateStock(pedidos, estoques);
     expect(r.get("p1")?.disponibilidadeEstoque).toBe("PARCIAL");
     expect(r.get("p1")?.qtdAlocada).toBe(4);
-    expect(r.get("p1")?.estoqueDisponivel).toBe(0);
+    // estoqueDisponivel = saldo BRUTO do produto (paridade com Streamlit:
+    // mesmo valor replicado em todas as linhas do mesmo produto, não o residual).
+    expect(r.get("p1")?.estoqueDisponivel).toBe(4);
+  });
+
+  it("estoqueDisponivel mantém valor BRUTO mesmo após alocação de pedidos anteriores", () => {
+    // Garante que pedidos do mesmo produto vejam o mesmo saldo bruto,
+    // independente da posição na fila FIFO.
+    const pedidos = [
+      mkPedido({ id: "p1", produto: "X", quantidade: 5, dtEmissao: new Date("2026-04-01") }),
+      mkPedido({ id: "p2", produto: "X", quantidade: 5, dtEmissao: new Date("2026-04-15") }),
+    ];
+    const estoques: EstoqueInput[] = [{ codigo: "X", saldoEstoque: 10 }];
+    const r = allocateStock(pedidos, estoques);
+    expect(r.get("p1")?.estoqueDisponivel).toBe(10);
+    expect(r.get("p2")?.estoqueDisponivel).toBe(10);
   });
 
   it("Servico não consome estoque, mesmo com saldo disponível", () => {

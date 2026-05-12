@@ -28,6 +28,14 @@ export function allocateStock(
     saldoPorProduto.set(e.codigo, (saldoPorProduto.get(e.codigo) ?? 0) + e.saldoEstoque);
   }
 
+  // Snapshot do saldo BRUTO antes da alocação. O Streamlit antigo (app.py:386)
+  // replica esse mesmo valor em todas as linhas do mesmo produto — é o saldo
+  // total disponível no estoque, não o residual após cada pedido.
+  // Por isso usamos esse snapshot ao popular o campo `estoqueDisponivel` de cada
+  // AllocationResult, independente da posição do pedido na FIFO.
+  const saldoBrutoPorProduto = new Map(saldoPorProduto);
+  const getBruto = (produto: string) => saldoBrutoPorProduto.get(produto) ?? 0;
+
   const result = new Map<string, AllocationResult>();
 
   // Pedidos finalizados: N/A (não entram na alocação)
@@ -36,11 +44,10 @@ export function allocateStock(
   const queue: PedidoInput[] = [];
   for (const p of pedidos) {
     const status: StatusPedido = statusPedido(p);
-    const estoqueDisponivelTotal = saldoPorProduto.get(p.produto) ?? 0;
 
     if (status === "FINALIZADO") {
       result.set(p.id, {
-        estoqueDisponivel: estoqueDisponivelTotal,
+        estoqueDisponivel: getBruto(p.produto),
         qtdAlocada: 0,
         disponibilidadeEstoque: "N/A",
       });
@@ -48,7 +55,7 @@ export function allocateStock(
     }
     if (ehServico(p.descricaoProduto)) {
       result.set(p.id, {
-        estoqueDisponivel: estoqueDisponivelTotal,
+        estoqueDisponivel: getBruto(p.produto),
         qtdAlocada: 0,
         disponibilidadeEstoque: "Servico",
       });
@@ -94,7 +101,8 @@ export function allocateStock(
     saldoPorProduto.set(p.produto, saldo - qtdAlocada);
 
     result.set(p.id, {
-      estoqueDisponivel: saldoPorProduto.get(p.produto) ?? 0,
+      // Saldo BRUTO do produto (paridade com Streamlit) — não o residual.
+      estoqueDisponivel: getBruto(p.produto),
       qtdAlocada,
       disponibilidadeEstoque: disp,
     });

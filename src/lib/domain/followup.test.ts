@@ -37,13 +37,16 @@ describe("buildFollowUpIndex", () => {
     expect(idx.byPVItem.get("15315|XYZ")?.noSC).toBe("5002");
   });
 
-  it("quando há duplicatas para a mesma SC, prioriza a com dtConfirma preenchido", () => {
+  it("quando há duplicatas para a mesma SC, mantém a primeira (paridade com Streamlit groupby.first)", () => {
+    // app.py:340-352 faz groupby(...).agg('first'), então mantemos a primeira
+    // linha encontrada — independente de qual é "mais informativa".
     const fus: FollowUpInput[] = [
       mkFu({ noSC: "5001", dtConfirma: null, dtPreEntr: new Date("2026-04-01") }),
       mkFu({ noSC: "5001", dtConfirma: new Date("2026-03-15"), dtPreEntr: null }),
     ];
     const idx = buildFollowUpIndex(fus);
-    expect(idx.bySC.get("5001")?.dtConfirma).toEqual(new Date("2026-03-15"));
+    expect(idx.bySC.get("5001")?.dtConfirma).toBeNull();
+    expect(idx.bySC.get("5001")?.dtPreEntr).toEqual(new Date("2026-04-01"));
   });
 });
 
@@ -98,6 +101,29 @@ describe("consolidateFollowUp", () => {
       mkFu({ noSC: "5001", dtConfirma: new Date("2026-04-15") }),
     ]);
     const fu = consolidateFollowUp(pedido, idx);
+    expect(fu.prazoRealEntrega).toBe(PRAZO_A_DEFINIR);
+  });
+
+  it("exceção IND21 + Posto: zera fuDtConfirma/fuDtPreEntr e cascateia em semanaEntrega (app.py:424-426)", () => {
+    // Garante que pedidos IND21 posto/cabine não vazam confirmação de prazo
+    // para Pronto_para_Fazer nem para Semana_Entrega.
+    const pedido = {
+      ...basePedido,
+      unidadeNegocio: "IND21",
+      descricaoProduto: "Cabine principal",
+    };
+    const idx = buildFollowUpIndex([
+      mkFu({
+        noSC: "5001",
+        dtConfirma: new Date("2026-04-15"),
+        dtPreEntr: new Date("2026-04-10"),
+        pasta: "12/04 a 18/04",
+      }),
+    ]);
+    const fu = consolidateFollowUp(pedido, idx);
+    expect(fu.fuDtConfirma).toBeNull();
+    expect(fu.fuDtPreEntr).toBeNull();
+    expect(fu.semanaEntrega).toBeNull();
     expect(fu.prazoRealEntrega).toBe(PRAZO_A_DEFINIR);
   });
 

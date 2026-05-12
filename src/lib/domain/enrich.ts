@@ -23,6 +23,28 @@ interface EnrichArgs {
 }
 
 /**
+ * Verdadeiro se o valor é uma string não-vazia e diferente do literal "nan"
+ * (defensivo contra exports de pandas/Excel que viram "nan" em string).
+ * Espelha `notna() & strip().ne('') & strip().ne('nan')` do Streamlit antigo
+ * (app.py:430-433).
+ */
+function isNonEmpty(v: string | null | undefined): boolean {
+  if (v == null) return false;
+  const s = String(v).trim();
+  return s !== "" && s.toLowerCase() !== "nan";
+}
+
+/**
+ * Filtra PVs internos (começam com "I") e de bonificação (começam com "B").
+ * Espelha `app.py:316`: `ep = ep[~ep['Num. Pedido'].str.upper().str.match(r'^[IB]')]`.
+ * São pedidos que o Streamlit antigo descarta completamente antes de qualquer
+ * cálculo — não entram em KPIs, charts nem tabelas.
+ */
+function isPVValido(numPedido: string): boolean {
+  return !/^[IB]/i.test(numPedido);
+}
+
+/**
  * Pipeline completo de enriquecimento — porta direta da lógica do app Streamlit.
  *
  * Funções puras: não acessa banco. O caller (service) é quem faz fetch e converte
@@ -31,12 +53,16 @@ interface EnrichArgs {
 export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
   const today = args.today ?? new Date();
 
+  // Filtro PVs internos/bonificação (^[IB]) antes de qualquer processamento.
+  // Os pedidos descartados nem entram na alocação FIFO de estoque.
+  const pedidosValidos = args.pedidos.filter((p) => isPVValido(p.numPedido));
+
   const fuIdx = buildFollowUpIndex(args.followUps);
 
   const tipoPorProduto = new Map<string, TipoProduto>();
   for (const c of args.classificacoes) tipoPorProduto.set(c.produto, c.tipoProduto);
 
-  const allocation = allocateStock(args.pedidos, args.estoques);
+  const allocation = allocateStock(pedidosValidos, args.estoques);
 
   // Coleta todos os "PV informado na SC" (Obs da SC) não-nulos para detectar
   // SCs criadas manualmente — quando o comprador gera SC sem vincular ao PV
@@ -46,7 +72,7 @@ export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
     if (fu.pvInformadoSC) obsScList.push(fu.pvInformadoSC);
   }
 
-  return args.pedidos.map((p) => {
+  return pedidosValidos.map((p) => {
     const status = statusPedido(p);
     const servico = ehServico(p.descricaoProduto);
     const tipoProduto: TipoProduto = tipoPorProduto.get(p.produto) ?? "Indefinido";
@@ -58,8 +84,10 @@ export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
       disponibilidadeEstoque: status === "FINALIZADO" ? "N/A" : "NAO",
     };
 
-    const temSC = p.numeroSC != null;
-    const temOP = p.numeroOP != null || fu.fuOpNaSC != null;
+    // Sanitização: strings vazias ou literal "nan" não contam como SC/OP preenchidos.
+    // Espelha app.py:430-433 (que faz notna() & strip != '' & strip != 'nan').
+    const temSC = isNonEmpty(p.numeroSC);
+    const temOP = isNonEmpty(p.numeroOP) || isNonEmpty(fu.fuOpNaSC);
 
     // Só vale verificar "SC Manual" quando seria "Necessario gerar SC":
     // Comprando, sem SC vinculada, sem OP, sem estoque suficiente.

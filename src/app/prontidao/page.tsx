@@ -180,14 +180,13 @@ export default async function ProntidaoPage({
   const prazoComPrazo = filtered.filter((p) => p.prazoRealEntrega instanceof Date).length;
   const prazoSemPrazo = filtered.length - prazoComPrazo;
 
-  const baseTabela = [...filtered]
-    .sort((a, b) => {
-      const eA = a.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
-      const eB = b.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
-      if (eA !== eB) return eA - eB;
-      return ordemPront[a.prontoParaFazer] - ordemPront[b.prontoParaFazer];
-    })
-    .slice(0, 100);
+  // Tabela completa — paridade com Streamlit (app.py:1198), sem truncamento.
+  const baseTabela = [...filtered].sort((a, b) => {
+    const eA = a.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
+    const eB = b.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
+    if (eA !== eB) return eA - eB;
+    return ordemPront[a.prontoParaFazer] - ordemPront[b.prontoParaFazer];
+  });
   const tabela = sortRows(
     baseTabela as unknown as Record<string, unknown>[],
     sortState,
@@ -308,7 +307,7 @@ export default async function ProntidaoPage({
 
         <CardSection
           title="Pedidos"
-          subtitle={`${fmtNum(filtered.length)} de ${fmtNum(pedidos.length)} pedidos · top 100 (erros e bloqueios primeiro)`}
+          subtitle={`${fmtNum(filtered.length)} de ${fmtNum(pedidos.length)} pedidos · erros e bloqueios primeiro`}
         >
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <FilterSelect

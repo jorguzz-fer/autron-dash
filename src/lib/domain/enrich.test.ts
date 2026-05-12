@@ -151,6 +151,51 @@ describe("enrichPedidos — fluxo completo", () => {
     expect(enriched[0].tipoProduto).toBe("Indefinido");
     expect(enriched[0].acaoNecessaria).toBe("Verificar classificacao");
   });
+
+  it("filtra PVs internos (I) e bonificação (B) — paridade app.py:316", () => {
+    const pedidos: PedidoInput[] = [
+      mkP({ id: "ok", numPedido: "15300", produto: "X" }),
+      mkP({ id: "interno", numPedido: "I00123", produto: "X" }),
+      mkP({ id: "interno_lower", numPedido: "i00124", produto: "X" }),
+      mkP({ id: "bonif", numPedido: "B00200", produto: "X" }),
+      mkP({ id: "bonif_lower", numPedido: "b00201", produto: "X" }),
+    ];
+    const enriched = enrichPedidos({
+      pedidos,
+      followUps: [],
+      estoques: [{ codigo: "X", saldoEstoque: 100 }],
+      classificacoes: [{ produto: "X", tipoProduto: "Comprando" }],
+      today,
+    });
+    expect(enriched.map((e) => e.id)).toEqual(["ok"]);
+  });
+
+  it("temSC/temOP ignoram strings vazias e literal 'nan' (paridade app.py:430-433)", () => {
+    const pedidos: PedidoInput[] = [
+      mkP({ id: "p_vazio", produto: "X", numeroSC: "  ", numeroOP: "" }),
+      mkP({ id: "p_nan", produto: "X", numeroSC: "nan", numeroOP: "NaN" }),
+      mkP({ id: "p_valido", produto: "X", numeroSC: "5001" }),
+    ];
+    const enriched = enrichPedidos({
+      pedidos,
+      followUps: [],
+      estoques: [],
+      classificacoes: [{ produto: "X", tipoProduto: "Comprando" }],
+      today,
+    });
+    const pVazio = enriched.find((e) => e.id === "p_vazio")!;
+    const pNan = enriched.find((e) => e.id === "p_nan")!;
+    const pValido = enriched.find((e) => e.id === "p_valido")!;
+
+    // Strings vazias / "nan" não contam como SC/OP — não viram ERRO no CADASTRO
+    expect(pVazio.temSC).toBe(false);
+    expect(pVazio.temOP).toBe(false);
+    expect(pNan.temSC).toBe(false);
+    expect(pNan.temOP).toBe(false);
+
+    // Sanidade: SC válida é detectada
+    expect(pValido.temSC).toBe(true);
+  });
 });
 
 function mkP(o: Partial<PedidoInput> & { id: string; produto: string }): PedidoInput {

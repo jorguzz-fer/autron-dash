@@ -58,19 +58,22 @@ export default async function PrevisaoEntregaPage({
     .sort((a, b) => (b.diasAtrasoCliente ?? 0) - (a.diasAtrasoCliente ?? 0))
     .slice(0, 10);
 
+  // Chart de pedidos por semana: paridade com Streamlit (app.py:1234).
+  // Streamlit exclui semanas null (notna()) e ordena por label asc (calendário,
+  // não ranking). Mostra TODAS as semanas — sem corte top N.
   const bySemana = new Map<string, number>();
   for (const p of pedidos) {
-    const k = p.semanaEntrega ?? "Sem semana";
-    bySemana.set(k, (bySemana.get(k) ?? 0) + 1);
+    if (!p.semanaEntrega) continue;
+    bySemana.set(p.semanaEntrega, (bySemana.get(p.semanaEntrega) ?? 0) + 1);
   }
   const semanas = Array.from(bySemana.entries())
     .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10);
+    .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
 
-  const baseTabela = [...pedidos]
-    .sort((a, b) => (b.diasAtrasoCliente ?? -9999) - (a.diasAtrasoCliente ?? -9999))
-    .slice(0, 50);
+  // Tabela completa — paridade com Streamlit (app.py:1325), sem truncamento.
+  const baseTabela = [...pedidos].sort(
+    (a, b) => (b.diasAtrasoCliente ?? -9999) - (a.diasAtrasoCliente ?? -9999),
+  );
   const tabela = sortRows(
     baseTabela as unknown as Record<string, unknown>[],
     sortState,

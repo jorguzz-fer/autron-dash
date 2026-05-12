@@ -55,21 +55,20 @@ export default async function EstoquePage({
   const necOP = pedidos.filter((p) => p.acaoNecessaria === "Necessario gerar OP").length;
   const erros = pedidos.filter((p) => p.acaoNecessaria === "ERRO no CADASTRO");
 
-  const baseTabela = [...pedidos]
-    .sort((a, b) => {
-      const ordem: Record<DisponibilidadeEstoque, number> = {
-        "NAO": 1,
-        "PARCIAL": 2,
-        "SIM": 3,
-        "Servico": 4,
-        "N/A": 5,
-      };
-      const eA = a.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
-      const eB = b.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
-      if (eA !== eB) return eA - eB;
-      return ordem[a.disponibilidadeEstoque] - ordem[b.disponibilidadeEstoque];
-    })
-    .slice(0, 100);
+  // Tabela completa — paridade com Streamlit (app.py:1469), sem truncamento.
+  const baseTabela = [...pedidos].sort((a, b) => {
+    const ordem: Record<DisponibilidadeEstoque, number> = {
+      "NAO": 1,
+      "PARCIAL": 2,
+      "SIM": 3,
+      "Servico": 4,
+      "N/A": 5,
+    };
+    const eA = a.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
+    const eB = b.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
+    if (eA !== eB) return eA - eB;
+    return ordem[a.disponibilidadeEstoque] - ordem[b.disponibilidadeEstoque];
+  });
   const tabela = sortRows(
     baseTabela as unknown as Record<string, unknown>[],
     sortState,
@@ -130,7 +129,7 @@ export default async function EstoquePage({
           >
             <DataTable
               columns={errosCols}
-              rows={erros.slice(0, 20)}
+              rows={erros}
               rowKey={(p) => p.id}
               emptyMessage=""
             />
