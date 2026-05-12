@@ -37,6 +37,7 @@ import type {
 export const metadata = { title: "Prontidão — Autron Dash" };
 
 interface SP {
+  status?: string;  // "finalizado" | default = em aberto
   dispo?: string;
   tipo?: string;
   atend?: string;   // dentro | fora | sem
@@ -110,7 +111,13 @@ export default async function ProntidaoPage({
     }),
     getPrazosEngByTenant(session.user.tenantId),
   ]);
-  const pedidos = all.filter((p) => p.statusPedido === "EM ABERTO");
+
+  // "Em Aberto" é o padrão. "finalizado" mostra os itens fora de EM ABERTO.
+  const pedidos = all.filter((p) =>
+    sp.status === "finalizado"
+      ? p.statusPedido !== "EM ABERTO"
+      : p.statusPedido === "EM ABERTO",
+  );
 
   const sim = pedidos.filter((p) => p.prontoParaFazer === "SIM").length;
   const parcialFU = pedidos.filter((p) => p.prontoParaFazer === "PARCIAL - Sem Follow-up").length;
@@ -214,7 +221,18 @@ export default async function ProntidaoPage({
   return (
     <AppShell title="Prontidão" subtitle="Pronto para fazer? Estoque + follow-up + ação necessária">
       <div className="space-y-5">
-        <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
+        <div className="flex flex-wrap items-end gap-4">
+          <DateRangeFilter label="Emissão" fromValue={sp.from} toValue={sp.to} />
+          <div className="w-52 shrink-0">
+            <FilterSelect
+              name="status"
+              label="Status do Pedido"
+              value={sp.status}
+              allLabel="Em Aberto"
+              options={[{ value: "finalizado", label: "Finalizado" }]}
+            />
+          </div>
+        </div>
 
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <KPICard label="Prontos" value={fmtNum(sim)} icon={<CheckCircle2 className="size-4" />} tone="success" />
