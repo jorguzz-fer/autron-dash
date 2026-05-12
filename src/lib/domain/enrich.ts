@@ -139,6 +139,10 @@ export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
 
       prontoParaFazer: pronto,
       acaoNecessaria: acao,
+
+      // clienteNome é enriquecido pela camada de service (lookup Ploomes).
+      // Aqui no domain puro, deixamos null como default.
+      clienteNome: null,
     };
   });
 }

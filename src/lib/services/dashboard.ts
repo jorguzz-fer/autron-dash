@@ -47,12 +47,26 @@ export async function getEnrichedPedidos(filters: DashboardFilters): Promise<Ped
     wherePedido.dtEmissao = range;
   }
 
-  const [pedidos, followUps, estoques, classificacoes] = await Promise.all([
+  const [pedidos, followUps, estoques, classificacoes, ploomesRows] = await Promise.all([
     prisma.pedido.findMany({ where: wherePedido }),
     prisma.followUp.findMany({ where: { tenantId: filters.tenantId } }),
     prisma.estoque.findMany({ where: { tenantId: filters.tenantId } }),
     prisma.classificacaoProduto.findMany({ where: { tenantId: filters.tenantId } }),
+    // Apenas codigoCliente + cliente — pra construir o lookup nome ← código.
+    prisma.ploomesOportunidade.findMany({
+      where: { tenantId: filters.tenantId, codigoCliente: { not: null } },
+      select: { codigoCliente: true, cliente: true },
+    }),
   ]);
+
+  // Map<codigoCliente, nomeCliente> — primeira ocorrência ganha (idempotente
+  // se o mesmo cliente aparece em múltiplas oportunidades).
+  const nomeByCodCliente = new Map<string, string>();
+  for (const r of ploomesRows) {
+    if (r.codigoCliente && r.cliente && !nomeByCodCliente.has(r.codigoCliente)) {
+      nomeByCodCliente.set(r.codigoCliente, r.cliente);
+    }
+  }
 
   const pedidosInput: PedidoInput[] = pedidos.map((p) => ({
     id: p.id,
@@ -101,10 +115,18 @@ export async function getEnrichedPedidos(filters: DashboardFilters): Promise<Ped
     tipoProduto: asTipoProduto(c.tipoProduto),
   }));
 
-  return enrichPedidos({
+  const enriched = enrichPedidos({
     pedidos: pedidosInput,
     followUps: followUpsInput,
     estoques: estoquesInput,
     classificacoes: classificacoesInput,
   });
+
+  // Pós-enriquecimento: resolve nome do cliente via Ploomes lookup.
+  // O Pedido.cliente do Excel costuma ser o código (ex: "C009280"); aqui
+  // mapeamos pro nome legível quando o cliente está no CRM.
+  return enriched.map((p) => ({
+    ...p,
+    clienteNome: p.cliente ? nomeByCodCliente.get(p.cliente) ?? null : null,
+  }));
 }

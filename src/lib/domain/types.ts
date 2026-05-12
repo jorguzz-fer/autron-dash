@@ -123,4 +123,11 @@ export interface PedidoEnriched extends PedidoInput {
   temOP: boolean;
   prontoParaFazer: ProntoParaFazer;
   acaoNecessaria: AcaoNecessaria;
+
+  /**
+   * Nome do cliente resolvido via cross-reference com Ploomes (codigoCliente → cliente).
+   * Quando o Pedido.cliente é um código (ex: "C009280"), aqui vai o nome legível
+   * (ex: "Maverick Industria SA"). Cai pra null se não houver match no CRM.
+   */
+  clienteNome: string | null;
 }

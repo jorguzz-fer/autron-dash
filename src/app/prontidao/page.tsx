@@ -613,11 +613,14 @@ function acaoBadge(a: AcaoNecessaria) {
   }
 }
 
-/** "SC 5576" | "OP 20437" | "—" */
+/** "SC 5576" | "OP 20437" | "—" — sempre em uma única linha. */
 function scOpCell(p: PedidoEnriched) {
   const txt = p.numeroSC ? `SC ${p.numeroSC}` : p.numeroOP ? `OP ${p.numeroOP}` : null;
   return (
-    <span className="numeric text-[12px]" style={{ color: txt ? "var(--fg)" : "var(--fg-muted)" }}>
+    <span
+      className="numeric whitespace-nowrap text-[12px]"
+      style={{ color: txt ? "var(--fg)" : "var(--fg-muted)" }}
+    >
       {txt ?? "—"}
     </span>
   );
@@ -628,7 +631,7 @@ function dispoCell(dispo: string) {
   const color =
     dispo === "SIM" ? "#10b981" : dispo === "NAO" ? "#e11d48" : dispo.startsWith("PARCIAL") ? "#f59e0b" : "var(--fg-muted)";
   return (
-    <span className="text-[12px] font-medium" style={{ color }}>
+    <span className="whitespace-nowrap text-[12px] font-medium" style={{ color }}>
       {dispo}
     </span>
   );
@@ -639,7 +642,7 @@ function atendTexto(p: PedidoEnriched) {
   const c = classifAtend(p);
   const label = c === "dentro" ? "Dentro do prazo" : c === "fora" ? "Fora do prazo" : "Sem prazo definido";
   const color = c === "dentro" ? "#10b981" : c === "fora" ? "#e11d48" : "var(--fg-muted)";
-  return <span className="text-[12px]" style={{ color }}>{label}</span>;
+  return <span className="whitespace-nowrap text-[12px]" style={{ color }}>{label}</span>;
 }
 
 const prontidaoCols: Column<PedidoEnriched>[] = [
@@ -647,7 +650,7 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     key: "pv",
     header: "PV",
     sortKey: "numPedido",
-    cell: (p) => <span className="numeric text-[12px]">{p.numPedido}</span>,
+    cell: (p) => <span className="numeric whitespace-nowrap text-[12px]">{p.numPedido}</span>,
     width: "90px",
   },
   {
@@ -658,12 +661,32 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     width: "55px",
   },
   {
+    // Cliente em 3ª posição. Mostra o NOME via lookup do Ploomes
+    // (PedidoEnriched.clienteNome). Cai pro código se não houver match no CRM.
+    key: "cliente",
+    header: "Cliente",
+    sortKey: "clienteNome",
+    cell: (p) => {
+      const nome = p.clienteNome ?? p.cliente ?? "—";
+      const eCodigo = !p.clienteNome && p.cliente; // exibindo o código (sem match)
+      return (
+        <span
+          className="block max-w-[200px] truncate text-[12px]"
+          title={nome}
+          style={{ color: eCodigo ? "var(--fg-muted)" : "var(--fg)" }}
+        >
+          {nome}
+        </span>
+      );
+    },
+  },
+  {
     key: "produto",
     header: "Produto",
     sortKey: "produto",
     cell: (p) => (
       <div>
-        <code className="font-mono text-[12px]">{p.produto}</code>
+        <code className="whitespace-nowrap font-mono text-[12px]">{p.produto}</code>
         <div className="max-w-[220px] truncate text-[11.5px]" title={p.descricaoProduto ?? ""} style={{ color: "var(--fg-muted)" }}>
           {p.descricaoProduto ?? ""}
         </div>
@@ -671,20 +694,16 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     ),
   },
   {
-    key: "cliente",
-    header: "Cliente",
-    sortKey: "cliente",
-    cell: (p) => (
-      <span className="block max-w-[160px] truncate text-[12px]" title={p.cliente ?? ""} style={{ color: "var(--fg)" }}>
-        {p.cliente ?? "—"}
-      </span>
-    ),
-  },
-  {
     key: "tipo",
     header: "Tipo",
     sortKey: "tipoProduto",
-    cell: (p) => <StatusBadge tone={p.tipoProduto === "Indefinido" ? "warning" : "muted"}>{p.tipoProduto}</StatusBadge>,
+    cell: (p) => (
+      <span className="whitespace-nowrap">
+        <StatusBadge tone={p.tipoProduto === "Indefinido" ? "warning" : "muted"}>
+          {p.tipoProduto}
+        </StatusBadge>
+      </span>
+    ),
   },
   {
     key: "qtd",
@@ -699,7 +718,7 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     sortKey: "vlrTotal",
     align: "right",
     cell: (p) => (
-      <span className="numeric text-[12px]">
+      <span className="numeric whitespace-nowrap text-[12px]">
         {p.vlrTotal != null ? fmtCurrency(Number(p.vlrTotal)) : "—"}
       </span>
     ),
@@ -719,13 +738,19 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     key: "acao",
     header: "Ação",
     sortKey: "acaoNecessaria",
-    cell: (p) => acaoBadge(p.acaoNecessaria),
+    cell: (p) => (
+      <span className="whitespace-nowrap">{acaoBadge(p.acaoNecessaria)}</span>
+    ),
   },
   {
     key: "dtNec",
     header: "Dt. Necessidade Cliente",
     sortKey: "dtFatCli",
-    cell: (p) => <span className="numeric text-[12px]">{p.dtFatCli ? fmtDate(p.dtFatCli) : "—"}</span>,
+    cell: (p) => (
+      <span className="numeric whitespace-nowrap text-[12px]">
+        {p.dtFatCli ? fmtDate(p.dtFatCli) : "—"}
+      </span>
+    ),
   },
   {
     // No Streamlit antigo (app.py linha 372): Prazo_Real_Entrega = FU_Dt_Confirma OR FU_Dt_Pre_Entr.
@@ -733,7 +758,7 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     key: "prazoEnt",
     header: "Prazo Entrega",
     cell: (p) => (
-      <span className="numeric text-[12px]">
+      <span className="numeric whitespace-nowrap text-[12px]">
         {p.prazoRealEntrega instanceof Date ? fmtDate(p.prazoRealEntrega) : p.prazoRealEntrega ?? "—"}
       </span>
     ),
@@ -750,7 +775,7 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     header: "Semana",
     sortKey: "semanaEntrega",
     cell: (p) => (
-      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+      <span className="numeric whitespace-nowrap text-[12px]" style={{ color: "var(--fg-muted)" }}>
         {p.semanaEntrega ?? "—"}
       </span>
     ),
@@ -760,7 +785,7 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     header: "Ped. Cliente",
     sortKey: "pedCliente",
     cell: (p) => (
-      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+      <span className="numeric whitespace-nowrap text-[12px]" style={{ color: "var(--fg-muted)" }}>
         {p.pedCliente ?? "—"}
       </span>
     ),
