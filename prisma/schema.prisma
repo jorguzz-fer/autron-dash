@@ -28,6 +28,7 @@ model Tenant {
   ploomesOportunidades  PloomesOportunidade[]
   dataUploads           DataUpload[]
   prazosEngenhariaIND21 PrazoEngenhariaIND21[]
+  conciliacoes          Conciliacao[]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -50,6 +51,7 @@ model User {
   auditLogs             AuditLog[]
   dataUploads           DataUpload[]
   prazosEngenhariaIND21 PrazoEngenhariaIND21[]
+  conciliacoes          Conciliacao[]
 
   @@unique([tenantId, email])
   @@index([email])
@@ -75,6 +77,7 @@ enum Role {
   GERENTE
   OPERADOR
   VIEWER
+  CONTROLADORIA
 }
 
 // ─── Auditoria & segurança ──────────────────────────────────────────────────
@@ -357,4 +360,77 @@ model PrazoEngenhariaIND21 {
 
   @@index([tenantId, numPedido, criadoEm(sort: Desc)])
   @@index([tenantId, criadoEm])
+}
+
+// ── 9. Conciliação Financeiro × Contábil ───────────────────────────────────
+// Módulo da Controladoria: compara duas planilhas extraídas do Protheus —
+// Relatório Financeiro (posição de títulos a receber) e Balancete Contábil
+// (lançamentos por conta) — e identifica divergências por número de NF.
+//
+// Acesso restrito a usuários com role CONTROLADORIA (ou ADMIN). Multi-tenant
+// via tenantId em toda query (mesma regra das outras entidades do app).
+//
+// Os arquivos originais são armazenados em Bytes (~30KB cada) para auditoria
+// e re-processamento — caso o algoritmo seja refinado, podemos rodar de novo
+// sobre os mesmos uploads.
+
+enum ConciliacaoStatus {
+  RASCUNHO     // criada mas ainda não processada
+  OK           // sem divergências (totais bateram)
+  DIVERGENTE   // ao menos 1 divergência encontrada
+}
+
+enum DivergenciaLado {
+  SO_FINANCEIRO   // NF presente só no relatório financeiro
+  SO_CONTABIL     // NF presente só no balancete contábil
+  DIVERGENTE      // NF em ambos, mas saldos diferentes
+}
+
+model Conciliacao {
+  id              String   @id @default(cuid())
+  tenantId        String
+  userId          String                                    // quem criou
+  contaContabil   String                                    // "1121010001" ou "1.1.2.10.1"
+  descricaoConta  String?                                   // "Clientes Nacionais"
+  dataReferencia  DateTime                                  // dia do fechamento (ex: 31/03/2026)
+
+  financeiroFileName String
+  financeiroBlob     Bytes                                  // arquivo original
+  contabilFileName   String
+  contabilBlob       Bytes
+
+  totalFinanceiro Decimal @db.Decimal(15, 2)
+  totalContabil   Decimal @db.Decimal(15, 2)
+  diferencaTotal  Decimal @db.Decimal(15, 2)
+  qtdDivergencias Int
+
+  observacoes String?
+  status      ConciliacaoStatus
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  divergencias ConciliacaoDivergencia[]
+
+  @@index([tenantId, dataReferencia(sort: Desc)])
+  @@index([tenantId, contaContabil])
+  @@index([tenantId, status])
+}
+
+model ConciliacaoDivergencia {
+  id              String          @id @default(cuid())
+  conciliacaoId   String
+  numeroNF        String                                       // "32433" (sem zeros à esquerda)
+  codigoCliente   String?                                      // "C000297" (quando vier do financeiro)
+  nomeCliente     String?                                      // "3M - SUMARE"
+  lado            DivergenciaLado
+  saldoFinanceiro Decimal?        @db.Decimal(15, 2)
+  saldoContabil   Decimal?        @db.Decimal(15, 2)
+  diferenca       Decimal?        @db.Decimal(15, 2)           // financeiro - contábil
+
+  conciliacao Conciliacao @relation(fields: [conciliacaoId], references: [id], onDelete: Cascade)
+
+  @@index([conciliacaoId, lado])
 }
