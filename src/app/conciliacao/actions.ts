@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { ROLES_CONTROLADORIA, type Role } from "@/lib/authz";
 import { logAudit, getClientIp } from "@/lib/audit";
+import { prisma } from "@/lib/db";
 import {
   criarConciliacao,
   excluirConciliacao,
@@ -104,6 +105,42 @@ export async function criarConciliacaoAction(formData: FormData): Promise<CriarC
 
   revalidatePath("/conciliacao");
   redirect(`/conciliacao/${result.id}`);
+}
+
+export async function salvarObservacoesAction(
+  id: string,
+  observacoes: string,
+): Promise<{ ok: true } | Err> {
+  const session = await auth();
+  if (!session) return { ok: false, error: "Não autenticado." };
+  const role = session.user.role as Role;
+  if (!ROLES_CONTROLADORIA.includes(role)) return { ok: false, error: "Sem permissão." };
+
+  // Garantia multi-tenant: confirma que a conciliação pertence ao tenant ANTES de update.
+  const existing = await prisma.conciliacao.findFirst({
+    where: { id, tenantId: session.user.tenantId },
+    select: { id: true },
+  });
+  if (!existing) return { ok: false, error: "Conciliação não encontrada." };
+
+  const obsClean = observacoes.trim();
+
+  await prisma.conciliacao.update({
+    where: { id },
+    data: { observacoes: obsClean || null },
+  });
+
+  await logAudit({
+    tenantId: session.user.tenantId,
+    userId: session.user.id,
+    action: "conciliacao.observacoes.update",
+    entity: "Conciliacao",
+    entityId: id,
+    meta: { length: obsClean.length },
+  });
+
+  revalidatePath(`/conciliacao/${id}`);
+  return { ok: true };
 }
 
 export async function excluirConciliacaoAction(id: string): Promise<{ ok: true } | Err> {

@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  Download,
   FileSpreadsheet,
   Layers,
   TrendingDown,
@@ -19,6 +20,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import DeleteButton from "./DeleteButton";
+import ObservacoesEditor from "./ObservacoesEditor";
 
 export const metadata = { title: "Conciliação — Autron Dash" };
 
@@ -86,13 +89,34 @@ export default async function ConciliacaoDetailPage({
       subtitle={`${fmtDate(conc.dataReferencia)} · conta ${conc.contaContabil} · processada por ${conc.user?.name ?? "—"}`}
     >
       <div className="space-y-5">
-        <Link
-          href="/conciliacao"
-          className="inline-flex items-center gap-1.5 text-[12.5px] font-medium transition-colors hover:underline"
-          style={{ color: "var(--color-brand-600)" }}
-        >
-          <ArrowLeft className="size-3.5" /> Todas as conciliações
-        </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href="/conciliacao"
+            className="inline-flex items-center gap-1.5 text-[12.5px] font-medium transition-colors hover:underline"
+            style={{ color: "var(--color-brand-600)" }}
+          >
+            <ArrowLeft className="size-3.5" /> Todas as conciliações
+          </Link>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/conciliacao/${conc.id}/export`}
+              className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-semibold transition-colors hover:brightness-110"
+              style={{
+                borderColor: "var(--border-soft)",
+                backgroundColor: "var(--color-brand-500)",
+                color: "#fff",
+              }}
+              download
+            >
+              <Download className="size-3.5" />
+              Exportar Excel
+            </a>
+            <DeleteButton
+              id={conc.id}
+              label={`${fmtDate(conc.dataReferencia)} · conta ${conc.contaContabil}`}
+            />
+          </div>
+        </div>
 
         {/* KPIs principais */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -215,17 +239,13 @@ export default async function ConciliacaoDetailPage({
           )}
         </CardSection>
 
-        {/* Observações */}
-        {conc.observacoes && (
-          <CardSection title="Observações">
-            <p
-              className="whitespace-pre-wrap text-[13px] leading-relaxed"
-              style={{ color: "var(--fg)" }}
-            >
-              {conc.observacoes}
-            </p>
-          </CardSection>
-        )}
+        {/* Observações — editável */}
+        <CardSection
+          title="Observações"
+          subtitle="Notas internas sobre essa conciliação (editáveis por qualquer usuário com acesso)"
+        >
+          <ObservacoesEditor id={conc.id} initial={conc.observacoes} />
+        </CardSection>
       </div>
     </AppShell>
   );
