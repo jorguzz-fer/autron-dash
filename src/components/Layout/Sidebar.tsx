@@ -13,6 +13,7 @@ import {
   LogOut,
   Package,
   Receipt,
+  Scale,
   Upload,
   Users,
   type LucideIcon,
@@ -43,6 +44,11 @@ const NAV_TOOLS: NavItem[] = [
   { label: "Upload de planilhas", href: "/uploads", icon: Upload },
 ];
 
+// Restrito à role CONTROLADORIA (e ADMIN como suporte).
+const NAV_CONTROLADORIA: NavItem[] = [
+  { label: "Conciliação Fin × Cont", href: "/conciliacao", icon: Scale },
+];
+
 const NAV_ADMIN: NavItem[] = [
   { label: "Usuários", href: "/admin/usuarios", icon: Users },
 ];
@@ -60,6 +66,7 @@ interface SidebarProps {
 
 export default function Sidebar({ user, onSignOut }: SidebarProps) {
   const isAdmin = user.role === "ADMIN";
+  const isControladoria = user.role === "ADMIN" || user.role === "CONTROLADORIA";
   const { collapsed } = useSidebar();
   // Quando collapsed: sidebar fica completamente oculta (transição suave de largura).
   // Em telas menores que lg, segue oculta também (responsivo).
@@ -96,6 +103,17 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
             <NavLink key={item.href} item={item} />
           ))}
         </ul>
+
+        {isControladoria && (
+          <>
+            <SectionLabel className="mt-6">Controladoria</SectionLabel>
+            <ul className="space-y-0.5">
+              {NAV_CONTROLADORIA.map((item) => (
+                <NavLink key={item.href} item={item} />
+              ))}
+            </ul>
+          </>
+        )}
 
         {isAdmin && (
           <>
