@@ -22,7 +22,11 @@ export interface CriarConciliacaoInput {
   observacoes?: string | null;
 }
 
-export type LadoPrisma = "SO_FINANCEIRO" | "SO_CONTABIL" | "DIVERGENTE";
+export type LadoPrisma =
+  | "SO_FINANCEIRO"
+  | "SO_CONTABIL"
+  | "DIVERGENTE"
+  | "NF_ANTERIOR";
 
 function ladoToPrisma(l: LadoDivergencia): LadoPrisma {
   return l;

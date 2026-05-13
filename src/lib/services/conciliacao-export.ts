@@ -134,6 +134,7 @@ export async function gerarXlsxConciliacao(
     const bg =
       d.lado === "DIVERGENTE" ? "FFFEE2E2" // vermelho claro
         : d.lado === "SO_CONTABIL" ? "FFFEF3C7" // amarelo claro
+        : d.lado === "NF_ANTERIOR" ? "FFE0F2FE" // azul claro — informativo
         : "FFF3F4F6"; // cinza claro
 
     row.eachCell({ includeEmpty: true }, (cell) => {
@@ -193,6 +194,7 @@ function ladoLabel(lado: string): string {
   if (lado === "DIVERGENTE") return "Saldo divergente";
   if (lado === "SO_CONTABIL") return "Só no contábil";
   if (lado === "SO_FINANCEIRO") return "Só no financeiro";
+  if (lado === "NF_ANTERIOR") return "NF anterior ao período contábil";
   return lado;
 }
 

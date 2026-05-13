@@ -12,7 +12,19 @@
  * carregado. O usuário avalia caso a caso. A interface deve deixar isso claro.
  */
 
-export type LadoDivergencia = "SO_FINANCEIRO" | "SO_CONTABIL" | "DIVERGENTE";
+export type LadoDivergencia =
+  | "SO_FINANCEIRO"
+  | "SO_CONTABIL"
+  | "DIVERGENTE"
+  /**
+   * NF aparece no financeiro com saldo aberto, mas no contábil só temos o
+   * RECEBIMENTO (saldo negativo) — indica que a NF foi emitida em período
+   * ANTERIOR ao coberto pelo balancete contábil. Não é divergência real;
+   * o usuário deve alimentar o contábil com período maior pra ver o débito
+   * original. Antes era classificado como DIVERGENTE (falso positivo com
+   * diff = valor total da NF).
+   */
+  | "NF_ANTERIOR";
 
 export interface TituloFinanceiroInput {
   numeroNF: string;
@@ -117,6 +129,26 @@ export function conciliar(
       continue;
     }
 
+    // Saldo contábil NEGATIVO + NF presente no financeiro = só recebimentos vistos,
+    // a criação (débito) da NF foi em período anterior ao do balancete. Não é
+    // divergência real — sinalizamos como NF_ANTERIOR com baixa prioridade.
+    // Exemplo do caso: NF emitida em fev (R$ 81k), recebida parcialmente em mar
+    // (R$ 40,5k → crédito no balancete de mar). Financeiro mostra R$ 40,5k aberto;
+    // contábil de mar mostra -R$ 40,5k. Diff seria R$ 81k = exatamente o valor
+    // da NF original (falso positivo de "DIVERGENTE").
+    if (saldoCont < -tolerancia) {
+      divergencias.push({
+        numeroNF: nf,
+        codigoCliente: dadosFin.codigo,
+        nomeCliente: dadosFin.nome,
+        lado: "NF_ANTERIOR",
+        saldoFinanceiro: round2(dadosFin.saldo),
+        saldoContabil: round2(saldoCont),
+        diferenca: round2(dadosFin.saldo - saldoCont),
+      });
+      continue;
+    }
+
     const dif = dadosFin.saldo - saldoCont;
     if (Math.abs(dif) > tolerancia) {
       divergencias.push({
@@ -157,12 +189,14 @@ export function conciliar(
     });
   }
 
-  // Ordena: piores primeiro (maior diferença absoluta), depois SO_CONTABIL, depois SO_FINANCEIRO
+  // Ordena: piores primeiro (maior diferença absoluta), depois SO_CONTABIL,
+  // SO_FINANCEIRO, e por fim NF_ANTERIOR (informativo, baixa prioridade).
   divergencias.sort((a, b) => {
     const ordemLado: Record<LadoDivergencia, number> = {
       DIVERGENTE: 0,
       SO_CONTABIL: 1,
       SO_FINANCEIRO: 2,
+      NF_ANTERIOR: 3,
     };
     const ld = ordemLado[a.lado] - ordemLado[b.lado];
     if (ld !== 0) return ld;

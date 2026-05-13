@@ -384,6 +384,7 @@ enum DivergenciaLado {
   SO_FINANCEIRO   // NF presente só no relatório financeiro
   SO_CONTABIL     // NF presente só no balancete contábil
   DIVERGENTE      // NF em ambos, mas saldos diferentes
+  NF_ANTERIOR     // NF emitida em período ANTERIOR ao contábil — contábil só tem o recebimento (saldo negativo)
 }
 
 model Conciliacao {

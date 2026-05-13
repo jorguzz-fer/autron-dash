@@ -92,21 +92,58 @@ describe("conciliar — algoritmo isolado", () => {
     expect(r.divergencias).toEqual([]);
   });
 
-  it("ordena divergências: DIVERGENTE primeiro, depois SO_CONTABIL, depois SO_FINANCEIRO", () => {
+  it("ordena divergências: DIVERGENTE primeiro, SO_CONTABIL, SO_FINANCEIRO, NF_ANTERIOR por último", () => {
     const titulos: TituloFinanceiroInput[] = [
       { numeroNF: "A", codigoCliente: null, nomeCliente: null, saldoTotal: 100 }, // SO_FINANCEIRO
       { numeroNF: "B", codigoCliente: null, nomeCliente: null, saldoTotal: 500 }, // DIVERGENTE
+      { numeroNF: "D", codigoCliente: null, nomeCliente: null, saldoTotal: 50 },  // NF_ANTERIOR (saldoCont negativo)
     ];
     const cont = new Map([
       ["B", 200],
       ["C", 700], // SO_CONTABIL
+      ["D", -300], // só recebimento — NF criada antes do período contábil
     ]);
-    const r = conciliar(titulos, cont, 600, 900);
+    const r = conciliar(titulos, cont, 650, 600);
     expect(r.divergencias.map((d) => [d.numeroNF, d.lado])).toEqual([
       ["B", "DIVERGENTE"],
       ["C", "SO_CONTABIL"],
       ["A", "SO_FINANCEIRO"],
+      ["D", "NF_ANTERIOR"],
     ]);
+  });
+
+  /**
+   * Caso concreto reportado pela Dai (Autron) em 13/05/2026:
+   *  - NF 32379 emitida em fev/2026 (R$ 81.000,99 total)
+   *  - Recebida parcial em mar/2026 (R$ 40.500,50 — crédito no balancete)
+   *  - Financeiro mostra saldo aberto = R$ 40.500,49
+   *  - Balancete contábil é só de março → não vê o débito original
+   *  - Antes virava DIVERGENTE com diff = R$ 81.000,99 (falso positivo)
+   *  - Agora vira NF_ANTERIOR (informativo, não erro real)
+   */
+  it("NF emitida antes do período contábil (saldo contábil negativo) vira NF_ANTERIOR", () => {
+    const titulos: TituloFinanceiroInput[] = [
+      {
+        numeroNF: "32379",
+        codigoCliente: "C009479",
+        nomeCliente: "MILETO DISTRIBUIDORA",
+        saldoTotal: 40500.49,
+      },
+    ];
+    const cont = new Map([["32379", -40500.5]]); // só vimos o recebimento
+    const r = conciliar(titulos, cont, 40500.49, -40500.5);
+
+    expect(r.divergencias).toHaveLength(1);
+    expect(r.divergencias[0]).toMatchObject({
+      numeroNF: "32379",
+      lado: "NF_ANTERIOR",
+      saldoFinanceiro: 40500.49,
+      saldoContabil: -40500.5,
+      diferenca: 81000.99,
+    });
+    // O total ainda não bate porque o contábil está incompleto — bateuTotalizador
+    // permanece false, sinalizando que o usuário deve carregar período maior.
+    expect(r.bateuTotalizador).toBe(false);
   });
 });
 

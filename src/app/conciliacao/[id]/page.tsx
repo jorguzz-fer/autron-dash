@@ -34,7 +34,7 @@ type DivergenciaRow = {
   numeroNF: string;
   codigoCliente: string | null;
   nomeCliente: string | null;
-  lado: "SO_FINANCEIRO" | "SO_CONTABIL" | "DIVERGENTE";
+  lado: "SO_FINANCEIRO" | "SO_CONTABIL" | "DIVERGENTE" | "NF_ANTERIOR";
   saldoFinanceiro: number | null;
   saldoContabil: number | null;
   diferenca: number | null;
@@ -45,7 +45,7 @@ function toNum(d: Prisma.Decimal | null | undefined): number | null {
 }
 
 interface SP {
-  lado?: string; // filtro: "DIVERGENTE" | "SO_FINANCEIRO" | "SO_CONTABIL"
+  lado?: string; // filtro: "DIVERGENTE" | "SO_FINANCEIRO" | "SO_CONTABIL" | "NF_ANTERIOR"
   sort?: string;
   dir?: string;
 }
@@ -103,6 +103,7 @@ export default async function ConciliacaoDetailPage({
     DIVERGENTE: conc.divergencias.filter((d) => d.lado === "DIVERGENTE").length,
     SO_CONTABIL: conc.divergencias.filter((d) => d.lado === "SO_CONTABIL").length,
     SO_FINANCEIRO: conc.divergencias.filter((d) => d.lado === "SO_FINANCEIRO").length,
+    NF_ANTERIOR: conc.divergencias.filter((d) => d.lado === "NF_ANTERIOR").length,
   };
 
   function buildHref(lado: string): string {
@@ -215,6 +216,14 @@ export default async function ConciliacaoDetailPage({
               active={sp.lado === "SO_FINANCEIRO"}
               href={buildHref("SO_FINANCEIRO")}
             />
+            {porLado.NF_ANTERIOR > 0 && (
+              <FilterChip
+                label={`NF anterior ao contábil (${porLado.NF_ANTERIOR})`}
+                tone="info"
+                active={sp.lado === "NF_ANTERIOR"}
+                href={buildHref("NF_ANTERIOR")}
+              />
+            )}
             {sp.lado && (
               <Link
                 href={`/conciliacao/${id}`}
@@ -288,6 +297,8 @@ function ladoLabel(lado: string): string {
       return "Só no contábil";
     case "SO_FINANCEIRO":
       return "Só no financeiro";
+    case "NF_ANTERIOR":
+      return "NF anterior ao período contábil";
     default:
       return lado;
   }
@@ -302,7 +313,7 @@ function FilterChip({
   label: string;
   href: string;
   active: boolean;
-  tone: "danger" | "warning" | "neutral";
+  tone: "danger" | "warning" | "neutral" | "info";
 }) {
   const colors: Record<typeof tone, { bg: string; fg: string }> = {
     danger: { bg: "color-mix(in srgb, #e11d48 14%, transparent)", fg: "#e11d48" },
@@ -310,6 +321,10 @@ function FilterChip({
     neutral: {
       bg: "color-mix(in srgb, var(--fg-muted) 14%, transparent)",
       fg: "var(--fg)",
+    },
+    info: {
+      bg: "color-mix(in srgb, var(--color-brand-500) 14%, transparent)",
+      fg: "var(--color-brand-600)",
     },
   };
   const c = colors[tone];
@@ -354,6 +369,7 @@ function FilePill({ nome, label }: { nome: string; label: string }) {
 function ladoBadge(lado: DivergenciaRow["lado"]) {
   if (lado === "DIVERGENTE") return <StatusBadge tone="danger">Divergente</StatusBadge>;
   if (lado === "SO_CONTABIL") return <StatusBadge tone="warning">Só Contábil</StatusBadge>;
+  if (lado === "NF_ANTERIOR") return <StatusBadge tone="brand">NF anterior</StatusBadge>;
   return <StatusBadge tone="muted">Só Financeiro</StatusBadge>;
 }
 
