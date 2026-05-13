@@ -15,6 +15,14 @@ import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import { ROLES_MANAGE, type Role } from "@/lib/authz";
 import {
+  applyProntidaoFilters,
+  classifAtend,
+  filterByStatus,
+  mesFatKey,
+} from "@/lib/prontidao/filter";
+import SearchInput from "@/components/UI/SearchInput";
+import { Download } from "lucide-react";
+import {
   CheckCircle2,
   AlertTriangle,
   Circle,
@@ -45,6 +53,8 @@ interface SP {
   // KPIs clicáveis:
   pronto?: string;     // "sim" | "fu" | "est" | "nao" | "erro" (filtro pelos KPIs)
   prazoEntr?: string;  // "com" | "sem" (filtro pelos cards de Prazo Entrega)
+  // Busca textual:
+  q?: string;
   from?: string;
   to?: string;
   sort?: string;
@@ -89,27 +99,8 @@ const ATEND_OPTIONS = [
   { value: "sem", label: "Sem prazo definido" },
 ];
 
-/**
- * Tipo de atendimento de prazo do pedido — derivado de diasAtrasoCliente.
- * Espelha os 3 buckets do print do Streamlit.
- */
-function classifAtend(p: PedidoEnriched): "dentro" | "fora" | "sem" {
-  if (p.dtFatCli == null) return "sem";
-  if (p.diasAtrasoCliente != null && p.diasAtrasoCliente > 0) return "fora";
-  return "dentro";
-}
-
-/**
- * Mês (1-12) do prazo real de entrega — usado pelo filtro "Mês de Faturamento".
- * Quando prazoRealEntrega é "A definir" ou null, retorna null e o pedido fica
- * fora do filtro quando há mês selecionado.
- */
-function mesFatKey(p: PedidoEnriched): number | null {
-  const prazo = p.prazoRealEntrega;
-  if (prazo instanceof Date) return prazo.getMonth() + 1;
-  if (p.dtFatCli) return p.dtFatCli.getMonth() + 1;
-  return null;
-}
+// classifAtend e mesFatKey foram movidas para @/lib/prontidao/filter
+// (compartilhadas com a rota de export).
 
 export default async function ProntidaoPage({
   searchParams,
@@ -138,11 +129,7 @@ export default async function ProntidaoPage({
   ]);
 
   // "Em Aberto" é o padrão. "finalizado" mostra os itens fora de EM ABERTO.
-  const pedidos = all.filter((p) =>
-    sp.status === "finalizado"
-      ? p.statusPedido !== "EM ABERTO"
-      : p.statusPedido === "EM ABERTO",
-  );
+  const pedidos = filterByStatus(all, sp.status);
 
   const sim = pedidos.filter((p) => p.prontoParaFazer === "SIM").length;
   const parcialFU = pedidos.filter((p) => p.prontoParaFazer === "PARCIAL - Sem Follow-up").length;
@@ -193,47 +180,27 @@ export default async function ProntidaoPage({
   const prazoComPrazo = pedidos.filter((p) => p.prazoRealEntrega instanceof Date).length;
   const prazoSemPrazo = pedidos.length - prazoComPrazo;
 
-  // Filtros aplicáveis à TABELA — incluem os clicáveis (pronto, prazoEntr).
-  const filtered = pedidos.filter((p) => {
-    if (sp.dispo && p.disponibilidadeEstoque !== sp.dispo) return false;
-    if (sp.tipo && p.tipoProduto !== sp.tipo) return false;
-    if (sp.atend && classifAtend(p) !== sp.atend) return false;
-    if (sp.mesFat) {
-      const m = mesFatKey(p);
-      if (m == null || m !== Number(sp.mesFat)) return false;
-    }
-    if (sp.pronto) {
-      switch (sp.pronto) {
-        case "sim":
-          if (p.prontoParaFazer !== "SIM") return false;
-          break;
-        case "fu":
-          if (p.prontoParaFazer !== "PARCIAL - Sem Follow-up") return false;
-          break;
-        case "est":
-          if (p.prontoParaFazer !== "PARCIAL - Sem Estoque") return false;
-          break;
-        case "nao":
-          if (p.prontoParaFazer !== "NAO") return false;
-          break;
-        case "erro":
-          if (p.acaoNecessaria !== "ERRO no CADASTRO") return false;
-          break;
-      }
-    }
-    if (sp.prazoEntr === "com" && !(p.prazoRealEntrega instanceof Date)) return false;
-    if (sp.prazoEntr === "sem" && p.prazoRealEntrega instanceof Date) return false;
-    return true;
+  // Filtros aplicáveis à TABELA — incluem os clicáveis (pronto, prazoEntr) e a busca textual (q).
+  // Função compartilhada com a rota de export (/prontidao/export) pra garantir paridade.
+  const filtered = applyProntidaoFilters(pedidos, {
+    dispo: sp.dispo,
+    tipo: sp.tipo,
+    atend: sp.atend,
+    mesFat: sp.mesFat,
+    pronto: sp.pronto,
+    prazoEntr: sp.prazoEntr,
+    q: sp.q,
   });
 
-  // Há algum filtro de KPI/dropdown ativo? (status não conta, é o default da página).
+  // Há algum filtro de KPI/dropdown/busca ativo? (status não conta, é o default da página).
   const temFiltroAtivo = !!(
     sp.dispo ||
     sp.tipo ||
     sp.atend ||
     sp.mesFat ||
     sp.pronto ||
-    sp.prazoEntr
+    sp.prazoEntr ||
+    sp.q
   );
 
   // URL base preservando apenas filtros "estruturais" (período, status, sort).
@@ -459,7 +426,40 @@ export default async function ProntidaoPage({
         <CardSection
           title="Pedidos"
           subtitle={`${fmtNum(filtered.length)} de ${fmtNum(pedidos.length)} pedidos · erros e bloqueios primeiro`}
+          actions={
+            <a
+              href={`/prontidao/export${
+                (() => {
+                  const usp = new URLSearchParams();
+                  for (const [k, v] of Object.entries(sp)) {
+                    if (v && k !== "sort" && k !== "dir") usp.set(k, String(v));
+                  }
+                  const qs = usp.toString();
+                  return qs ? `?${qs}` : "";
+                })()
+              }`}
+              download
+              className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:brightness-110"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 10%, transparent)",
+                borderColor: "color-mix(in srgb, var(--color-brand-500) 30%, transparent)",
+                color: "var(--color-brand-600)",
+              }}
+              title="Exportar pedidos filtrados como CSV"
+            >
+              <Download className="size-3.5" />
+              Exportar CSV
+            </a>
+          }
         >
+          {/* Linha de busca textual — varre PV, Cliente, Produto, SC/OP, etc. */}
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <SearchInput
+              placeholder="Pesquisar PV, cliente, produto, SC/OP…"
+              className="min-w-[280px] flex-1 max-w-md"
+            />
+          </div>
+
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <FilterSelect
               name="dispo"
