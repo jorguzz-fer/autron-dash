@@ -78,6 +78,13 @@ export async function criarConciliacao(input: CriarConciliacaoInput): Promise<{
   // Usa descricaoConta vinda do contábil se houver; fallback pra null.
   const descricaoConta = cont.descricaoConta ?? null;
 
+  // Prisma 6 espera Bytes como Uint8Array<ArrayBuffer> (estrito), enquanto
+  // Node Buffer é Buffer<ArrayBufferLike> — incompatível pelo TS mesmo sendo
+  // a mesma coisa em runtime. new Uint8Array(buf) copia pra fresh ArrayBuffer
+  // resolvendo o tipo. ~30KB de cópia, irrelevante.
+  const financeiroBytes = new Uint8Array(input.financeiroBuffer);
+  const contabilBytes = new Uint8Array(input.contabilBuffer);
+
   // Persiste em transação — se algo falhar, nada fica meio-criado.
   const conciliacao = await prisma.$transaction(async (tx) => {
     const c = await tx.conciliacao.create({
@@ -88,9 +95,9 @@ export async function criarConciliacao(input: CriarConciliacaoInput): Promise<{
         descricaoConta,
         dataReferencia: input.dataReferencia,
         financeiroFileName: input.financeiroFileName,
-        financeiroBlob: input.financeiroBuffer,
+        financeiroBlob: financeiroBytes,
         contabilFileName: input.contabilFileName,
-        contabilBlob: input.contabilBuffer,
+        contabilBlob: contabilBytes,
         totalFinanceiro: new Prisma.Decimal(resultado.totalFinanceiro),
         totalContabil: new Prisma.Decimal(resultado.totalContabil),
         diferencaTotal: new Prisma.Decimal(resultado.diferencaTotal),

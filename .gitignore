@@ -55,3 +55,9 @@ next-env.d.ts
 
 # Documentos legais do cliente — não commitar
 /contrato/
+
+# Pastas externas que ficam no working dir mas não pertencem ao app
+# (worktrees velhas, materiais brutos, gravações de reunião)
+/autron-dash/
+/materiais/
+/reunioes/

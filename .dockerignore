@@ -16,3 +16,10 @@ DEPLOY_COOLIFY.md
 uploads/
 dados/
 .DS_Store
+
+# Pastas externas que ficam no working dir local mas não pertencem ao build
+# (worktrees, materiais brutos do cliente, gravações de reunião, contratos)
+autron-dash/
+materiais/
+reunioes/
+contrato/
