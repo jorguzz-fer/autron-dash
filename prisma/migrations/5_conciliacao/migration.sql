@@ -1,7 +1,7 @@
 -- Conciliação Financeiro × Contábil (Demanda 1 da Controladoria)
 -- Adiciona role CONTROLADORIA + 2 modelos + 2 enums.
--- Splittada em blocos DO $$ porque Prisma exige separação por statement
--- quando usa AddValueToEnum + CreateType na mesma migration.
+-- Usa blocos de codigo PL/pgSQL pra separar AddValueToEnum + CreateType
+-- (Postgres exige commit entre eles dentro da mesma transacao).
 
 -- 1) Nova role
 ALTER TYPE "Role" ADD VALUE IF NOT EXISTS 'CONTROLADORIA';

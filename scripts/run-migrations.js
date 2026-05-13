@@ -118,19 +118,97 @@ async function main() {
  * Split SQL respeitando blocos `$$ ... $$` (PostgreSQL anonymous code blocks).
  * Não quebra ponto-e-vírgula DENTRO de DO $$ ... EXCEPTION ... END $$;.
  */
+/**
+ * Splitta um arquivo .sql em statements respeitando:
+ *  - blocos $$...$$ (PL/pgSQL)
+ *  - comentários de linha "-- ..."
+ *  - comentários de bloco "/* ... *\/"
+ *  - strings simples 'foo' (com escape de '' literal)
+ *  - identificadores entre aspas duplas "Foo"
+ *
+ * Anteriormente o splitter olhava só $$ e ;, então qualquer `$$` aparecendo
+ * dentro de um comentário (ex: "-- bloco DO $$ ...") invertia o estado e
+ * quebrava o parsing. Agora processamos por contexto para evitar essa
+ * armadilha sutil.
+ */
 function splitSql(sql) {
   const stmts = [];
   let buf = "";
   let inDollar = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
   for (let i = 0; i < sql.length; i++) {
     const c = sql[i];
     const c2 = sql[i + 1];
+
+    // Comentário de linha
+    if (inLineComment) {
+      buf += c;
+      if (c === "\n") inLineComment = false;
+      continue;
+    }
+    // Comentário de bloco
+    if (inBlockComment) {
+      buf += c;
+      if (c === "*" && c2 === "/") {
+        buf += c2;
+        i++;
+        inBlockComment = false;
+      }
+      continue;
+    }
+    // String entre aspas simples (com escape '' = aspa literal)
+    if (inSingleQuote) {
+      buf += c;
+      if (c === "'") {
+        if (c2 === "'") {
+          buf += c2;
+          i++;
+        } else {
+          inSingleQuote = false;
+        }
+      }
+      continue;
+    }
+    // Identificador entre aspas duplas
+    if (inDoubleQuote) {
+      buf += c;
+      if (c === '"') inDoubleQuote = false;
+      continue;
+    }
+
+    // Fora de comentário/string: detectar início de comentário ou string
+    if (c === "-" && c2 === "-") {
+      inLineComment = true;
+      buf += c;
+      continue;
+    }
+    if (c === "/" && c2 === "*") {
+      inBlockComment = true;
+      buf += c;
+      continue;
+    }
+    if (c === "'") {
+      inSingleQuote = true;
+      buf += c;
+      continue;
+    }
+    if (c === '"') {
+      inDoubleQuote = true;
+      buf += c;
+      continue;
+    }
+
+    // $$ — toggla bloco PL/pgSQL (só fora de string/comentário)
     if (c === "$" && c2 === "$") {
       inDollar = !inDollar;
       buf += "$$";
       i++;
       continue;
     }
+    // ; — termina statement (só fora de $$)
     if (c === ";" && !inDollar) {
       const trimmed = buf.trim();
       if (trimmed) stmts.push(trimmed);
