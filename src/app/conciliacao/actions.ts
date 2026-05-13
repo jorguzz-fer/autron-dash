@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { ROLES_CONTROLADORIA, type Role } from "@/lib/authz";
-import { logAudit, getClientIp } from "@/lib/audit";
+import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 import {
   criarConciliacao,

@@ -115,6 +115,7 @@ const ROLE_TONE: Record<Role, "danger" | "warning" | "brand" | "success" | "mute
   GERENTE: "brand",
   OPERADOR: "success",
   VIEWER: "muted",
+  CONTROLADORIA: "brand",
 };
 
 function getColumns(currentUserId: string): Column<UserRowData>[] {

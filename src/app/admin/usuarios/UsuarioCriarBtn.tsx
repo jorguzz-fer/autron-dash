@@ -9,6 +9,7 @@ const ROLE_OPTIONS = [
   { value: "OPERADOR", label: "OPERADOR — operações do dia-a-dia" },
   { value: "GERENTE", label: "GERENTE — mutações + relatórios" },
   { value: "DIRETOR", label: "DIRETOR — gestão executiva" },
+  { value: "CONTROLADORIA", label: "CONTROLADORIA — financeiro/fiscal" },
   { value: "ADMIN", label: "ADMIN — gestão de usuários" },
 ] as const;
 

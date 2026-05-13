@@ -10,6 +10,7 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "OPERADOR", label: "OPERADOR" },
   { value: "GERENTE", label: "GERENTE" },
   { value: "DIRETOR", label: "DIRETOR" },
+  { value: "CONTROLADORIA", label: "CONTROLADORIA" },
   { value: "ADMIN", label: "ADMIN" },
 ];
 

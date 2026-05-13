@@ -25,7 +25,14 @@ type Err = { ok: false; error: string };
 type Result<T> = Ok<T> | Err;
 type SimpleResult = OkEmpty | Err;
 
-const ROLE_VALUES = ["ADMIN", "DIRETOR", "GERENTE", "OPERADOR", "VIEWER"] as const;
+const ROLE_VALUES = [
+  "ADMIN",
+  "DIRETOR",
+  "GERENTE",
+  "OPERADOR",
+  "VIEWER",
+  "CONTROLADORIA",
+] as const;
 
 const emailSchema = z.string().email("E-mail inválido").max(200).transform((s) => s.toLowerCase());
 const roleSchema = z.enum(ROLE_VALUES);
