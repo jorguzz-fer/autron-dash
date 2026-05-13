@@ -5,36 +5,70 @@ import StatusBadge from "@/components/UI/StatusBadge";
 import { auth } from "@/lib/auth";
 import { ROLES_CONTROLADORIA, type Role } from "@/lib/authz";
 import { fmtCurrency, fmtDate, fmtNum } from "@/lib/format";
+import { parseSort, sortRows } from "@/lib/sort";
 import { listarConciliacoesPorTenant } from "@/lib/services/conciliacao";
-import { Prisma } from "@prisma/client";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const metadata = { title: "Conciliações — Autron Dash" };
 
+// Linha plana — Decimal já convertido para number, pra sortRows tratar como
+// número (não como string). Veja [id]/page.tsx pra explicação completa.
 type ConciliacaoLinha = {
   id: string;
   contaContabil: string;
   descricaoConta: string | null;
   dataReferencia: Date;
-  totalFinanceiro: Prisma.Decimal;
-  totalContabil: Prisma.Decimal;
-  diferencaTotal: Prisma.Decimal;
+  totalFinanceiro: number;
+  totalContabil: number;
+  diferencaTotal: number;
   qtdDivergencias: number;
   status: "RASCUNHO" | "OK" | "DIVERGENTE";
   createdAt: Date;
   user: { name: string } | null;
 };
 
-export default async function ConciliacaoListPage() {
+interface SP {
+  sort?: string;
+  dir?: string;
+}
+
+export default async function ConciliacaoListPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
   const session = await auth();
   if (!session) redirect("/login");
 
   const role = session.user.role as Role;
   if (!ROLES_CONTROLADORIA.includes(role)) redirect("/dashboard");
 
-  const linhas = (await listarConciliacoesPorTenant(session.user.tenantId)) as ConciliacaoLinha[];
+  const sp = await searchParams;
+  const raw = await listarConciliacoesPorTenant(session.user.tenantId);
+
+  const linhasPlanas: ConciliacaoLinha[] = raw.map((c) => ({
+    id: c.id,
+    contaContabil: c.contaContabil,
+    descricaoConta: c.descricaoConta,
+    dataReferencia: c.dataReferencia,
+    totalFinanceiro: Number(c.totalFinanceiro),
+    totalContabil: Number(c.totalContabil),
+    diferencaTotal: Number(c.diferencaTotal),
+    qtdDivergencias: c.qtdDivergencias,
+    status: c.status,
+    createdAt: c.createdAt,
+    user: c.user,
+  }));
+
+  const sortState = parseSort(sp.sort, sp.dir);
+  const linhas = sortState
+    ? (sortRows(
+        linhasPlanas as unknown as Record<string, unknown>[],
+        sortState,
+      ) as unknown as ConciliacaoLinha[])
+    : linhasPlanas;
 
   return (
     <AppShell
@@ -122,7 +156,7 @@ const listaCols: Column<ConciliacaoLinha>[] = [
     align: "right",
     cell: (c) => (
       <span className="numeric whitespace-nowrap text-[12.5px]">
-        {fmtCurrency(Number(c.totalFinanceiro), { compact: true })}
+        {fmtCurrency(c.totalFinanceiro, { compact: true })}
       </span>
     ),
   },
@@ -133,7 +167,7 @@ const listaCols: Column<ConciliacaoLinha>[] = [
     align: "right",
     cell: (c) => (
       <span className="numeric whitespace-nowrap text-[12.5px]">
-        {fmtCurrency(Number(c.totalContabil), { compact: true })}
+        {fmtCurrency(c.totalContabil, { compact: true })}
       </span>
     ),
   },
@@ -143,7 +177,7 @@ const listaCols: Column<ConciliacaoLinha>[] = [
     sortKey: "diferencaTotal",
     align: "right",
     cell: (c) => {
-      const v = Number(c.diferencaTotal);
+      const v = c.diferencaTotal;
       const bate = Math.abs(v) <= 0.01;
       return (
         <span

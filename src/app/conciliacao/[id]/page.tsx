@@ -6,6 +6,7 @@ import StatusBadge from "@/components/UI/StatusBadge";
 import { auth } from "@/lib/auth";
 import { ROLES_CONTROLADORIA, type Role } from "@/lib/authz";
 import { fmtCurrency, fmtDate, fmtNum } from "@/lib/format";
+import { parseSort, sortRows } from "@/lib/sort";
 import { getConciliacaoById } from "@/lib/services/conciliacao";
 import { Prisma } from "@prisma/client";
 import {
@@ -25,15 +26,18 @@ import ObservacoesEditor from "./ObservacoesEditor";
 
 export const metadata = { title: "Conciliação — Autron Dash" };
 
+// Linha plana — valores Decimal já convertidos para number, pra que sortRows
+// (que tem branch numérico) ordene corretamente. Sem a conversão prévia, os
+// Decimals caem no branch de string e "1000" vinha antes de "999".
 type DivergenciaRow = {
   id: string;
   numeroNF: string;
   codigoCliente: string | null;
   nomeCliente: string | null;
   lado: "SO_FINANCEIRO" | "SO_CONTABIL" | "DIVERGENTE";
-  saldoFinanceiro: Prisma.Decimal | null;
-  saldoContabil: Prisma.Decimal | null;
-  diferenca: Prisma.Decimal | null;
+  saldoFinanceiro: number | null;
+  saldoContabil: number | null;
+  diferenca: number | null;
 };
 
 function toNum(d: Prisma.Decimal | null | undefined): number | null {
@@ -42,6 +46,8 @@ function toNum(d: Prisma.Decimal | null | undefined): number | null {
 
 interface SP {
   lado?: string; // filtro: "DIVERGENTE" | "SO_FINANCEIRO" | "SO_CONTABIL"
+  sort?: string;
+  dir?: string;
 }
 
 export default async function ConciliacaoDetailPage({
@@ -66,9 +72,32 @@ export default async function ConciliacaoDetailPage({
   const dif = Number(conc.diferencaTotal);
   const bateuTotal = Math.abs(dif) <= 0.01;
 
-  const divergenciasFiltradas: DivergenciaRow[] = sp.lado
-    ? conc.divergencias.filter((d) => d.lado === sp.lado)
-    : conc.divergencias;
+  // Decimal → number antes de filtrar/ordenar, pra que sortRows trate os
+  // saldos como números (não como strings, o que ordenaria "1000" antes de "999").
+  const divergenciasPlanas: DivergenciaRow[] = conc.divergencias.map((d) => ({
+    id: d.id,
+    numeroNF: d.numeroNF,
+    codigoCliente: d.codigoCliente,
+    nomeCliente: d.nomeCliente,
+    lado: d.lado,
+    saldoFinanceiro: toNum(d.saldoFinanceiro),
+    saldoContabil: toNum(d.saldoContabil),
+    diferenca: toNum(d.diferenca),
+  }));
+
+  const divergenciasFiltradasBase = sp.lado
+    ? divergenciasPlanas.filter((d) => d.lado === sp.lado)
+    : divergenciasPlanas;
+
+  // URL-driven sort (clique nos cabeçalhos da DataTable). Default: ordenação
+  // do banco — DIVERGENTE primeiro, depois maior diff absoluta.
+  const sortState = parseSort(sp.sort, sp.dir);
+  const divergenciasFiltradas = sortState
+    ? (sortRows(
+        divergenciasFiltradasBase as unknown as Record<string, unknown>[],
+        sortState,
+      ) as unknown as DivergenciaRow[])
+    : divergenciasFiltradasBase;
 
   const porLado = {
     DIVERGENTE: conc.divergencias.filter((d) => d.lado === "DIVERGENTE").length,
@@ -223,7 +252,7 @@ export default async function ConciliacaoDetailPage({
           {divergenciasFiltradas.length > 0 ? (
             <DataTable
               columns={divergenciasCols}
-              rows={divergenciasFiltradas as DivergenciaRow[]}
+              rows={divergenciasFiltradas}
               rowKey={(d) => d.id}
               emptyMessage=""
             />
@@ -372,34 +401,28 @@ const divergenciasCols: Column<DivergenciaRow>[] = [
     header: "Saldo Financeiro",
     sortKey: "saldoFinanceiro",
     align: "right",
-    cell: (d) => {
-      const v = toNum(d.saldoFinanceiro);
-      return (
-        <span
-          className="numeric whitespace-nowrap text-[12.5px]"
-          style={{ color: v == null ? "var(--fg-muted)" : "var(--fg)" }}
-        >
-          {v == null ? "—" : fmtCurrency(v)}
-        </span>
-      );
-    },
+    cell: (d) => (
+      <span
+        className="numeric whitespace-nowrap text-[12.5px]"
+        style={{ color: d.saldoFinanceiro == null ? "var(--fg-muted)" : "var(--fg)" }}
+      >
+        {d.saldoFinanceiro == null ? "—" : fmtCurrency(d.saldoFinanceiro)}
+      </span>
+    ),
   },
   {
     key: "saldoCont",
     header: "Saldo Contábil",
     sortKey: "saldoContabil",
     align: "right",
-    cell: (d) => {
-      const v = toNum(d.saldoContabil);
-      return (
-        <span
-          className="numeric whitespace-nowrap text-[12.5px]"
-          style={{ color: v == null ? "var(--fg-muted)" : "var(--fg)" }}
-        >
-          {v == null ? "—" : fmtCurrency(v)}
-        </span>
-      );
-    },
+    cell: (d) => (
+      <span
+        className="numeric whitespace-nowrap text-[12.5px]"
+        style={{ color: d.saldoContabil == null ? "var(--fg-muted)" : "var(--fg)" }}
+      >
+        {d.saldoContabil == null ? "—" : fmtCurrency(d.saldoContabil)}
+      </span>
+    ),
   },
   {
     key: "diferenca",
@@ -407,20 +430,19 @@ const divergenciasCols: Column<DivergenciaRow>[] = [
     sortKey: "diferenca",
     align: "right",
     cell: (d) => {
-      const v = toNum(d.diferenca);
-      if (v == null)
+      if (d.diferenca == null)
         return (
           <span className="numeric text-[12.5px]" style={{ color: "var(--fg-muted)" }}>
             —
           </span>
         );
-      const cor = Math.abs(v) > 0.01 ? "#e11d48" : "var(--fg-muted)";
+      const cor = Math.abs(d.diferenca) > 0.01 ? "#e11d48" : "var(--fg-muted)";
       return (
         <span
           className="numeric whitespace-nowrap text-[12.5px] font-medium"
           style={{ color: cor }}
         >
-          {fmtCurrency(v)}
+          {fmtCurrency(d.diferenca)}
         </span>
       );
     },
