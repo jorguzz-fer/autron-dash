@@ -838,10 +838,10 @@ function ergomecCols(
     {
       key: "cliente",
       header: "Cliente",
-      sortKey: "cliente",
+      sortKey: "clienteNome",
       cell: (p) => (
-        <span className="block max-w-[160px] truncate text-[12px]" title={p.cliente ?? ""} style={{ color: "var(--fg)" }}>
-          {p.cliente ?? "—"}
+        <span className="block max-w-[160px] truncate text-[12px]" title={p.clienteNome ?? p.cliente ?? ""} style={{ color: "var(--fg)" }}>
+          {p.clienteNome ?? p.cliente ?? "—"}
         </span>
       ),
     },
