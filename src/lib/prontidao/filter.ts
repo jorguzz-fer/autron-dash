@@ -22,11 +22,14 @@ export function classifAtend(p: PedidoEnriched): "dentro" | "fora" | "sem" {
 }
 
 /**
- * Mês (1-12) do prazo real de entrega — usado pelo filtro "Mês de Faturamento".
- * Quando prazoRealEntrega é "A definir" ou null, retorna null e o pedido fica
- * fora do filtro quando há mês selecionado.
+ * Mês (1-12) de faturamento do pedido — usado pelo filtro "Mês de Faturamento".
+ * Prioridade:
+ *   1. dtEntrega     — coluna "Entrega" do relatório entrada pedido (Dt. Faturamento)
+ *   2. prazoRealEntrega — fallback se dtEntrega não veio no upload
+ *   3. dtFatCli      — último recurso (Dt. Necessidade Cliente)
  */
 export function mesFatKey(p: PedidoEnriched): number | null {
+  if (p.dtEntrega) return p.dtEntrega.getMonth() + 1;
   const prazo = p.prazoRealEntrega;
   if (prazo instanceof Date) return prazo.getMonth() + 1;
   if (p.dtFatCli) return p.dtFatCli.getMonth() + 1;

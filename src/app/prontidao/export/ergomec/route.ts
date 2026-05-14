@@ -39,7 +39,11 @@ export async function GET(req: NextRequest) {
   const filtered = ergomecBase.filter((p) => {
     if (eAtend && classifAtend(p) !== eAtend) return false;
     if (eMesFat) {
-      const m = p.dtFatCli ? p.dtFatCli.getMonth() + 1 : null;
+      const m = p.dtEntrega
+        ? p.dtEntrega.getMonth() + 1
+        : p.dtFatCli
+          ? p.dtFatCli.getMonth() + 1
+          : null;
       if (m == null || m !== Number(eMesFat)) return false;
     }
     if (eSearch) {
