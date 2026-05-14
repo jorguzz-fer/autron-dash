@@ -81,9 +81,15 @@ export default async function ComparativoPloomesPage({
     );
   }
 
+  // Paridade Streamlit (app.py:2487): match é case-insensitive com trim
+  //   Ped_Cliente_Norm = .str.strip().str.upper()
+  // Sem isso, pedidos com diferença de caixa/espaço (ex: "PO12345" vs "po12345 ")
+  // não batem com a oportunidade do CRM → conversão subestimada.
+  const normalizePO = (s: string | null | undefined) => (s ?? "").trim().toUpperCase();
+
   const pedidosPorPC = new Map<string, typeof enriched[number][]>();
   for (const p of enriched) {
-    const pc = p.pedCliente;
+    const pc = normalizePO(p.pedCliente);
     if (!pc) continue;
     const arr = pedidosPorPC.get(pc) ?? [];
     arr.push(p);
@@ -91,7 +97,7 @@ export default async function ComparativoPloomesPage({
   }
 
   const oportunidadesEnriched = oportunidades.map((op) => {
-    const pcKey = op.pedidoCompraCliente;
+    const pcKey = normalizePO(op.pedidoCompraCliente);
     const pedidosBatentes = pcKey ? pedidosPorPC.get(pcKey) ?? [] : [];
     const valorPedidos = pedidosBatentes.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
     return {

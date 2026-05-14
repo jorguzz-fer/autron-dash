@@ -65,21 +65,28 @@ export default async function PrevisaoFaturamentoPage({ searchParams }: { search
     );
   }
 
-  // ── Pipeline mensal (pedidos em aberto agrupados pelo mês alvo) ───
+  // ── Pipeline mensal (paridade Streamlit app.py:674, 2414) ──
+  // Streamlit: Mes_Prev_Faturamento = FU_Dt_Chegada_Autron.to_period('M')
+  // - Usa SÓ fuDtChegadaAutron (não prazoRealEntrega, não dtFatCli)
+  // - Pedidos sem chegada na Autron OU com chegada em mês passado caem em "Sem previsão"
+  //   (Streamlit filtra Mes_Prev_Faturamento >= mes_atual_prev)
   const emAberto = enriched.filter((p) => p.statusPedido === "EM ABERTO");
   const pipelineByMonth = new Map<string, number>();
   let pipelineSemPrazo = 0;
+  const mesAtualKey = monthKey(new Date(anoAtual, mesAtual - 1, 1));
   for (const p of emAberto) {
-    const target =
-      p.prazoRealEntrega instanceof Date
-        ? p.prazoRealEntrega
-        : p.dtFatCli ?? null;
+    const target = p.fuDtChegadaAutron;
     const valor = p.vlrTotal ?? 0;
     if (!target) {
       pipelineSemPrazo += valor;
       continue;
     }
     const k = monthKey(target);
+    // Streamlit zera meses passados — pedidos com Dt Chegada já passada viram "Sem previsão"
+    if (k < mesAtualKey) {
+      pipelineSemPrazo += valor;
+      continue;
+    }
     pipelineByMonth.set(k, (pipelineByMonth.get(k) ?? 0) + valor);
   }
   const pipelineTotal = emAberto.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
@@ -153,11 +160,9 @@ export default async function PrevisaoFaturamentoPage({ searchParams }: { search
   let pipeAte60 = 0;
   let pipeAte90 = 0;
   let pipeMais90 = 0;
+  // Mesma regra do pipelineByMonth: usa SÓ fuDtChegadaAutron (paridade Streamlit)
   for (const p of emAberto) {
-    const target =
-      p.prazoRealEntrega instanceof Date
-        ? p.prazoRealEntrega
-        : p.dtFatCli ?? null;
+    const target = p.fuDtChegadaAutron;
     if (!target) continue;
     const v = p.vlrTotal ?? 0;
     if (target <= fim30) pipeAte30 += v;
@@ -426,7 +431,8 @@ const topPedidosCols: Column<PedidoEnriched>[] = [
     key: "prazo",
     header: "Prazo previsto",
     cell: (p) => {
-      const t = p.prazoRealEntrega instanceof Date ? p.prazoRealEntrega : p.dtFatCli;
+      // Paridade Streamlit: usa Dt Chegada Autron como prazo de previsão de faturamento
+      const t = p.fuDtChegadaAutron;
       return (
         <span className="numeric text-[12px]">
           {t ? t.toLocaleDateString("pt-BR") : <StatusBadge tone="warning">Sem prazo</StatusBadge>}

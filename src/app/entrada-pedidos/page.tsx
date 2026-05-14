@@ -91,13 +91,20 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
     .sort((a, b) => b.valor - a.valor);
 
   // ── Pedidos de Contrato ───────────────────────────────────────────
-  const contratosAno = pedidosAno.filter((p) => p.contrato).length;
-  const linhasAno = pedidosAno.length;
-  const pctContrato = linhasAno === 0 ? 0 : (contratosAno / linhasAno) * 100;
+  // Paridade Streamlit (app.py:1355-1357): penetração calculada POR VALOR
+  //   pct_contrato = sum(Vlr.Total contrato) / sum(Vlr.Total total)
+  // (não por contagem de linhas — pedidos de contrato têm ticket maior,
+  // então as duas métricas divergem significativamente)
+  const contratosAno = pedidosAno.filter((p) => p.contrato);
+  const valorContratoAno = contratosAno.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
+  const valorTotalAno = pedidosAno.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
+  const pctContrato = valorTotalAno === 0 ? 0 : (valorContratoAno / valorTotalAno) * 100;
+
   const pedidosAnoAnterior = all.filter((p) => p.dtEmissao?.getFullYear() === anoBase - 1);
-  const contratosAnoAnt = pedidosAnoAnterior.filter((p) => p.contrato).length;
-  const pctContratoAnt =
-    pedidosAnoAnterior.length === 0 ? 0 : (contratosAnoAnt / pedidosAnoAnterior.length) * 100;
+  const contratosAnoAnt = pedidosAnoAnterior.filter((p) => p.contrato);
+  const valorContratoAnt = contratosAnoAnt.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
+  const valorTotalAnt = pedidosAnoAnterior.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
+  const pctContratoAnt = valorTotalAnt === 0 ? 0 : (valorContratoAnt / valorTotalAnt) * 100;
   const deltaPenetracao = pctContrato - pctContratoAnt;
 
   // ── Por Cliente (top) ─────────────────────────────────────────────
@@ -227,11 +234,23 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
               Pedidos de Contrato — Penetração {anoBase}
             </span>
           }
-          subtitle={`${fmtNum(contratosAno)} pedidos com contrato em ${anoBase} · ${fmtPct(pctContrato)} de penetração`}
+          subtitle={`${fmtNum(contratosAno.length)} linhas com contrato em ${anoBase} · ${fmtPct(pctContrato)} de penetração (por valor)`}
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <KPICard label="Contratos no ano" value={fmtNum(contratosAno)} icon={<FileSignature className="size-4" />} tone="brand" />
-            <KPICard label="% Penetração" value={fmtPct(pctContrato)} hint={`Ano anterior: ${fmtPct(pctContratoAnt)}`} icon={<Activity className="size-4" />} tone="neutral" />
+            <KPICard
+              label="Valor em Contratos"
+              value={fmtCurrency(valorContratoAno, { compact: true })}
+              hint={`${fmtNum(contratosAno.length)} linhas`}
+              icon={<FileSignature className="size-4" />}
+              tone="brand"
+            />
+            <KPICard
+              label="% Penetração (por valor)"
+              value={fmtPct(pctContrato)}
+              hint={`Ano anterior: ${fmtPct(pctContratoAnt)}`}
+              icon={<Activity className="size-4" />}
+              tone="neutral"
+            />
             <KPICard
               label="Variação vs ano anterior"
               value={`${deltaPenetracao >= 0 ? "+" : ""}${deltaPenetracao.toFixed(1)} p.p.`}
