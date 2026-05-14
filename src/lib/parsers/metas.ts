@@ -23,12 +23,15 @@ const CATEGORY_MATCHERS: Array<{
       return n === "entradadepedido";
     },
   },
-  // "Receita de vendas e Serviços" total
+  // "Receita líquida" do bloco GRUPO — paridade com Streamlit (app.py:718):
+  //   meta_receita_liquida = extrair_meta(grupo_idx, 'Receita líquida')
+  // É a receita pós-impostos (~85% da bruta "Receita de vendas e Serviços")
+  // e a base oficial pra comparar com o Fat. Líquido realizado.
   {
     cat: "RECEITA",
     match: (s) => {
       const n = normalizeHeader(s);
-      return n === "receitadevendaseservicos" || n === "receitadevendaseservico";
+      return n === "receitaliquida";
     },
   },
 ];
@@ -130,8 +133,8 @@ export async function parseMetas(buffer: Buffer): Promise<ParseResult<MetaRow>> 
       const label = toCleanString(allRows[r][1]);
       if (!label) continue;
       // Sub-itens vêm com indent (espaços antes). "Entrada de pedido" sem indent é o total.
-      if (label.startsWith(" ") || label.startsWith("\t")) continue;
-      // Ignora "(-) deduções", "Receita líquida" etc.
+      // "Receita líquida" também vem sem indent (é uma linha-totalizadora dentro do bloco).
+      // Não filtramos por indent — confiamos no match exato dos CATEGORY_MATCHERS.
       const cat = CATEGORY_MATCHERS.find((m) => m.match(label));
       if (!cat) continue;
 

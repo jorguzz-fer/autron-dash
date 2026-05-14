@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { getFaturamentos, type FaturamentoRow } from "@/lib/services/faturamento";
 import { getMetas } from "@/lib/services/metas";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
-import { filterByStatus, mesFatKey } from "@/lib/prontidao/filter";
+// Paridade com Streamlit: a aba Faturamento inclui pedidos cancelados na carteira
+// (Status_Pedido é apenas EM_ABERTO vs FINALIZADO — sem distinguir CAN).
+// Por isso NÃO usamos filterByStatus aqui (que excluiria cancelados); a Prontidão sim.
 import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import BarCompareChart from "@/components/UI/BarCompareChart";
@@ -84,20 +86,19 @@ export default async function FaturamentoPage({
     }
   }
 
-  // ── Carteira EM ABERTO por mês (exclui cancelados, usa mesma prioridade do mesFatKey)
-  // filterByStatus(_, undefined) = "em aberto" excluindo cancelados — idêntico ao filtro da aba Prontidão.
-  const emAberto = filterByStatus(enriched, undefined);
+  // ── Carteira EM ABERTO por mês (paridade Streamlit app.py:2095-2100) ──
+  //   abertos_all = df[df['Status_Pedido'] == 'EM ABERTO']
+  //   a_faturar_mes = abertos_all[abertos_all['Mes_Entrega'] != 'Sem data'].groupby('Mes_Entrega')
+  // Regras:
+  //   - statusPedido === "EM ABERTO" (INCLUI cancelados, igual ao Streamlit)
+  //   - usa SÓ dtEntrega (campo "Entrega" do entrada_pedido) — sem fallback
+  //   - pedidos sem dtEntrega ("Sem data") são EXCLUÍDOS do agrupamento por mês
+  //     (mas aparecem nos totais agregados de Total de Carteira mais abaixo)
+  const emAberto = enriched.filter((p) => p.statusPedido === "EM ABERTO");
   const carteiraByMes = new Map<string, number>();
   for (const p of emAberto) {
-    const m = mesFatKey(p); // prioridade: dtEntrega → prazoRealEntrega → dtFatCli
-    if (m == null) continue;
-    const ano = (() => {
-      if (p.dtEntrega) return p.dtEntrega.getFullYear();
-      if (p.prazoRealEntrega instanceof Date) return p.prazoRealEntrega.getFullYear();
-      if (p.dtFatCli) return p.dtFatCli.getFullYear();
-      return anoAtual;
-    })();
-    const k = `${ano}-${String(m).padStart(2, "0")}`;
+    if (!p.dtEntrega) continue;
+    const k = `${p.dtEntrega.getFullYear()}-${String(p.dtEntrega.getMonth() + 1).padStart(2, "0")}`;
     carteiraByMes.set(k, (carteiraByMes.get(k) ?? 0) + (p.vlrTotal ?? 0));
   }
   const carteiraBrutoTotal = emAberto.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
@@ -113,6 +114,10 @@ export default async function FaturamentoPage({
     return fatLiqByMes.get(mesKey(ano, m)) ?? 0;
   }
   function cartMes(m: number) {
+    // Paridade Streamlit (app.py:2120): para meses FECHADOS, Total_a_Faturar = 0
+    // (a receita já foi realizada, não há mais "a faturar"). Sem essa regra,
+    // Q1 e meses fechados ficavam superestimados (somando carteira que já virou NF).
+    if (m < mesAtual) return 0;
     return carteiraByMes.get(mesKey(anoAtual, m)) ?? 0;
   }
 
