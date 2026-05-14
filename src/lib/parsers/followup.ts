@@ -34,7 +34,7 @@ export async function parseFollowUp(buffer: Buffer): Promise<ParseResult<FollowU
   const cSC = findCol(idx, "No. da S.C.", "No da SC", "Numero SC", "No SC");
   const cPV = findCol(idx, "Numero do PV", "Numero PV", "PV");
   const cItem = findCol(idx, "Codigo Item", "Cod Item");
-  const cPasta = findCol(idx, "Pasta");
+  const cPasta = findCol(idx, "Pasta", "Week Fup", "Week FUP", "WeekFup", "Semana Fup", "SemanaFup");
   const cConfirma = findCol(idx, "Dt. Confirma", "Dt Confirma");
   const cPreEntr = findCol(idx, "Dt. Pre entr", "Dt Pre entr", "Dt. Pre Entr");
   const cChegada = findCol(idx, "Dt Chegada Autron", "Dt. Chegada Autron");
