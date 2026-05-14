@@ -18,6 +18,7 @@ import {
   applyProntidaoFilters,
   classifAtend,
   filterByStatus,
+  isCancelado,
   mesFatKey,
 } from "@/lib/prontidao/filter";
 import SearchInput from "@/components/UI/SearchInput";
@@ -25,6 +26,7 @@ import { Download } from "lucide-react";
 import {
   CheckCircle2,
   AlertTriangle,
+  Ban,
   Circle,
   CircleAlert,
   ShoppingCart,
@@ -129,7 +131,11 @@ export default async function ProntidaoPage({
     getPrazosEngByTenant(session.user.tenantId),
   ]);
 
-  // "Em Aberto" é o padrão. "finalizado" mostra os itens fora de EM ABERTO.
+  // Cancelados: fuPasta contém "CAN" — contados do dataset completo (sempre visível).
+  const totalCancelados = all.filter(isCancelado).length;
+
+  // "Em Aberto" é o padrão. "finalizado" e "cancelado" são opções explícitas.
+  // Cancelados são sempre excluídos de Em Aberto e Finalizado.
   const pedidos = filterByStatus(all, sp.status);
 
   const sim = pedidos.filter((p) => p.prontoParaFazer === "SIM").length;
@@ -290,13 +296,16 @@ export default async function ProntidaoPage({
               label="Status do Pedido"
               value={sp.status}
               allLabel="Em Aberto"
-              options={[{ value: "finalizado", label: "Finalizado" }]}
+              options={[
+                { value: "finalizado", label: "Finalizado" },
+                { value: "cancelado", label: "Cancelado" },
+              ]}
             />
           </div>
         </div>
 
         {/* KPIs de Prontidão — clicáveis: cada um filtra a tabela pelo bucket. */}
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-6">
           <KPICard
             label="Prontos"
             value={fmtNum(sim)}
@@ -340,6 +349,15 @@ export default async function ProntidaoPage({
             tone="danger"
             href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "pronto", "erro")}
             active={sp.pronto === "erro"}
+          />
+          <KPICard
+            label="Cancelados"
+            value={fmtNum(totalCancelados)}
+            hint='Week Fup = "CAN" no follow-up'
+            icon={<Ban className="size-4" />}
+            tone="neutral"
+            href={`/prontidao?status=cancelado`}
+            active={sp.status === "cancelado"}
           />
         </section>
 

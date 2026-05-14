@@ -34,18 +34,33 @@ export function mesFatKey(p: PedidoEnriched): number | null {
 }
 
 /**
- * Aplica o filtro de status (em aberto por default, finalizado se status="finalizado").
+ * Detecta pedido cancelado: campo "Week Fup" (pasta) do follow-up contém "CAN".
+ * Cancelados são excluídos de Em Aberto e Finalizado — têm categoria própria.
+ */
+export function isCancelado(p: PedidoEnriched): boolean {
+  return (p.fuPasta ?? "").toUpperCase().includes("CAN");
+}
+
+/**
+ * Aplica o filtro de status.
+ *   undefined / omitido → Em Aberto  (statusPedido === "EM ABERTO" e não cancelado)
+ *   "finalizado"        → Finalizado (statusPedido !== "EM ABERTO" e não cancelado)
+ *   "cancelado"         → Cancelados (fuPasta contém "CAN", independente de statusPedido)
+ *
  * É o primeiro passo do pipeline — KPIs e cards consomem o universo retornado aqui.
  */
 export function filterByStatus(
   pedidos: PedidoEnriched[],
   status: string | undefined,
 ): PedidoEnriched[] {
-  return pedidos.filter((p) =>
-    status === "finalizado"
-      ? p.statusPedido !== "EM ABERTO"
-      : p.statusPedido === "EM ABERTO",
-  );
+  if (status === "cancelado") {
+    return pedidos.filter(isCancelado);
+  }
+  if (status === "finalizado") {
+    return pedidos.filter((p) => p.statusPedido !== "EM ABERTO" && !isCancelado(p));
+  }
+  // Default: em aberto (excluindo cancelados)
+  return pedidos.filter((p) => p.statusPedido === "EM ABERTO" && !isCancelado(p));
 }
 
 /**
