@@ -21,6 +21,13 @@ interface Props<T> {
   sortParam?: string;
   /** Nome do query param de direção. Default: "dir". */
   dirParam?: string;
+  /**
+   * Altura máxima da área da tabela (CSS válido — px, vh, calc...).
+   * Quando definida, o `<thead>` fica congelado (sticky) e a tabela rola internamente.
+   * Default: "calc(100vh - 220px)" — espaço pra TopBar (56px) + título da página + margens.
+   * Passe `null` pra desabilitar o scroll interno e usar layout natural (rolagem pela página).
+   */
+  maxHeight?: string | null;
 }
 
 export default function DataTable<T>({
@@ -31,7 +38,13 @@ export default function DataTable<T>({
   emptyMessage = "Nenhum registro.",
   sortParam = "sort",
   dirParam = "dir",
+  maxHeight = "calc(100vh - 220px)",
 }: Props<T>) {
+  // Quando maxHeight está ativo, o `<div>` interno vira o contexto de scroll
+  // — o `<th>` sticky (top: 0) congela em relação a esse container.
+  const scrollStyle = maxHeight ? { maxHeight } : undefined;
+  const scrollClass = maxHeight ? "overflow-auto" : "overflow-x-auto";
+
   return (
     <div
       className="overflow-hidden rounded-2xl border"
@@ -57,7 +70,7 @@ export default function DataTable<T>({
           {emptyMessage}
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className={scrollClass} style={scrollStyle}>
           <table className="w-full text-[13px]">
             <thead>
               <tr
@@ -70,8 +83,17 @@ export default function DataTable<T>({
                 {columns.map((c) => (
                   <th
                     key={c.key}
-                    style={{ width: c.width, textAlign: c.align ?? "left" }}
-                    className="px-4 py-2.5 font-medium whitespace-nowrap"
+                    style={{
+                      width: c.width,
+                      textAlign: c.align ?? "left",
+                      // Background no `<th>` (não no `<tr>`) é necessário pra
+                      // sticky tampar o conteúdo que rola por baixo.
+                      backgroundColor: maxHeight ? "var(--surface-2)" : undefined,
+                      // Box-shadow simula a borda inferior — `<th>` não respeita
+                      // `border-bottom` confiavelmente quando sticky.
+                      boxShadow: maxHeight ? "inset 0 -1px 0 var(--border-soft)" : undefined,
+                    }}
+                    className={`px-4 py-2.5 font-medium whitespace-nowrap ${maxHeight ? "sticky top-0 z-10" : ""}`}
                   >
                     {c.sortKey ? (
                       <SortableHeader sortKey={c.sortKey} align={c.align} sortParam={sortParam} dirParam={dirParam}>
