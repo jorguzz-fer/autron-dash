@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
   const headers = [
     "PV",
     "Item",
+    "Cód. Cliente",
     "Cliente",
     "Produto",
     "Descrição",
@@ -79,13 +80,13 @@ export async function GET(req: NextRequest) {
     "Ação",
     "Dt. Necessidade Cliente",
     "Prazo Entrega",
+    "DT Chegada Autron",
     "Atendimento Prazo",
     "Semana",
     "Ped. Cliente",
   ];
 
   const rows: CsvRow[] = sorted.map((p) => {
-    const cliente = p.clienteNome ?? p.cliente ?? "";
     const scOp = p.numeroSC ? `SC ${p.numeroSC}` : p.numeroOP ? `OP ${p.numeroOP}` : "";
     const prazoEntrega =
       p.prazoRealEntrega instanceof Date
@@ -96,13 +97,14 @@ export async function GET(req: NextRequest) {
       atendBucket === "dentro"
         ? "Dentro do prazo"
         : atendBucket === "fora"
-        ? "Fora do prazo"
-        : "Sem prazo definido";
+          ? "Fora do prazo"
+          : "Sem prazo definido";
 
     return [
       p.numPedido,
       p.item,
-      cliente,
+      p.cliente ?? "",
+      p.clienteNome ?? "",
       p.produto,
       p.descricaoProduto ?? "",
       p.tipoProduto,
@@ -113,6 +115,7 @@ export async function GET(req: NextRequest) {
       p.acaoNecessaria,
       csvDate(p.dtFatCli),
       prazoEntrega,
+      csvDate(p.fuDtChegadaAutron),
       atendLabel,
       p.semanaEntrega ?? "",
       p.pedCliente ?? "",

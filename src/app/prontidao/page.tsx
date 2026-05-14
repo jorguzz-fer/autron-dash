@@ -62,6 +62,7 @@ interface SP {
   // tabela Ergomec (IND21):
   eAtend?: string;
   eMesFat?: string;
+  eSearch?: string;
   eSort?: string;
   eDir?: string;
 }
@@ -234,6 +235,13 @@ export default async function ProntidaoPage({
     if (sp.eMesFat) {
       const m = mesFatKey(p);
       if (m == null || m !== Number(sp.eMesFat)) return false;
+    }
+    if (sp.eSearch) {
+      const q = sp.eSearch.toLowerCase();
+      const hay = [p.numPedido, p.produto, p.descricaoProduto, p.clienteNome, p.cliente]
+        .join(" ")
+        .toLowerCase();
+      if (!hay.includes(q)) return false;
     }
     return true;
   });
@@ -535,17 +543,51 @@ export default async function ProntidaoPage({
           title="Pedidos Ergomec (IND21) — Controle de Prazo de Engenharia"
           subtitle={`${fmtNum(ergomecFiltrados.length)} de ${fmtNum(ergomecPedidos.length)} linhas em aberto · ${fmtNum(ergomecPVsUnicos)} PVs (${fmtNum(ergomecPVsComPrazo)} com prazo · ${fmtNum(ergomecPVsSemPrazo)} pendentes)`}
           actions={
-            <div
-              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
-              style={{
-                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 12%, transparent)",
-                color: "var(--color-brand-600)",
-              }}
-            >
-              <Wrench className="size-3.5" /> Ergomec
+            <div className="flex items-center gap-2">
+              <a
+                href={`/prontidao/export/ergomec${(() => {
+                  const usp = new URLSearchParams();
+                  if (sp.eAtend) usp.set("eAtend", sp.eAtend);
+                  if (sp.eMesFat) usp.set("eMesFat", sp.eMesFat);
+                  if (sp.eSearch) usp.set("eSearch", sp.eSearch);
+                  if (sp.status) usp.set("status", sp.status);
+                  if (sp.from) usp.set("from", sp.from);
+                  if (sp.to) usp.set("to", sp.to);
+                  const qs = usp.toString();
+                  return qs ? `?${qs}` : "";
+                })()}`}
+                download
+                className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:brightness-110"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--color-brand-500) 10%, transparent)",
+                  borderColor: "color-mix(in srgb, var(--color-brand-500) 30%, transparent)",
+                  color: "var(--color-brand-600)",
+                }}
+                title="Exportar Ergomec filtrado como CSV"
+              >
+                <Download className="size-3.5" />
+                Exportar CSV
+              </a>
+              <div
+                className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--color-brand-500) 12%, transparent)",
+                  color: "var(--color-brand-600)",
+                }}
+              >
+                <Wrench className="size-3.5" /> Ergomec
+              </div>
             </div>
           }
         >
+          {/* Busca textual — varre PV, produto, cliente */}
+          <div className="mb-3">
+            <SearchInput
+              name="eSearch"
+              placeholder="Pesquisar PV, produto, cliente…"
+              className="min-w-[280px] max-w-md"
+            />
+          </div>
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <FilterSelect
               name="eMesFat"
@@ -767,6 +809,17 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     cell: (p) => (
       <span className="numeric whitespace-nowrap text-[12px]">
         {p.prazoRealEntrega instanceof Date ? fmtDate(p.prazoRealEntrega) : p.prazoRealEntrega ?? "—"}
+      </span>
+    ),
+  },
+  {
+    // fuDtChegadaAutron = coluna "DT chegada Autron" da planilha de follow-up.
+    key: "dtChegadaAutron",
+    header: "DT Chegada Autron",
+    sortKey: "fuDtChegadaAutron",
+    cell: (p) => (
+      <span className="numeric whitespace-nowrap text-[12px]">
+        {p.fuDtChegadaAutron ? fmtDate(p.fuDtChegadaAutron) : "—"}
       </span>
     ),
   },
