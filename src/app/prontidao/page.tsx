@@ -382,9 +382,9 @@ export default async function ProntidaoPage({
               tone="neutral"
             />
             <KPICard
-              label="Sem prazo definido"
+              label="Sem Dt. Necessidade"
               value={fmtNum(pvSem)}
-              hint="Sem DT. Fat. Cli em algum item"
+              hint="PVs com ≥ 1 item sem Dt. Necessidade do Cliente"
               icon={<CalendarOff className="size-4" />}
               tone="warning"
               href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "atend", "sem")}
@@ -395,7 +395,7 @@ export default async function ProntidaoPage({
           <div className="mt-5">
             <HBarRanking
               items={[
-                { label: "Sem prazo definido", value: pvSem, display: `${fmtNum(pvSem)} (${((pvSem / Math.max(1, totalPVs)) * 100).toFixed(1)}%)` },
+                { label: "Sem Dt. Necessidade", value: pvSem, display: `${fmtNum(pvSem)} (${((pvSem / Math.max(1, totalPVs)) * 100).toFixed(1)}%)` },
                 { label: "Dentro do prazo", value: pvDentro, display: `${fmtNum(pvDentro)} (${((pvDentro / Math.max(1, totalPVs)) * 100).toFixed(1)}%)` },
                 { label: "Fora do prazo", value: pvFora, display: `${fmtNum(pvFora)} (${((pvFora / Math.max(1, totalPVs)) * 100).toFixed(1)}%)` },
               ]}
@@ -503,7 +503,7 @@ export default async function ProntidaoPage({
               options={MES_OPTIONS}
             />
           </div>
-          {/* Cards: resumo do campo Prazo Entrega — clicáveis (filtram a tabela). */}
+          {/* Cards: DT Chegada Autron (fuDtChegadaAutron do follow-up) — clicáveis. */}
           <div className="mb-5 grid grid-cols-3 gap-3">
             <KPICard
               label="Total Pedidos"
@@ -512,18 +512,18 @@ export default async function ProntidaoPage({
               tone="brand"
             />
             <KPICard
-              label="Com prazo"
+              label="Com DT Chegada Autron"
               value={fmtNum(prazoComPrazo)}
-              hint="Prazo Entrega preenchido"
+              hint="DT Chegada Autron preenchida no follow-up"
               icon={<CalendarCheck className="size-4" />}
               tone="success"
               href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "prazoEntr", "com")}
               active={sp.prazoEntr === "com"}
             />
             <KPICard
-              label="Sem prazo"
+              label="Sem DT Chegada Autron"
               value={fmtNum(prazoSemPrazo)}
-              hint="Prazo Entrega em branco"
+              hint="DT Chegada Autron ausente no follow-up"
               icon={<CalendarOff className="size-4" />}
               tone="warning"
               href={toggleParam("/prontidao", sp as Record<string, string | undefined>, "prazoEntr", "sem")}
