@@ -235,7 +235,7 @@ export default async function FaturamentoPage({
     .map(([label, value]) => ({
       label,
       value,
-      display: fmtCurrency(value, { compact: true }),
+      display: fmtCurrency(value),
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
@@ -274,14 +274,14 @@ export default async function FaturamentoPage({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <KPICard
               label="Meta Receita"
-              value={fmtCurrency(metaFechado, { compact: true })}
+              value={fmtCurrency(metaFechado)}
               hint="GRUPO · RECEITA"
               tone="neutral"
               icon={<Target className="size-4" />}
             />
             <KPICard
               label="Fat. Líquido"
-              value={fmtCurrency(fatFechado, { compact: true })}
+              value={fmtCurrency(fatFechado)}
               hint="realizado"
               tone="success"
               icon={<TrendingUp className="size-4" />}
@@ -294,7 +294,7 @@ export default async function FaturamentoPage({
             />
             <KPICard
               label="Diferença"
-              value={fmtCurrency(Math.abs(diffFechado), { compact: true })}
+              value={fmtCurrency(Math.abs(diffFechado))}
               hint={diffFechado >= 0 ? "acima da meta" : "abaixo da meta"}
               tone={diffFechado >= 0 ? "success" : "danger"}
             />
@@ -306,28 +306,28 @@ export default async function FaturamentoPage({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <KPICard
               label="Meta Receita"
-              value={fmtCurrency(metaAtual, { compact: true })}
+              value={fmtCurrency(metaAtual)}
               hint="GRUPO · RECEITA"
               tone="neutral"
               icon={<Target className="size-4" />}
             />
             <KPICard
               label="Fat. Líq. Faturado"
-              value={fmtCurrency(fatAtual, { compact: true })}
+              value={fmtCurrency(fatAtual)}
               hint="realizado até hoje"
               tone="success"
               icon={<TrendingUp className="size-4" />}
             />
             <KPICard
               label="Carteira Líq. (-17%)"
-              value={fmtCurrency(cartAtualLiq, { compact: true })}
-              hint={`bruto: ${fmtCurrency(cartAtualBruto, { compact: true })}`}
+              value={fmtCurrency(cartAtualLiq)}
+              hint={`bruto: ${fmtCurrency(cartAtualBruto)}`}
               tone="brand"
               icon={<Wallet className="size-4" />}
             />
             <KPICard
               label="Total Projetado"
-              value={fmtCurrency(totalProjetadoAtual, { compact: true })}
+              value={fmtCurrency(totalProjetadoAtual)}
               hint="fat + cart. líq."
               tone={totalProjetadoAtual >= metaAtual ? "success" : "warning"}
             />
@@ -346,31 +346,31 @@ export default async function FaturamentoPage({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <KPICard
                 label="Meta Q1"
-                value={fmtCurrency(metaQ1, { compact: true })}
+                value={fmtCurrency(metaQ1)}
                 tone="neutral"
                 icon={<Target className="size-4" />}
               />
               <KPICard
                 label="Fat. Líquido"
-                value={fmtCurrency(fatQ1, { compact: true })}
+                value={fmtCurrency(fatQ1)}
                 tone="success"
                 icon={<TrendingUp className="size-4" />}
               />
               <KPICard
                 label="Cart. Líq. (-17%)"
-                value={fmtCurrency(cartQ1Liq, { compact: true })}
+                value={fmtCurrency(cartQ1Liq)}
                 tone="brand"
                 icon={<Wallet className="size-4" />}
               />
               <KPICard
                 label="Total Líquido"
-                value={fmtCurrency(totalQ1, { compact: true })}
+                value={fmtCurrency(totalQ1)}
                 hint="fat + cart. líq."
                 tone={totalQ1 >= metaQ1 ? "success" : "warning"}
               />
               <KPICard
                 label="Diferença"
-                value={fmtCurrency(Math.abs(diffQ1), { compact: true })}
+                value={fmtCurrency(Math.abs(diffQ1))}
                 hint={diffQ1 >= 0 ? "acima" : "abaixo"}
                 tone={diffQ1 >= 0 ? "success" : "danger"}
               />
@@ -386,31 +386,31 @@ export default async function FaturamentoPage({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <KPICard
                 label="Meta Q2"
-                value={fmtCurrency(metaQ2, { compact: true })}
+                value={fmtCurrency(metaQ2)}
                 tone="neutral"
                 icon={<Target className="size-4" />}
               />
               <KPICard
                 label="Fat. Líquido"
-                value={fmtCurrency(fatQ2, { compact: true })}
+                value={fmtCurrency(fatQ2)}
                 tone="success"
                 icon={<TrendingUp className="size-4" />}
               />
               <KPICard
                 label="Cart. Líq. (-17%)"
-                value={fmtCurrency(cartQ2Liq, { compact: true })}
+                value={fmtCurrency(cartQ2Liq)}
                 tone="brand"
                 icon={<Wallet className="size-4" />}
               />
               <KPICard
                 label="Total Líquido"
-                value={fmtCurrency(totalQ2, { compact: true })}
+                value={fmtCurrency(totalQ2)}
                 hint="fat + cart. líq."
                 tone={totalQ2 >= metaQ2 ? "success" : "warning"}
               />
               <KPICard
                 label="Diferença"
-                value={fmtCurrency(Math.abs(diffQ2), { compact: true })}
+                value={fmtCurrency(Math.abs(diffQ2))}
                 hint={diffQ2 >= 0 ? "acima" : "abaixo"}
                 tone={diffQ2 >= 0 ? "success" : "danger"}
               />
@@ -428,14 +428,14 @@ export default async function FaturamentoPage({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <KPICard
               label="Valor Bruto"
-              value={fmtCurrency(carteiraBrutoTotal, { compact: true })}
+              value={fmtCurrency(carteiraBrutoTotal)}
               hint="pedidos EM ABERTO"
               tone="neutral"
               icon={<ShoppingCart className="size-4" />}
             />
             <KPICard
               label="Valor Líq. (-17%)"
-              value={fmtCurrency(carteiraLiqTotal, { compact: true })}
+              value={fmtCurrency(carteiraLiqTotal)}
               hint="estimativa recebível"
               tone="brand"
               icon={<Wallet className="size-4" />}
@@ -469,12 +469,12 @@ export default async function FaturamentoPage({
           <div className="mt-3 grid grid-cols-3 gap-3">
             <KPICard
               label={`Total ${anoAnterior}`}
-              value={fmtCurrency(totalAnoAnt, { compact: true })}
+              value={fmtCurrency(totalAnoAnt)}
               tone="neutral"
             />
             <KPICard
               label={`Total ${anoAtual}`}
-              value={fmtCurrency(totalAnoAt, { compact: true })}
+              value={fmtCurrency(totalAnoAt)}
               tone="brand"
             />
             <KPICard
@@ -554,7 +554,7 @@ export default async function FaturamentoPage({
                             fontWeight: row.bold && v != null ? 600 : undefined,
                           }}
                         >
-                          {v == null ? "—" : fmtCurrency(v, { compact: true })}
+                          {v == null ? "—" : fmtCurrency(v)}
                         </td>
                       ))}
                     </tr>
@@ -571,14 +571,14 @@ export default async function FaturamentoPage({
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KPICard
               label="Faturamento Bruto"
-              value={fmtCurrency(fatBrutoTotal, { compact: true })}
+              value={fmtCurrency(fatBrutoTotal)}
               hint="soma de todas as NFs"
               tone="neutral"
               icon={<TrendingUp className="size-4" />}
             />
             <KPICard
               label="Faturamento Líquido"
-              value={fmtCurrency(fatLiquidoTotal, { compact: true })}
+              value={fmtCurrency(fatLiquidoTotal)}
               hint="soma após impostos"
               tone="success"
               icon={<Wallet className="size-4" />}
