@@ -182,6 +182,7 @@ model Pedido {
   vlrTotal         Decimal?  @db.Decimal(15, 2)
   margemPct        Decimal?  @db.Decimal(8, 4)
   dtEmissao        DateTime?
+  dtEntrega        DateTime? // coluna "Entrega" do relatório entrada pedido (= data faturamento prevista)
   dtOfertada       DateTime?
   dtFatCli         DateTime?
   notaFiscal       Int? // null = EM ABERTO; preenchido = FINALIZADO

@@ -19,6 +19,7 @@ export interface PedidoRow {
   vlrTotal: string | null;
   margemPct: string | null;
   dtEmissao: Date | null;
+  dtEntrega: Date | null; // coluna "Entrega" = data de faturamento prevista
   dtOfertada: Date | null;
   dtFatCli: Date | null;
   notaFiscal: number | null;
@@ -51,7 +52,8 @@ export async function parsePedido(buffer: Buffer): Promise<ParseResult<PedidoRow
   const cQuantidade = findCol(idx, "Quantidade", "Qtd");
   const cVlrTotal = findCol(idx, "Vlr.Total", "Valor Total", "Vlr Total");
   const cMargem = findCol(idx, "Margem");
-  const cDtEmissao = findCol(idx, "DT Emissao", "Dt Emissao", "Emissao");
+  const cDtEmissao = findCol(idx, "DT Emissao", "Dt Emissao", "Emissao", "Emissão");
+  const cDtEntrega = findCol(idx, "Entrega", "DT Entrega", "Dt Entrega", "Data Entrega", "Dt. Entrega");
   const cDtOfertada = findCol(idx, "DT. Ofertada", "Dt Ofertada");
   const cDtFatCli = findCol(idx, "DT. Fat. Cli", "Dt Fat Cli");
   const cNF = findCol(idx, "Nota Fiscal", "NF");
@@ -103,6 +105,7 @@ export async function parsePedido(buffer: Buffer): Promise<ParseResult<PedidoRow
       vlrTotal: cVlrTotal !== null ? toDecimalStr(row[cVlrTotal]) : null,
       margemPct: cMargem !== null ? toDecimalStr(row[cMargem]) : null,
       dtEmissao: cDtEmissao !== null ? toDate(row[cDtEmissao]) : null,
+      dtEntrega: cDtEntrega !== null ? toDate(row[cDtEntrega]) : null,
       dtOfertada: cDtOfertada !== null ? toDate(row[cDtOfertada]) : null,
       dtFatCli: cDtFatCli !== null ? toDate(row[cDtFatCli]) : null,
       notaFiscal: cNF !== null ? toInt(row[cNF]) : null,

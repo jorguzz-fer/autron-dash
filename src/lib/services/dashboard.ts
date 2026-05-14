@@ -78,6 +78,7 @@ export async function getEnrichedPedidos(filters: DashboardFilters): Promise<Ped
     vlrTotal: toNum(p.vlrTotal),
     margemPct: toNum(p.margemPct),
     dtEmissao: p.dtEmissao,
+    dtEntrega: p.dtEntrega,
     dtOfertada: p.dtOfertada,
     dtFatCli: p.dtFatCli,
     notaFiscal: p.notaFiscal,

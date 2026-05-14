@@ -10,6 +10,7 @@ export interface PedidoInput {
   vlrTotal: number | null;
   margemPct: number | null;
   dtEmissao: Date | null;
+  dtEntrega: Date | null; // coluna "Entrega" do relatório entrada pedido
   dtOfertada: Date | null;
   dtFatCli: Date | null;
   notaFiscal: number | null;

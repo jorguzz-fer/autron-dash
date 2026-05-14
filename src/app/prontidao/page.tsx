@@ -757,6 +757,28 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     width: "55px",
   },
   {
+    key: "dtEmissao",
+    header: "Emissão",
+    sortKey: "dtEmissao",
+    cell: (p) => (
+      <span className="numeric whitespace-nowrap text-[12px]">
+        {p.dtEmissao ? fmtDate(p.dtEmissao) : "—"}
+      </span>
+    ),
+    width: "105px",
+  },
+  {
+    key: "dtEntrega",
+    header: "Dt. Faturamento",
+    sortKey: "dtEntrega",
+    cell: (p) => (
+      <span className="numeric whitespace-nowrap text-[12px]">
+        {p.dtEntrega ? fmtDate(p.dtEntrega) : "—"}
+      </span>
+    ),
+    width: "115px",
+  },
+  {
     key: "codCliente",
     header: "Cód. Cliente",
     sortKey: "cliente",
