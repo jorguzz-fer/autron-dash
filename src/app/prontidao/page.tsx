@@ -836,11 +836,32 @@ function ergomecCols(
       ),
     },
     {
+      key: "cliente",
+      header: "Cliente",
+      sortKey: "cliente",
+      cell: (p) => (
+        <span className="block max-w-[160px] truncate text-[12px]" title={p.cliente ?? ""} style={{ color: "var(--fg)" }}>
+          {p.cliente ?? "—"}
+        </span>
+      ),
+    },
+    {
       key: "qtd",
       header: "Qtd",
       sortKey: "quantidade",
       align: "right",
       cell: (p) => <span className="numeric">{fmtNum(p.quantidade)}</span>,
+    },
+    {
+      key: "vlrTotal",
+      header: "Valor Total",
+      sortKey: "vlrTotal",
+      align: "right",
+      cell: (p) => (
+        <span className="numeric text-[12px]">
+          {p.vlrTotal != null ? fmtCurrency(Number(p.vlrTotal)) : "—"}
+        </span>
+      ),
     },
     {
       key: "dtOfertada",
