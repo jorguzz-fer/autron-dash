@@ -661,24 +661,31 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     width: "55px",
   },
   {
-    // Cliente em 3ª posição. Mostra o NOME via lookup do Ploomes
-    // (PedidoEnriched.clienteNome). Cai pro código se não houver match no CRM.
+    key: "codCliente",
+    header: "Cód. Cliente",
+    sortKey: "cliente",
+    cell: (p) => (
+      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        {p.cliente ?? "—"}
+      </span>
+    ),
+    width: "100px",
+  },
+  {
+    // Nome via lookup do Ploomes (clienteNome). Quando não há match no CRM,
+    // clienteNome é null — exibe "—" (o código fica na coluna Cód. Cliente).
     key: "cliente",
     header: "Cliente",
     sortKey: "clienteNome",
-    cell: (p) => {
-      const nome = p.clienteNome ?? p.cliente ?? "—";
-      const eCodigo = !p.clienteNome && p.cliente; // exibindo o código (sem match)
-      return (
-        <span
-          className="block max-w-[200px] truncate text-[12px]"
-          title={nome}
-          style={{ color: eCodigo ? "var(--fg-muted)" : "var(--fg)" }}
-        >
-          {nome}
-        </span>
-      );
-    },
+    cell: (p) => (
+      <span
+        className="block max-w-[200px] truncate text-[12px]"
+        title={p.clienteNome ?? ""}
+        style={{ color: "var(--fg)" }}
+      >
+        {p.clienteNome ?? "—"}
+      </span>
+    ),
   },
   {
     key: "produto",
@@ -836,12 +843,23 @@ function ergomecCols(
       ),
     },
     {
+      key: "codCliente",
+      header: "Cód. Cliente",
+      sortKey: "cliente",
+      cell: (p) => (
+        <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+          {p.cliente ?? "—"}
+        </span>
+      ),
+      width: "100px",
+    },
+    {
       key: "cliente",
       header: "Cliente",
       sortKey: "clienteNome",
       cell: (p) => (
-        <span className="block max-w-[160px] truncate text-[12px]" title={p.clienteNome ?? p.cliente ?? ""} style={{ color: "var(--fg)" }}>
-          {p.clienteNome ?? p.cliente ?? "—"}
+        <span className="block max-w-[160px] truncate text-[12px]" title={p.clienteNome ?? ""} style={{ color: "var(--fg)" }}>
+          {p.clienteNome ?? "—"}
         </span>
       ),
     },
