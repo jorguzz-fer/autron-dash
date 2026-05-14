@@ -216,6 +216,12 @@ export default async function ProntidaoPage({
     return qs ? `/prontidao?${qs}` : "/prontidao";
   })();
 
+  // Somatória do Valor Total sobre o conjunto filtrado (todos os itens, não só top-100).
+  const totalVlrPedidos = filtered.reduce(
+    (acc, p) => acc + (p.vlrTotal != null ? Number(p.vlrTotal) : 0),
+    0,
+  );
+
   // Tabela completa — paridade com Streamlit (app.py:1198), sem truncamento.
   const baseTabela = [...filtered].sort((a, b) => {
     const eA = a.acaoNecessaria === "ERRO no CADASTRO" ? 0 : 1;
@@ -258,6 +264,12 @@ export default async function ProntidaoPage({
     ergomecOrdenado as unknown as Record<string, unknown>[],
     sortStateErg,
   ) as unknown as PedidoEnriched[];
+
+  // Somatória do Valor Total Ergomec sobre o conjunto filtrado.
+  const totalVlrErgomec = ergomecFiltrados.reduce(
+    (acc, p) => acc + (p.vlrTotal != null ? Number(p.vlrTotal) : 0),
+    0,
+  );
 
   const ergomecPVsUnicos = new Set(ergomecPedidos.map((p) => p.numPedido)).size;
   const ergomecPVsComPrazo = new Set(
@@ -460,12 +472,24 @@ export default async function ProntidaoPage({
             </a>
           }
         >
-          {/* Linha de busca textual — varre PV, Cliente, Produto, SC/OP, etc. */}
+          {/* Linha de busca textual + somatória do valor filtrado */}
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <SearchInput
               placeholder="Pesquisar PV, cliente, produto, SC/OP…"
               className="min-w-[280px] flex-1 max-w-md"
             />
+            <div
+              className="flex items-center gap-2 rounded-lg border px-3 py-2 text-[12.5px]"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 6%, var(--surface))",
+                borderColor: "color-mix(in srgb, var(--color-brand-500) 22%, var(--border-soft))",
+              }}
+            >
+              <span style={{ color: "var(--fg-muted)" }}>Total filtrado:</span>
+              <span className="numeric font-semibold" style={{ color: "var(--color-brand-600)" }}>
+                {fmtCurrency(totalVlrPedidos)}
+              </span>
+            </div>
           </div>
 
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -580,13 +604,25 @@ export default async function ProntidaoPage({
             </div>
           }
         >
-          {/* Busca textual — varre PV, produto, cliente */}
-          <div className="mb-3">
+          {/* Busca textual + somatória do valor Ergomec filtrado */}
+          <div className="mb-3 flex flex-wrap items-center gap-3">
             <SearchInput
               name="eSearch"
               placeholder="Pesquisar PV, produto, cliente…"
-              className="min-w-[280px] max-w-md"
+              className="min-w-[280px] flex-1 max-w-md"
             />
+            <div
+              className="flex items-center gap-2 rounded-lg border px-3 py-2 text-[12.5px]"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 6%, var(--surface))",
+                borderColor: "color-mix(in srgb, var(--color-brand-500) 22%, var(--border-soft))",
+              }}
+            >
+              <span style={{ color: "var(--fg-muted)" }}>Total filtrado:</span>
+              <span className="numeric font-semibold" style={{ color: "var(--color-brand-600)" }}>
+                {fmtCurrency(totalVlrErgomec)}
+              </span>
+            </div>
           </div>
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <FilterSelect
