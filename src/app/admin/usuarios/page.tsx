@@ -118,6 +118,15 @@ const ROLE_TONE: Record<Role, "danger" | "warning" | "brand" | "success" | "mute
   CONTROLADORIA: "brand",
 };
 
+const ROLE_LABEL: Record<Role, string> = {
+  ADMIN: "ADMIN",
+  DIRETOR: "GESTÃO",
+  GERENTE: "SUPERVISÃO",
+  OPERADOR: "OPERADOR",
+  VIEWER: "VIEWER",
+  CONTROLADORIA: "CONTROLADORIA",
+};
+
 function getColumns(currentUserId: string): Column<UserRowData>[] {
   return [
     {
@@ -150,7 +159,7 @@ function getColumns(currentUserId: string): Column<UserRowData>[] {
       key: "role",
       header: "Perfil",
       sortKey: "role",
-      cell: (u) => <StatusBadge tone={ROLE_TONE[u.role]}>{u.role}</StatusBadge>,
+      cell: (u) => <StatusBadge tone={ROLE_TONE[u.role]}>{ROLE_LABEL[u.role]}</StatusBadge>,
     },
     {
       key: "active",

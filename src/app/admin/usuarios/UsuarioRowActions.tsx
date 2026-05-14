@@ -8,8 +8,8 @@ import { atualizarUsuario, resetarSenha, setUsuarioAtivo } from "./actions";
 const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "VIEWER", label: "VIEWER" },
   { value: "OPERADOR", label: "OPERADOR" },
-  { value: "GERENTE", label: "GERENTE" },
-  { value: "DIRETOR", label: "DIRETOR" },
+  { value: "GERENTE", label: "SUPERVISÃO" },
+  { value: "DIRETOR", label: "GESTÃO" },
   { value: "CONTROLADORIA", label: "CONTROLADORIA" },
   { value: "ADMIN", label: "ADMIN" },
 ];

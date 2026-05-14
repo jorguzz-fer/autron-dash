@@ -7,8 +7,8 @@ import { criarUsuario } from "./actions";
 const ROLE_OPTIONS = [
   { value: "VIEWER", label: "VIEWER — somente leitura" },
   { value: "OPERADOR", label: "OPERADOR — operações do dia-a-dia" },
-  { value: "GERENTE", label: "GERENTE — mutações + relatórios" },
-  { value: "DIRETOR", label: "DIRETOR — gestão executiva" },
+  { value: "GERENTE", label: "SUPERVISÃO — mutações + relatórios" },
+  { value: "DIRETOR", label: "GESTÃO — gestão executiva" },
   { value: "CONTROLADORIA", label: "CONTROLADORIA — financeiro/fiscal" },
   { value: "ADMIN", label: "ADMIN — gestão de usuários" },
 ] as const;
