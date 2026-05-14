@@ -12,6 +12,7 @@ const basePedido: PedidoInput = {
   vlrTotal: 1000,
   margemPct: null,
   dtEmissao: new Date("2026-01-15"),
+  dtEntrega: null,
   dtOfertada: null,
   dtFatCli: null,
   notaFiscal: null,
@@ -22,6 +23,8 @@ const basePedido: PedidoInput = {
   pedCliente: null,
   nomeVendedor: null,
   unidadeNegocio: "IND10",
+  contrato: false,
+  cliente: null,
 };
 
 describe("buildFollowUpIndex", () => {

@@ -22,6 +22,7 @@ describe("enrichPedidos — fluxo completo", () => {
         vlrTotal: 1000,
         margemPct: null,
         dtEmissao: new Date("2026-01-15"),
+        dtEntrega: null,
         dtOfertada: null,
         dtFatCli: new Date("2026-04-01"),
         notaFiscal: null,
@@ -32,6 +33,8 @@ describe("enrichPedidos — fluxo completo", () => {
         pedCliente: null,
         nomeVendedor: "Maria",
         unidadeNegocio: "IND10",
+        contrato: false,
+        cliente: null,
       },
       {
         id: "p2",
@@ -43,6 +46,7 @@ describe("enrichPedidos — fluxo completo", () => {
         vlrTotal: 2000,
         margemPct: null,
         dtEmissao: new Date("2026-02-10"),
+        dtEntrega: null,
         dtOfertada: null,
         dtFatCli: null,
         notaFiscal: null,
@@ -53,6 +57,8 @@ describe("enrichPedidos — fluxo completo", () => {
         pedCliente: null,
         nomeVendedor: "João",
         unidadeNegocio: "IND10",
+        contrato: false,
+        cliente: null,
       },
     ];
 
@@ -207,6 +213,7 @@ function mkP(o: Partial<PedidoInput> & { id: string; produto: string }): PedidoI
     vlrTotal: null,
     margemPct: null,
     dtEmissao: null,
+    dtEntrega: null,
     dtOfertada: null,
     dtFatCli: null,
     notaFiscal: null,
@@ -217,6 +224,8 @@ function mkP(o: Partial<PedidoInput> & { id: string; produto: string }): PedidoI
     pedCliente: null,
     nomeVendedor: null,
     unidadeNegocio: null,
+    contrato: false,
+    cliente: null,
     ...o,
   };
 }

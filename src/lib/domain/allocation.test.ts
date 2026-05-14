@@ -10,6 +10,7 @@ function mkPedido(p: Partial<PedidoInput> & { id: string; produto: string; quant
     vlrTotal: null,
     margemPct: null,
     dtEmissao: null,
+    dtEntrega: null,
     dtOfertada: null,
     dtFatCli: null,
     notaFiscal: null,
@@ -20,6 +21,8 @@ function mkPedido(p: Partial<PedidoInput> & { id: string; produto: string; quant
     pedCliente: null,
     nomeVendedor: null,
     unidadeNegocio: null,
+    contrato: false,
+    cliente: null,
     ...p,
   };
 }
