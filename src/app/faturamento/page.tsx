@@ -4,13 +4,15 @@ import { redirect } from "next/navigation";
 import { getFaturamentos, type FaturamentoRow } from "@/lib/services/faturamento";
 import { getMetas } from "@/lib/services/metas";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
+import { filterByStatus, mesFatKey } from "@/lib/prontidao/filter";
 import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import BarCompareChart from "@/components/UI/BarCompareChart";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import HBarRanking from "@/components/UI/HBarRanking";
+import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey } from "@/lib/format";
-import { parseSort, sortRows } from "@/lib/sort";
+import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import {
   Target,
   TrendingUp,
@@ -30,6 +32,8 @@ const Q1_MONTHS = [1, 2, 3];
 const Q2_MONTHS = [4, 5, 6];
 
 interface SP {
+  from?: string;
+  to?: string;
   sort?: string;
   dir?: string;
 }
@@ -46,6 +50,10 @@ export default async function FaturamentoPage({
   const sp = await searchParams;
   const sortState = parseSort(sp.sort, sp.dir);
 
+  // Filtro de data para Emissão NF (aplica a toda a aba de faturamento)
+  const dataInicio = parseDateInput(sp.from);
+  const dataFim = parseDateInput(sp.to, true);
+
   const now = new Date();
   const anoAtual = now.getFullYear();
   const anoAnterior = anoAtual - 1;
@@ -55,7 +63,7 @@ export default async function FaturamentoPage({
   const anoMesFechado = mesAtual === 1 ? anoAnterior : anoAtual;
 
   const [fats, metas, enriched] = await Promise.all([
-    getFaturamentos({ tenantId }),
+    getFaturamentos({ tenantId, dataInicio, dataFim }),
     getMetas(tenantId, anoAtual),
     getEnrichedPedidos({ tenantId }),
   ]);
@@ -76,12 +84,20 @@ export default async function FaturamentoPage({
     }
   }
 
-  // ── Carteira EM ABERTO por mês de dtFatCli ────────────────────
-  const emAberto = enriched.filter((p) => p.statusPedido === "EM ABERTO");
+  // ── Carteira EM ABERTO por mês (exclui cancelados, usa mesma prioridade do mesFatKey)
+  // filterByStatus(_, undefined) = "em aberto" excluindo cancelados — idêntico ao filtro da aba Prontidão.
+  const emAberto = filterByStatus(enriched, undefined);
   const carteiraByMes = new Map<string, number>();
   for (const p of emAberto) {
-    if (!p.dtFatCli) continue;
-    const k = monthKey(p.dtFatCli);
+    const m = mesFatKey(p); // prioridade: dtEntrega → prazoRealEntrega → dtFatCli
+    if (m == null) continue;
+    const ano = (() => {
+      if (p.dtEntrega) return p.dtEntrega.getFullYear();
+      if (p.prazoRealEntrega instanceof Date) return p.prazoRealEntrega.getFullYear();
+      if (p.dtFatCli) return p.dtFatCli.getFullYear();
+      return anoAtual;
+    })();
+    const k = `${ano}-${String(m).padStart(2, "0")}`;
     carteiraByMes.set(k, (carteiraByMes.get(k) ?? 0) + (p.vlrTotal ?? 0));
   }
   const carteiraBrutoTotal = emAberto.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
@@ -233,6 +249,20 @@ export default async function FaturamentoPage({
   return (
     <AppShell title="Faturamento" subtitle="Meta × Realizado · Carteira · Comparativo Anual">
       <div className="space-y-10">
+
+        {/* ── Filtro de data Emissão NF ── */}
+        <div className="flex items-center gap-4">
+          <DateRangeFilter
+            label="Emissão NF"
+            fromValue={sp.from}
+            toValue={sp.to}
+          />
+          {(dataInicio || dataFim) && (
+            <p className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+              Filtro aplicado às NFs e aos resultados de Meta × Realizado.
+            </p>
+          )}
+        </div>
 
         {/* ── Resultado mês fechado ── */}
         <SectionBlock title={`Resultado ${labelMesFechado}`}>
