@@ -30,6 +30,22 @@ function toNum(d: Prisma.Decimal | null | undefined): number | null {
   return d == null ? null : Number(d);
 }
 
+/**
+ * Limites de data de Emissão NF do tenant (min/max).
+ * Usado para pré-carregar o filtro De/Até da aba Faturamento com o
+ * range completo das notas — paridade Streamlit (filtro vem preenchido).
+ */
+export async function getFaturamentoDateBounds(
+  tenantId: string,
+): Promise<{ min: Date | null; max: Date | null }> {
+  const agg = await prisma.faturamento.aggregate({
+    where: { tenantId, emissao: { not: null } },
+    _min: { emissao: true },
+    _max: { emissao: true },
+  });
+  return { min: agg._min.emissao ?? null, max: agg._max.emissao ?? null };
+}
+
 export async function getFaturamentos(f: FaturamentoFilters): Promise<FaturamentoRow[]> {
   const where: Prisma.FaturamentoWhereInput = { tenantId: f.tenantId };
   if (f.dataInicio || f.dataFim) {

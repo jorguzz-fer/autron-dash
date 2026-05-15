@@ -1,7 +1,11 @@
 import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getFaturamentos, type FaturamentoRow } from "@/lib/services/faturamento";
+import {
+  getFaturamentos,
+  getFaturamentoDateBounds,
+  type FaturamentoRow,
+} from "@/lib/services/faturamento";
 import { getMetas } from "@/lib/services/metas";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
 // Paridade com Streamlit: a aba Faturamento inclui pedidos cancelados na carteira
@@ -52,9 +56,18 @@ export default async function FaturamentoPage({
   const sp = await searchParams;
   const sortState = parseSort(sp.sort, sp.dir);
 
-  // Filtro de data para Emissão NF (aplica a toda a aba de faturamento)
-  const dataInicio = parseDateInput(sp.from);
-  const dataFim = parseDateInput(sp.to, true);
+  // ── Filtro de data Emissão NF ──
+  // Pré-carregado com o range completo das NFs: De = primeira emissão,
+  // Até = última emissão (paridade Streamlit — filtro vem preenchido).
+  // O usuário pode estreitar via URL (?from=&to=); senão usa os bounds.
+  const bounds = await getFaturamentoDateBounds(tenantId);
+  const toYMD = (d: Date | null): string | undefined =>
+    d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : undefined;
+
+  const fromStr = sp.from ?? toYMD(bounds.min);
+  const toStr = sp.to ?? toYMD(bounds.max);
+  const dataInicio = parseDateInput(fromStr);
+  const dataFim = parseDateInput(toStr, true);
 
   const now = new Date();
   const anoAtual = now.getFullYear();
@@ -235,7 +248,7 @@ export default async function FaturamentoPage({
     .map(([label, value]) => ({
       label,
       value,
-      display: fmtCurrency(value),
+      display: fmtCurrency(value, { decimals: 0 }),
     }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 10);
@@ -259,14 +272,12 @@ export default async function FaturamentoPage({
         <div className="flex items-center gap-4">
           <DateRangeFilter
             label="Emissão NF"
-            fromValue={sp.from}
-            toValue={sp.to}
+            fromValue={fromStr}
+            toValue={toStr}
           />
-          {(dataInicio || dataFim) && (
-            <p className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
-              Filtro aplicado às NFs e aos resultados de Meta × Realizado.
-            </p>
-          )}
+          <p className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+            Filtro aplicado às NFs e aos resultados de Meta × Realizado.
+          </p>
         </div>
 
         {/* ── Resultado mês fechado ── */}
@@ -274,14 +285,14 @@ export default async function FaturamentoPage({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <KPICard
               label="Meta Receita"
-              value={fmtCurrency(metaFechado)}
+              value={fmtCurrency(metaFechado, { decimals: 0 })}
               hint="GRUPO · RECEITA"
               tone="neutral"
               icon={<Target className="size-4" />}
             />
             <KPICard
               label="Fat. Líquido"
-              value={fmtCurrency(fatFechado)}
+              value={fmtCurrency(fatFechado, { decimals: 0 })}
               hint="realizado"
               tone="success"
               icon={<TrendingUp className="size-4" />}
@@ -294,7 +305,7 @@ export default async function FaturamentoPage({
             />
             <KPICard
               label="Diferença"
-              value={fmtCurrency(Math.abs(diffFechado))}
+              value={fmtCurrency(Math.abs(diffFechado), { decimals: 0 })}
               hint={diffFechado >= 0 ? "acima da meta" : "abaixo da meta"}
               tone={diffFechado >= 0 ? "success" : "danger"}
             />
@@ -306,28 +317,28 @@ export default async function FaturamentoPage({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <KPICard
               label="Meta Receita"
-              value={fmtCurrency(metaAtual)}
+              value={fmtCurrency(metaAtual, { decimals: 0 })}
               hint="GRUPO · RECEITA"
               tone="neutral"
               icon={<Target className="size-4" />}
             />
             <KPICard
               label="Fat. Líq. Faturado"
-              value={fmtCurrency(fatAtual)}
+              value={fmtCurrency(fatAtual, { decimals: 0 })}
               hint="realizado até hoje"
               tone="success"
               icon={<TrendingUp className="size-4" />}
             />
             <KPICard
               label="Carteira Líq. (-17%)"
-              value={fmtCurrency(cartAtualLiq)}
-              hint={`bruto: ${fmtCurrency(cartAtualBruto)}`}
+              value={fmtCurrency(cartAtualLiq, { decimals: 0 })}
+              hint={`bruto: ${fmtCurrency(cartAtualBruto, { decimals: 0 })}`}
               tone="brand"
               icon={<Wallet className="size-4" />}
             />
             <KPICard
               label="Total Projetado"
-              value={fmtCurrency(totalProjetadoAtual)}
+              value={fmtCurrency(totalProjetadoAtual, { decimals: 0 })}
               hint="fat + cart. líq."
               tone={totalProjetadoAtual >= metaAtual ? "success" : "warning"}
             />
@@ -346,31 +357,31 @@ export default async function FaturamentoPage({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <KPICard
                 label="Meta Q1"
-                value={fmtCurrency(metaQ1)}
+                value={fmtCurrency(metaQ1, { decimals: 0 })}
                 tone="neutral"
                 icon={<Target className="size-4" />}
               />
               <KPICard
                 label="Fat. Líquido"
-                value={fmtCurrency(fatQ1)}
+                value={fmtCurrency(fatQ1, { decimals: 0 })}
                 tone="success"
                 icon={<TrendingUp className="size-4" />}
               />
               <KPICard
                 label="Cart. Líq. (-17%)"
-                value={fmtCurrency(cartQ1Liq)}
+                value={fmtCurrency(cartQ1Liq, { decimals: 0 })}
                 tone="brand"
                 icon={<Wallet className="size-4" />}
               />
               <KPICard
                 label="Total Líquido"
-                value={fmtCurrency(totalQ1)}
+                value={fmtCurrency(totalQ1, { decimals: 0 })}
                 hint="fat + cart. líq."
                 tone={totalQ1 >= metaQ1 ? "success" : "warning"}
               />
               <KPICard
                 label="Diferença"
-                value={fmtCurrency(Math.abs(diffQ1))}
+                value={fmtCurrency(Math.abs(diffQ1), { decimals: 0 })}
                 hint={diffQ1 >= 0 ? "acima" : "abaixo"}
                 tone={diffQ1 >= 0 ? "success" : "danger"}
               />
@@ -386,31 +397,31 @@ export default async function FaturamentoPage({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <KPICard
                 label="Meta Q2"
-                value={fmtCurrency(metaQ2)}
+                value={fmtCurrency(metaQ2, { decimals: 0 })}
                 tone="neutral"
                 icon={<Target className="size-4" />}
               />
               <KPICard
                 label="Fat. Líquido"
-                value={fmtCurrency(fatQ2)}
+                value={fmtCurrency(fatQ2, { decimals: 0 })}
                 tone="success"
                 icon={<TrendingUp className="size-4" />}
               />
               <KPICard
                 label="Cart. Líq. (-17%)"
-                value={fmtCurrency(cartQ2Liq)}
+                value={fmtCurrency(cartQ2Liq, { decimals: 0 })}
                 tone="brand"
                 icon={<Wallet className="size-4" />}
               />
               <KPICard
                 label="Total Líquido"
-                value={fmtCurrency(totalQ2)}
+                value={fmtCurrency(totalQ2, { decimals: 0 })}
                 hint="fat + cart. líq."
                 tone={totalQ2 >= metaQ2 ? "success" : "warning"}
               />
               <KPICard
                 label="Diferença"
-                value={fmtCurrency(Math.abs(diffQ2))}
+                value={fmtCurrency(Math.abs(diffQ2), { decimals: 0 })}
                 hint={diffQ2 >= 0 ? "acima" : "abaixo"}
                 tone={diffQ2 >= 0 ? "success" : "danger"}
               />
@@ -428,14 +439,14 @@ export default async function FaturamentoPage({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <KPICard
               label="Valor Bruto"
-              value={fmtCurrency(carteiraBrutoTotal)}
+              value={fmtCurrency(carteiraBrutoTotal, { decimals: 0 })}
               hint="pedidos EM ABERTO"
               tone="neutral"
               icon={<ShoppingCart className="size-4" />}
             />
             <KPICard
               label="Valor Líq. (-17%)"
-              value={fmtCurrency(carteiraLiqTotal)}
+              value={fmtCurrency(carteiraLiqTotal, { decimals: 0 })}
               hint="estimativa recebível"
               tone="brand"
               icon={<Wallet className="size-4" />}
@@ -469,12 +480,12 @@ export default async function FaturamentoPage({
           <div className="mt-3 grid grid-cols-3 gap-3">
             <KPICard
               label={`Total ${anoAnterior}`}
-              value={fmtCurrency(totalAnoAnt)}
+              value={fmtCurrency(totalAnoAnt, { decimals: 0 })}
               tone="neutral"
             />
             <KPICard
               label={`Total ${anoAtual}`}
-              value={fmtCurrency(totalAnoAt)}
+              value={fmtCurrency(totalAnoAt, { decimals: 0 })}
               tone="brand"
             />
             <KPICard
@@ -554,7 +565,7 @@ export default async function FaturamentoPage({
                             fontWeight: row.bold && v != null ? 600 : undefined,
                           }}
                         >
-                          {v == null ? "—" : fmtCurrency(v)}
+                          {v == null ? "—" : fmtCurrency(v, { decimals: 0 })}
                         </td>
                       ))}
                     </tr>
@@ -571,14 +582,14 @@ export default async function FaturamentoPage({
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KPICard
               label="Faturamento Bruto"
-              value={fmtCurrency(fatBrutoTotal)}
+              value={fmtCurrency(fatBrutoTotal, { decimals: 0 })}
               hint="soma de todas as NFs"
               tone="neutral"
               icon={<TrendingUp className="size-4" />}
             />
             <KPICard
               label="Faturamento Líquido"
-              value={fmtCurrency(fatLiquidoTotal)}
+              value={fmtCurrency(fatLiquidoTotal, { decimals: 0 })}
               hint="soma após impostos"
               tone="success"
               icon={<Wallet className="size-4" />}
@@ -725,7 +736,7 @@ const faturamentoCols: Column<FaturamentoRow>[] = [
     align: "right",
     cell: (r) => (
       <span className="numeric text-[12px]">
-        {r.faturamentoBruto != null ? fmtCurrency(r.faturamentoBruto) : "—"}
+        {r.faturamentoBruto != null ? fmtCurrency(r.faturamentoBruto, { decimals: 0 }) : "—"}
       </span>
     ),
   },
@@ -736,7 +747,7 @@ const faturamentoCols: Column<FaturamentoRow>[] = [
     align: "right",
     cell: (r) => (
       <span className="numeric text-[12px]" style={{ color: "var(--fg-strong)" }}>
-        {r.faturamentoLiquido != null ? fmtCurrency(r.faturamentoLiquido) : "—"}
+        {r.faturamentoLiquido != null ? fmtCurrency(r.faturamentoLiquido, { decimals: 0 }) : "—"}
       </span>
     ),
   },
@@ -747,7 +758,7 @@ const faturamentoCols: Column<FaturamentoRow>[] = [
     align: "right",
     cell: (r) => (
       <span className="numeric text-[12px]">
-        {r.margemLiquidaR != null ? fmtCurrency(r.margemLiquidaR) : "—"}
+        {r.margemLiquidaR != null ? fmtCurrency(r.margemLiquidaR, { decimals: 0 }) : "—"}
       </span>
     ),
   },

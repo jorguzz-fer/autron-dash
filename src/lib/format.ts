@@ -5,7 +5,10 @@ export function fmtNum(n: number | null | undefined): string {
   return n.toLocaleString("pt-BR");
 }
 
-export function fmtCurrency(n: number | null | undefined, opts?: { compact?: boolean }): string {
+export function fmtCurrency(
+  n: number | null | undefined,
+  opts?: { compact?: boolean; decimals?: number },
+): string {
   if (n == null) return "—";
   if (opts?.compact && Math.abs(n) >= 1000) {
     return n.toLocaleString("pt-BR", {
@@ -13,6 +16,15 @@ export function fmtCurrency(n: number | null | undefined, opts?: { compact?: boo
       currency: "BRL",
       notation: "compact",
       maximumFractionDigits: 1,
+    });
+  }
+  // decimals: 0 → R$ 7.689.390 (inteiro, paridade Streamlit fmt_br(v, 0))
+  if (opts?.decimals != null) {
+    return n.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: opts.decimals,
+      maximumFractionDigits: opts.decimals,
     });
   }
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
