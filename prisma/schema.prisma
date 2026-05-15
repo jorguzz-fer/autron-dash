@@ -271,7 +271,12 @@ model Faturamento {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId, numDocto, produto, itemPv])
+  // SEM @@unique: faturamento NÃO é único por (numDocto, produto, itemPv).
+  // A mesma NF tem o mesmo produto+item em várias linhas (filiais, lotes,
+  // remessas parciais). Streamlit trata como lista plana e soma tudo
+  // (app.py:2089). O @@unique antigo forçava o parser a deduplicar,
+  // perdendo ~R$ 5,9M de receita (320 colisões reais).
+  @@index([tenantId, numDocto])
   @@index([tenantId, emissao])
   @@index([tenantId, noPedido])
   @@index([tenantId, nomeVendedor])
