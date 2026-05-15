@@ -106,29 +106,28 @@ export default function KPICard({
         )}
       </div>
 
-      <div className="flex items-baseline gap-2">
-        <div
-          className="numeric text-[28px] font-semibold leading-none"
-          style={{ color: "var(--fg-strong)" }}
-        >
-          {value}
-        </div>
-        {delta && (
-          <div
-            className="numeric text-[11px] font-medium"
-            style={{
-              color:
-                delta.trend === "up"
-                  ? "#10b981"
-                  : delta.trend === "down"
-                  ? "#e11d48"
-                  : "var(--fg-muted)",
-            }}
-          >
-            {delta.trend === "up" ? "↑" : delta.trend === "down" ? "↓" : "·"} {delta.value}
-          </div>
-        )}
+      <div
+        className="numeric text-[28px] font-semibold leading-none"
+        style={{ color: "var(--fg-strong)" }}
+      >
+        {value}
       </div>
+
+      {delta && (
+        <div
+          className="numeric flex items-center gap-1 text-[11px] font-medium"
+          style={{
+            color:
+              delta.trend === "up"
+                ? "#10b981"
+                : delta.trend === "down"
+                ? "#e11d48"
+                : "var(--fg-muted)",
+          }}
+        >
+          {delta.trend === "up" ? "↑" : delta.trend === "down" ? "↓" : "·"} {delta.value}
+        </div>
+      )}
 
       {hint && (
         <div className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
