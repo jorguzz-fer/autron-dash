@@ -148,6 +148,38 @@ export default async function FaturamentoPage({
   const totalProjetadoAtual = fatAtual + cartAtualLiq;
   const atgProjetadoAtual = metaAtual === 0 ? 0 : (totalProjetadoAtual / metaAtual) * 100;
 
+  // ── Score Card: variação vs mês anterior (seta ↑ verde / ↓ vermelha) ──
+  // Mês imediatamente anterior ao "mês fechado" (ex: fechado = ABR → MAR)
+  const mesAntesFechado = mesFechado === 1 ? 12 : mesFechado - 1;
+  const anoAntesFechado = mesFechado === 1 ? anoMesFechado - 1 : anoMesFechado;
+  const fatAntesFechado = fatMes(anoAntesFechado, mesAntesFechado);
+  const metaAntesFechado = metaReceita.get(mesAntesFechado) ?? 0;
+
+  /**
+   * Monta o delta exibido ao lado do número: "↑ +12,5% · R$ 480.000".
+   * trend: up se cresceu vs mês anterior, down se caiu, flat se igual.
+   * Retorna undefined quando não há base de comparação (mês anterior = 0).
+   */
+  function buildDelta(
+    current: number,
+    previous: number,
+  ): { value: string; trend: "up" | "down" | "flat" } | undefined {
+    if (previous === 0) return undefined;
+    const diff = current - previous;
+    const pct = (diff / Math.abs(previous)) * 100;
+    const trend: "up" | "down" | "flat" = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
+    const sinal = diff > 0 ? "+" : diff < 0 ? "−" : "";
+    const pctStr = `${sinal}${Math.abs(pct).toFixed(1).replace(".", ",")}%`;
+    const absStr = fmtCurrency(Math.abs(diff), { decimals: 0 });
+    return { value: `${pctStr} · ${absStr}`, trend };
+  }
+
+  const deltaFatFechado = buildDelta(fatFechado, fatAntesFechado);
+  const deltaMetaFechado = buildDelta(metaFechado, metaAntesFechado);
+  const deltaFatAtual = buildDelta(fatAtual, fatFechado);
+  const deltaMetaAtual = buildDelta(metaAtual, metaFechado);
+  const deltaTotalProjetado = buildDelta(totalProjetadoAtual, fatFechado);
+
   // ── Consolidado Q1 (jan-mar) ───────────────────────────────────
   const fatQ = (months: number[], ano = anoAtual) =>
     months.reduce((a, m) => a + fatMes(ano, m), 0);
@@ -286,14 +318,16 @@ export default async function FaturamentoPage({
             <KPICard
               label="Meta Receita"
               value={fmtCurrency(metaFechado, { decimals: 0 })}
-              hint="GRUPO · RECEITA"
+              hint={`GRUPO · RECEITA · vs ${MES_LABELS[mesAntesFechado - 1]}`}
+              delta={deltaMetaFechado}
               tone="neutral"
               icon={<Target className="size-4" />}
             />
             <KPICard
               label="Fat. Líquido"
               value={fmtCurrency(fatFechado, { decimals: 0 })}
-              hint="realizado"
+              hint={`realizado · vs ${MES_LABELS[mesAntesFechado - 1]}`}
+              delta={deltaFatFechado}
               tone="success"
               icon={<TrendingUp className="size-4" />}
             />
@@ -318,14 +352,16 @@ export default async function FaturamentoPage({
             <KPICard
               label="Meta Receita"
               value={fmtCurrency(metaAtual, { decimals: 0 })}
-              hint="GRUPO · RECEITA"
+              hint={`GRUPO · RECEITA · vs ${MES_LABELS[mesFechado - 1]}`}
+              delta={deltaMetaAtual}
               tone="neutral"
               icon={<Target className="size-4" />}
             />
             <KPICard
               label="Fat. Líq. Faturado"
               value={fmtCurrency(fatAtual, { decimals: 0 })}
-              hint="realizado até hoje"
+              hint={`realizado até hoje · vs ${MES_LABELS[mesFechado - 1]}`}
+              delta={deltaFatAtual}
               tone="success"
               icon={<TrendingUp className="size-4" />}
             />
@@ -339,7 +375,8 @@ export default async function FaturamentoPage({
             <KPICard
               label="Total Projetado"
               value={fmtCurrency(totalProjetadoAtual, { decimals: 0 })}
-              hint="fat + cart. líq."
+              hint={`fat + cart. líq. · vs ${MES_LABELS[mesFechado - 1]}`}
+              delta={deltaTotalProjetado}
               tone={totalProjetadoAtual >= metaAtual ? "success" : "warning"}
             />
             <KPICard
