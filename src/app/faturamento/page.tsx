@@ -221,8 +221,18 @@ export default async function FaturamentoPage({
   const totalAnoAt = seriesAnoAt.data.reduce((a, v) => a + v, 0);
   const variacaoYoY = totalAnoAnt === 0 ? 0 : ((totalAnoAt - totalAnoAnt) / totalAnoAnt) * 100;
 
-  // ── Quadro Meta × Realizado (12 meses × 5 linhas) ─────────────
-  const quadroRows: { label: string; bold?: boolean; values: (number | null)[] }[] = [
+  // ── Quadro Meta × Realizado (12 meses × 7 linhas) ─────────────
+  // Paridade Streamlit app.py:2294-2319.
+  //   Total Líquido      = Fat. Líquido (realizado) + Total Líq. a Faturar (-17%)
+  //   Realizado vs Meta  = Total Líquido − Receita Líquida (Meta)   [só se há dados]
+  //   Atingimento %      = Total Líquido / Meta × 100               [só se há dados E meta>0]
+  //   "há dados" = Fat. Líquido > 0 OU Carteira Bruta > 0 (app.py:2129)
+  const quadroRows: {
+    label: string;
+    bold?: boolean;
+    fmt?: "pct";
+    values: (number | null)[];
+  }[] = [
     {
       label: "Receita Líquida (Meta)",
       values: Array.from({ length: 12 }, (_, i) => metaReceita.get(i + 1) ?? null),
@@ -255,6 +265,32 @@ export default async function FaturamentoPage({
         const fat = fatMes(anoAtual, i + 1);
         const cart = cartMes(i + 1) * FATOR_LIQUIDO;
         return fat + cart > 0 ? fat + cart : null;
+      }),
+    },
+    {
+      label: "Realizado vs Meta",
+      values: Array.from({ length: 12 }, (_, i) => {
+        const fat = fatMes(anoAtual, i + 1);
+        const cartBruta = cartMes(i + 1);
+        const temDados = fat > 0 || cartBruta > 0;
+        if (!temDados) return null;
+        const totalLiq = fat + cartBruta * FATOR_LIQUIDO;
+        const meta = metaReceita.get(i + 1) ?? 0;
+        return totalLiq - meta;
+      }),
+    },
+    {
+      label: "Atingimento %",
+      bold: true,
+      fmt: "pct",
+      values: Array.from({ length: 12 }, (_, i) => {
+        const fat = fatMes(anoAtual, i + 1);
+        const cartBruta = cartMes(i + 1);
+        const temDados = fat > 0 || cartBruta > 0;
+        const meta = metaReceita.get(i + 1) ?? 0;
+        if (!temDados || meta <= 0) return null;
+        const totalLiq = fat + cartBruta * FATOR_LIQUIDO;
+        return (totalLiq / meta) * 100;
       }),
     },
   ];
@@ -609,7 +645,11 @@ export default async function FaturamentoPage({
                             fontWeight: row.bold && v != null ? 600 : undefined,
                           }}
                         >
-                          {v == null ? "—" : fmtCurrency(v, { decimals: 0 })}
+                          {v == null
+                            ? "—"
+                            : row.fmt === "pct"
+                            ? fmtPct(v, 0)
+                            : fmtCurrency(v, { decimals: 0 })}
                         </td>
                       ))}
                     </tr>
