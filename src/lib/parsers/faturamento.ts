@@ -250,27 +250,18 @@ export async function parseFaturamento(buffer: Buffer): Promise<ParseResult<Fatu
       `Devoluções: ${devolRead.rows.length} linhas (${devolRead.rows.length - devolNovas.length} já existiam em Vendas, ${devolNovas.length} adicionadas como NEGATIVAS)`,
     );
   }
+  // NÃO deduplicar Vendas — paridade Streamlit (app.py:2089).
+  // O Streamlit faz df_fat.groupby('Mes').agg(sum) — SOMA todas as linhas,
+  // nunca colapsa por (numDocto, produto, itemPv). A NF legitimamente tem
+  // múltiplas linhas do mesmo produto (lotes, desdobramentos). O dedup
+  // antigo sobrescrevia (mantinha só a última) e perdia receita — causava
+  // Fat. Líquido subestimado (~R$ 464k a menos em abr/26 vs Streamlit).
+  // A única dedup permitida é Devolução-vs-Venda por Num. Docto. (já feita
+  // acima em `devolNovas`), exatamente como o Streamlit (app.py:426-434).
   const allRows = [...vendasRead.rows, ...devolNovas];
 
-  // 4) Dedup final por (numDocto, produto, itemPv)
-  const seen = new Map<string, number>();
-  const deduped: FaturamentoRow[] = [];
-  allRows.forEach((row) => {
-    const key = `${row.numDocto}|${row.produto}|${row.itemPv ?? "_"}`;
-    const existing = seen.get(key);
-    if (existing !== undefined) {
-      deduped[existing] = row;
-    } else {
-      seen.set(key, deduped.length);
-      deduped.push(row);
-    }
-  });
-  if (deduped.length !== allRows.length) {
-    warnings.push(`${allRows.length - deduped.length} linha(s) duplicada(s) consolidada(s)`);
-  }
-
   return {
-    rows: deduped,
+    rows: allRows,
     skipped: vendasRead.skipped + devolRead.skipped,
     warnings,
   };

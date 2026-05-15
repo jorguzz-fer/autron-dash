@@ -77,15 +77,21 @@ export default async function FaturamentoPage({
   const mesFechado = mesAtual === 1 ? 12 : mesAtual - 1;
   const anoMesFechado = mesAtual === 1 ? anoAnterior : anoAtual;
 
-  const [fats, metas, enriched] = await Promise.all([
+  // PARIDADE STREAMLIT (app.py:2079-2089): o filtro De/Até é COSMÉTICO
+  // para os cards. No Streamlit `df_fat_f` (filtrado) é código morto —
+  // os cards Resultado/Q1/Q2/Quadro/YoY usam SEMPRE `df_fat` completo.
+  //   fatsAll  → dados completos (cards/quadro/YoY) — não filtra por data
+  //   fats     → filtrado por data — só a tabela de Detalhamento usa
+  const [fatsAll, fats, metas, enriched] = await Promise.all([
+    getFaturamentos({ tenantId }),
     getFaturamentos({ tenantId, dataInicio, dataFim }),
     getMetas(tenantId, anoAtual),
     getEnrichedPedidos({ tenantId }),
   ]);
 
-  // ── Faturamento líquido por mês "YYYY-MM" ─────────────────────
+  // ── Faturamento líquido por mês "YYYY-MM" (dados COMPLETOS) ───
   const fatLiqByMes = new Map<string, number>();
-  for (const r of fats) {
+  for (const r of fatsAll) {
     if (!r.emissao) continue;
     const k = monthKey(r.emissao);
     fatLiqByMes.set(k, (fatLiqByMes.get(k) ?? 0) + (r.faturamentoLiquido ?? 0));
@@ -308,7 +314,8 @@ export default async function FaturamentoPage({
             toValue={toStr}
           />
           <p className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
-            Filtro aplicado às NFs e aos resultados de Meta × Realizado.
+            Filtra apenas a tabela de Detalhamento. Os cards de Resultado,
+            Q1/Q2 e o Quadro usam sempre todas as NFs (paridade Streamlit).
           </p>
         </div>
 
