@@ -43,7 +43,6 @@ export async function GET(req: NextRequest) {
     mesFat: u.get("mesFat") ?? undefined,
     pronto: u.get("pronto") ?? undefined,
     prazoEntr: u.get("prazoEntr") ?? undefined,
-    acao: u.get("acao") ?? undefined,
     q: u.get("q") ?? undefined,
   });
 

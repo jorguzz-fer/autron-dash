@@ -204,9 +204,16 @@ export default async function ProntidaoPage({
     mesFat: sp.mesFat,
     pronto: sp.pronto,
     prazoEntr: sp.prazoEntr,
-    acao: sp.acao,
     q: sp.q,
   });
+
+  // Tabela dedicada de Ações Necessárias: aparece só quando uma categoria
+  // está selecionada (clique nas barras). Independente dos filtros da
+  // tabela principal — usa só o universo status/período + a ação escolhida.
+  const acaoSel = sp.acao;
+  const pedidosAcao = acaoSel
+    ? pedidos.filter((p) => p.acaoNecessaria === acaoSel)
+    : [];
 
   // Há algum filtro de KPI/dropdown/busca ativo? (status não conta, é o default da página).
   const temFiltroAtivo = !!(
@@ -216,7 +223,6 @@ export default async function ProntidaoPage({
     sp.mesFat ||
     sp.pronto ||
     sp.prazoEntr ||
-    sp.acao ||
     sp.q
   );
 
@@ -471,37 +477,77 @@ export default async function ProntidaoPage({
           </div>
         </section>
 
-        <div id="print-area">
+        {/* ── Tabela dedicada: Ação Necessária selecionada ── */}
+        {acaoSel && (
+          <div id="print-area">
+            <CardSection
+              title={`Ação: ${acaoSel}`}
+              subtitle={`${fmtNum(pedidosAcao.length)} pedido(s) nesta ação · clique na barra de novo para fechar`}
+              actions={
+                <div className="no-print flex items-center gap-2">
+                  <PrintButton />
+                  <a
+                    href={`/prontidao/export/acao?${(() => {
+                      const usp = new URLSearchParams();
+                      usp.set("acao", acaoSel);
+                      if (sp.status) usp.set("status", sp.status);
+                      if (sp.from) usp.set("from", sp.from);
+                      if (sp.to) usp.set("to", sp.to);
+                      return usp.toString();
+                    })()}`}
+                    download
+                    className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:brightness-110"
+                    style={{
+                      backgroundColor: "color-mix(in srgb, var(--color-brand-500) 10%, transparent)",
+                      borderColor: "color-mix(in srgb, var(--color-brand-500) 30%, transparent)",
+                      color: "var(--color-brand-600)",
+                    }}
+                    title="Exportar esta ação como CSV"
+                  >
+                    <Download className="size-3.5" />
+                    Exportar CSV
+                  </a>
+                </div>
+              }
+            >
+              <DataTable
+                columns={acaoCols}
+                rows={pedidosAcao}
+                rowKey={(p) => p.id}
+                emptyMessage="Nenhum pedido nesta ação."
+              />
+            </CardSection>
+          </div>
+        )}
+
         <CardSection
           title="Pedidos"
           subtitle={`${fmtNum(filtered.length)} de ${fmtNum(pedidos.length)} pedidos · erros e bloqueios primeiro`}
           actions={
-            <div className="no-print flex items-center gap-2">
-              <PrintButton />
-              <a
-                href={`/prontidao/export${
-                  (() => {
-                    const usp = new URLSearchParams();
-                    for (const [k, v] of Object.entries(sp)) {
-                      if (v && k !== "sort" && k !== "dir") usp.set(k, String(v));
-                    }
-                    const qs = usp.toString();
-                    return qs ? `?${qs}` : "";
-                  })()
-                }`}
-                download
-                className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:brightness-110"
-                style={{
-                  backgroundColor: "color-mix(in srgb, var(--color-brand-500) 10%, transparent)",
-                  borderColor: "color-mix(in srgb, var(--color-brand-500) 30%, transparent)",
-                  color: "var(--color-brand-600)",
-                }}
-                title="Exportar pedidos filtrados como CSV"
-              >
-                <Download className="size-3.5" />
-                Exportar CSV
-              </a>
-            </div>
+            <a
+              href={`/prontidao/export${
+                (() => {
+                  const usp = new URLSearchParams();
+                  for (const [k, v] of Object.entries(sp)) {
+                    // `acao` é da tabela dedicada, não filtra a tabela principal.
+                    if (v && k !== "sort" && k !== "dir" && k !== "acao") usp.set(k, String(v));
+                  }
+                  const qs = usp.toString();
+                  return qs ? `?${qs}` : "";
+                })()
+              }`}
+              download
+              className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:brightness-110"
+              style={{
+                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 10%, transparent)",
+                borderColor: "color-mix(in srgb, var(--color-brand-500) 30%, transparent)",
+                color: "var(--color-brand-600)",
+              }}
+              title="Exportar pedidos filtrados como CSV"
+            >
+              <Download className="size-3.5" />
+              Exportar CSV
+            </a>
           }
         >
           {/* Linha de busca textual + somatória do valor filtrado */}
@@ -594,7 +640,6 @@ export default async function ProntidaoPage({
             emptyMessage="Sem pedidos com os filtros selecionados."
           />
         </CardSection>
-        </div>
 
         <CardSection
           title="Pedidos Ergomec (IND21) — Controle de Prazo de Engenharia"
@@ -755,6 +800,95 @@ function atendTexto(p: PedidoEnriched) {
   const color = c === "dentro" ? "#10b981" : c === "fora" ? "#e11d48" : "var(--fg-muted)";
   return <span className="whitespace-nowrap text-[12px]" style={{ color }}>{label}</span>;
 }
+
+// Colunas ENXUTAS da tabela dedicada de Ação Necessária — foco no que
+// importa pra resolver a ação e imprimir limpo.
+const acaoCols: Column<PedidoEnriched>[] = [
+  {
+    key: "pv",
+    header: "PV",
+    sortKey: "numPedido",
+    cell: (p) => <span className="numeric whitespace-nowrap text-[12px]">{p.numPedido}</span>,
+    width: "90px",
+  },
+  {
+    key: "item",
+    header: "Item",
+    sortKey: "item",
+    cell: (p) => <span className="numeric text-[12px]">{p.item}</span>,
+    width: "55px",
+  },
+  {
+    key: "produto",
+    header: "Produto",
+    sortKey: "produto",
+    cell: (p) => (
+      <div>
+        <code className="whitespace-nowrap font-mono text-[12px]">{p.produto}</code>
+        <div
+          className="max-w-[240px] truncate text-[11.5px]"
+          title={p.descricaoProduto ?? ""}
+          style={{ color: "var(--fg-muted)" }}
+        >
+          {p.descricaoProduto ?? ""}
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "cliente",
+    header: "Cliente",
+    sortKey: "clienteNome",
+    cell: (p) => (
+      <span
+        className="block max-w-[200px] truncate text-[12px]"
+        title={p.clienteNome ?? p.cliente ?? ""}
+        style={{ color: "var(--fg)" }}
+      >
+        {p.clienteNome ?? p.cliente ?? "—"}
+      </span>
+    ),
+  },
+  {
+    key: "qtd",
+    header: "Qtd",
+    sortKey: "quantidade",
+    align: "right",
+    cell: (p) => <span className="numeric text-[12px]">{fmtNum(p.quantidade)}</span>,
+  },
+  {
+    key: "acao",
+    header: "Ação",
+    sortKey: "acaoNecessaria",
+    cell: (p) => <span className="whitespace-nowrap">{acaoBadge(p.acaoNecessaria)}</span>,
+  },
+  {
+    key: "scop",
+    header: "SC / OP",
+    cell: scOpCell,
+  },
+  {
+    key: "prazoEnt",
+    header: "Prazo Entrega",
+    cell: (p) => (
+      <span className="numeric whitespace-nowrap text-[12px]">
+        {p.prazoRealEntrega instanceof Date
+          ? fmtDate(p.prazoRealEntrega)
+          : p.prazoRealEntrega ?? "—"}
+      </span>
+    ),
+  },
+  {
+    key: "dtNec",
+    header: "Dt. Necessidade Cliente",
+    sortKey: "dtFatCli",
+    cell: (p) => (
+      <span className="numeric whitespace-nowrap text-[12px]">
+        {p.dtFatCli ? fmtDate(p.dtFatCli) : "—"}
+      </span>
+    ),
+  },
+];
 
 const prontidaoCols: Column<PedidoEnriched>[] = [
   {
