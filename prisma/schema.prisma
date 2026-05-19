@@ -1,5 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  // engineType = "library": usa o query engine empacotado no @prisma/client
+  // (WASM/lib), sem baixar/carregar o binário nativo (~200MB) durante o
+  // `prisma generate`. Libera memória do container de build no Coolify —
+  // o `next build` estava sendo morto por OOM (exit 255) na VPS.
+  engineType = "library"
 }
 
 datasource db {

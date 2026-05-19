@@ -13,12 +13,18 @@ WORKDIR /app
 
 # NODE_ENV=production faz o Next.js usar cache do Prisma corretamente
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+# Limita o heap do V8 — força GC mais agressivo e evita que o processo
+# estoure o limite de memória do container (OOM kill = exit 255) no
+# `next build` da VPS do Coolify.
+ENV NODE_OPTIONS=--max-old-space-size=2048
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Gera o Prisma Client ANTES do build do Next
-RUN npx prisma generate
+# Gera o Prisma Client ANTES do build do Next.
+# Binary local (não `npx`) — evita baixar Prisma v7 e overhead extra.
+RUN ./node_modules/.bin/prisma generate
 
 RUN npm run build
 

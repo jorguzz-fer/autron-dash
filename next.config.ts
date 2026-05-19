@@ -26,6 +26,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // Reduz o pico de memória do webpack durante `next build` — a VPS do
+  // Coolify estava matando o build por OOM (exit 255).
+  experimental: {
+    webpackMemoryOptimizations: true,
+  },
   serverExternalPackages: ["@prisma/client", "bcryptjs"],
   images: {
     remotePatterns: [],
