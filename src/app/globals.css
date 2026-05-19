@@ -106,3 +106,55 @@ body {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
 }
+
+/* ── Impressão ────────────────────────────────────────────────────────────
+   Truque clássico de visibilidade: esconde tudo e revela só o #print-area.
+   Usado na aba Prontidão (botão Imprimir) — sai sidebar/topbar/filtros,
+   imprime só a tabela de Pedidos com os filtros aplicados. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* DataTable tem scroll interno (max-height + overflow p/ header sticky).
+     Na impressão isso cortaria as linhas — força expansão total. */
+  #print-area [style*="max-height"],
+  #print-area .overflow-auto,
+  #print-area .overflow-x-auto,
+  #print-area .overflow-hidden {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  /* Header sticky vira estático no papel (senão sobrepõe na quebra de página) */
+  #print-area thead th {
+    position: static !important;
+  }
+  #print-area table {
+    font-size: 10px;
+  }
+  /* Cores legíveis no papel (tema escuro vira preto-no-branco) */
+  #print-area,
+  #print-area * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  @page {
+    margin: 1cm;
+  }
+}

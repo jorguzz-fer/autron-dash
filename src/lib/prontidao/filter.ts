@@ -8,6 +8,7 @@ export interface ProntidaoFilters {
   mesFat?: string; // "1".."12"
   pronto?: string; // "sim" | "fu" | "est" | "nao" | "erro"
   prazoEntr?: string; // "com" | "sem"
+  acao?: string; // valor exato de acaoNecessaria (ex: "SC gerada - Aguardando")
   q?: string; // busca textual (varre múltiplos campos)
 }
 
@@ -105,6 +106,8 @@ export function applyProntidaoFilters(
     }
     if (f.prazoEntr === "com" && !(p.prazoRealEntrega instanceof Date)) return false;
     if (f.prazoEntr === "sem" && p.prazoRealEntrega instanceof Date) return false;
+    // Filtro pela categoria de Ação Necessária (clique nas barras "Ações necessárias").
+    if (f.acao && p.acaoNecessaria !== f.acao) return false;
     if (q) {
       // Concatena todos os campos textuais que aparecem na tabela e busca
       // substring case-insensitive. Match em qualquer um deles inclui a linha.

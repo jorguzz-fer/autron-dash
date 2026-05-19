@@ -22,6 +22,7 @@ import {
   mesFatKey,
 } from "@/lib/prontidao/filter";
 import SearchInput from "@/components/UI/SearchInput";
+import PrintButton from "@/components/UI/PrintButton";
 import { Download } from "lucide-react";
 import {
   CheckCircle2,
@@ -55,6 +56,7 @@ interface SP {
   // KPIs clicáveis:
   pronto?: string;     // "sim" | "fu" | "est" | "nao" | "erro" (filtro pelos KPIs)
   prazoEntr?: string;  // "com" | "sem" (filtro pelos cards de Prazo Entrega)
+  acao?: string;       // categoria de Ação Necessária (clique nas barras)
   // Busca textual:
   q?: string;
   from?: string;
@@ -170,8 +172,14 @@ export default async function ProntidaoPage({
 
   const byAcao = new Map<string, number>();
   for (const p of pedidos) byAcao.set(p.acaoNecessaria, (byAcao.get(p.acaoNecessaria) ?? 0) + 1);
+  // Barras clicáveis: cada categoria filtra a tabela por acaoNecessaria (toggle).
   const acoesRanking = Array.from(byAcao.entries())
-    .map(([label, value]) => ({ label, value }))
+    .map(([label, value]) => ({
+      label,
+      value,
+      active: sp.acao === label,
+      href: toggleParam("/prontidao", sp as Record<string, string | undefined>, "acao", label),
+    }))
     .sort((a, b) => b.value - a.value);
 
   const ordemPront: Record<ProntoParaFazer, number> = {
@@ -196,6 +204,7 @@ export default async function ProntidaoPage({
     mesFat: sp.mesFat,
     pronto: sp.pronto,
     prazoEntr: sp.prazoEntr,
+    acao: sp.acao,
     q: sp.q,
   });
 
@@ -207,6 +216,7 @@ export default async function ProntidaoPage({
     sp.mesFat ||
     sp.pronto ||
     sp.prazoEntr ||
+    sp.acao ||
     sp.q
   );
 
@@ -461,37 +471,41 @@ export default async function ProntidaoPage({
           </div>
         </section>
 
+        <div id="print-area">
         <CardSection
           title="Pedidos"
           subtitle={`${fmtNum(filtered.length)} de ${fmtNum(pedidos.length)} pedidos · erros e bloqueios primeiro`}
           actions={
-            <a
-              href={`/prontidao/export${
-                (() => {
-                  const usp = new URLSearchParams();
-                  for (const [k, v] of Object.entries(sp)) {
-                    if (v && k !== "sort" && k !== "dir") usp.set(k, String(v));
-                  }
-                  const qs = usp.toString();
-                  return qs ? `?${qs}` : "";
-                })()
-              }`}
-              download
-              className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:brightness-110"
-              style={{
-                backgroundColor: "color-mix(in srgb, var(--color-brand-500) 10%, transparent)",
-                borderColor: "color-mix(in srgb, var(--color-brand-500) 30%, transparent)",
-                color: "var(--color-brand-600)",
-              }}
-              title="Exportar pedidos filtrados como CSV"
-            >
-              <Download className="size-3.5" />
-              Exportar CSV
-            </a>
+            <div className="no-print flex items-center gap-2">
+              <PrintButton />
+              <a
+                href={`/prontidao/export${
+                  (() => {
+                    const usp = new URLSearchParams();
+                    for (const [k, v] of Object.entries(sp)) {
+                      if (v && k !== "sort" && k !== "dir") usp.set(k, String(v));
+                    }
+                    const qs = usp.toString();
+                    return qs ? `?${qs}` : "";
+                  })()
+                }`}
+                download
+                className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:brightness-110"
+                style={{
+                  backgroundColor: "color-mix(in srgb, var(--color-brand-500) 10%, transparent)",
+                  borderColor: "color-mix(in srgb, var(--color-brand-500) 30%, transparent)",
+                  color: "var(--color-brand-600)",
+                }}
+                title="Exportar pedidos filtrados como CSV"
+              >
+                <Download className="size-3.5" />
+                Exportar CSV
+              </a>
+            </div>
           }
         >
           {/* Linha de busca textual + somatória do valor filtrado */}
-          <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="no-print mb-3 flex flex-wrap items-center gap-3">
             <SearchInput
               placeholder="Pesquisar PV, cliente, produto, SC/OP…"
               className="min-w-[280px] flex-1 max-w-md"
@@ -510,7 +524,7 @@ export default async function ProntidaoPage({
             </div>
           </div>
 
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="no-print mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <FilterSelect
               name="dispo"
               label="Disponibilidade"
@@ -546,7 +560,7 @@ export default async function ProntidaoPage({
             />
           </div>
           {/* Cards: DT Chegada Autron (fuDtChegadaAutron do follow-up) — clicáveis. */}
-          <div className="mb-5 grid grid-cols-3 gap-3">
+          <div className="no-print mb-5 grid grid-cols-3 gap-3">
             <KPICard
               label="Total Pedidos"
               value={fmtNum(pedidos.length)}
@@ -580,6 +594,7 @@ export default async function ProntidaoPage({
             emptyMessage="Sem pedidos com os filtros selecionados."
           />
         </CardSection>
+        </div>
 
         <CardSection
           title="Pedidos Ergomec (IND21) — Controle de Prazo de Engenharia"

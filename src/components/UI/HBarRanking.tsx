@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { fmtNum } from "@/lib/format";
 
 interface Item {
@@ -5,6 +6,10 @@ interface Item {
   value: number;
   /** Valor opcional já formatado para exibição (sobrescreve fmtNum). */
   display?: string;
+  /** Se passado, a linha vira clicável (URL-driven, ex: filtro da tabela). */
+  href?: string;
+  /** Marca a linha como filtro ativo (destaque visual). */
+  active?: boolean;
 }
 
 interface Props {
@@ -39,14 +44,15 @@ export default function HBarRanking({ items, tone = "brand", topN }: Props) {
     <ul className="space-y-2">
       {top.map((it, i) => {
         const pct = (it.value / max) * 100;
-        return (
-          <li key={`${i}-${it.label}`} className="space-y-1">
+        const inner = (
+          <>
             <div className="flex items-baseline justify-between gap-3 text-[12.5px]">
               <span
                 className="min-w-0 truncate"
-                style={{ color: "var(--fg)" }}
+                style={{ color: it.active ? TONE_BG[tone] : "var(--fg)" }}
                 title={it.label}
               >
+                {it.active && "✓ "}
                 {it.label}
               </span>
               <span
@@ -57,7 +63,7 @@ export default function HBarRanking({ items, tone = "brand", topN }: Props) {
               </span>
             </div>
             <div
-              className="h-1.5 overflow-hidden rounded-full"
+              className="mt-1 h-1.5 overflow-hidden rounded-full"
               style={{ backgroundColor: "var(--surface-2)" }}
             >
               <div
@@ -65,6 +71,31 @@ export default function HBarRanking({ items, tone = "brand", topN }: Props) {
                 style={{ width: `${pct}%`, backgroundColor: TONE_BG[tone] }}
               />
             </div>
+          </>
+        );
+
+        if (it.href) {
+          return (
+            <li key={`${i}-${it.label}`}>
+              <Link
+                href={it.href}
+                aria-current={it.active ? "true" : undefined}
+                className="ring-focus block rounded-md px-2 py-1.5 no-underline transition-colors hover:bg-[var(--surface-2)]"
+                style={{
+                  backgroundColor: it.active
+                    ? "color-mix(in srgb, var(--color-brand-500) 8%, transparent)"
+                    : undefined,
+                }}
+              >
+                {inner}
+              </Link>
+            </li>
+          );
+        }
+
+        return (
+          <li key={`${i}-${it.label}`} className="space-y-1">
+            {inner}
           </li>
         );
       })}

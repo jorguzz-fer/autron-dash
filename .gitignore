@@ -61,3 +61,6 @@ next-env.d.ts
 /autron-dash/
 /materiais/
 /reunioes/
+
+# Dados locais (planilhas de teste/upload manual)
+base/
