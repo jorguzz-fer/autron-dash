@@ -102,7 +102,11 @@ export default async function UsuariosPage() {
         </CardSection>
 
         <p className="text-center text-[11.5px]" style={{ color: "var(--fg-subtle)" }}>
-          Todas as ações são auditadas. Para ver o log, consulte <code>AuditLog</code> no banco.
+          Todas as ações são auditadas. Consulte em{" "}
+          <a href="/admin/logs" className="underline underline-offset-2 hover:text-[var(--fg)]">
+            Administração → Logs
+          </a>
+          .
         </p>
       </div>
     </AppShell>

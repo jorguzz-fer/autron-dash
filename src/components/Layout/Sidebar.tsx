@@ -14,6 +14,7 @@ import {
   Package,
   Receipt,
   Scale,
+  ScrollText,
   Upload,
   Users,
   type LucideIcon,
@@ -51,6 +52,7 @@ const NAV_CONTROLADORIA: NavItem[] = [
 
 const NAV_ADMIN: NavItem[] = [
   { label: "Usuários", href: "/admin/usuarios", icon: Users },
+  { label: "Logs", href: "/admin/logs", icon: ScrollText },
 ];
 
 interface SidebarProps {
