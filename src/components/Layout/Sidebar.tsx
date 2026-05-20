@@ -15,6 +15,7 @@ import {
   Receipt,
   Scale,
   ScrollText,
+  Sparkles,
   Upload,
   Users,
   type LucideIcon,
@@ -43,6 +44,7 @@ const NAV_PRIMARY: NavItem[] = [
 
 const NAV_TOOLS: NavItem[] = [
   { label: "Upload de planilhas", href: "/uploads", icon: Upload },
+  { label: "Chat IA", href: "/chat-ia", icon: Sparkles },
 ];
 
 // Restrito à role CONTROLADORIA (e ADMIN como suporte).
