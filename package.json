@@ -25,6 +25,7 @@
     "apexcharts": "^3.54.1",
     "bcryptjs": "^2.4.3",
     "exceljs": "^4.4.0",
+    "jose": "^6.2.3",
     "lucide-react": "^1.14.0",
     "next": "^15.5.16",
     "next-auth": "^5.0.0-beta.29",
