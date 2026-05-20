@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function ChatIaPage() {
   const session = await auth();
   if (!session) redirect("/login");
+  if (!session.user.email) redirect("/login");
 
   const secret = process.env.IA_SSO_SECRET;
   const url = process.env.IA_CHAT_URL;
@@ -29,8 +30,8 @@ export default async function ChatIaPage() {
 
   const token = await signSsoJwt(
     {
-      email: session.user.email!,
-      name: session.user.name ?? session.user.email!,
+      email: session.user.email,
+      name: session.user.name ?? session.user.email,
       userId: session.user.id,
       tenantId: session.user.tenantId,
     },
