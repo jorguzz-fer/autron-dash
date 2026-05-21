@@ -167,6 +167,24 @@ function listarHeaders(headerRow: unknown[] | undefined): string {
   return names.map((n) => `"${n}"`).join(", ");
 }
 
+/**
+ * Detecta se a aba parece ser um BALANCETE CONTÁBIL (arquivo trocado de lugar).
+ * Indicadores fortes: presença das colunas DEBITO + CREDITO + LOTE/HISTORICO
+ * nas primeiras 20 linhas. Esses headers NÃO existem no relatório financeiro.
+ */
+function pareceBalanceteContabil(rows: unknown[][]): boolean {
+  for (let i = 0; i < Math.min(20, rows.length); i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const flat = row.map((c) => normalizeHeader(toCleanString(c))).join("|");
+    // DEBITO + CREDITO juntos = quase certeza de contábil
+    if (flat.includes("debito") && flat.includes("credito")) return true;
+    // Lote+Sub+Doc é estrutura típica de lançamento contábil
+    if (flat.includes("lotesubdoc")) return true;
+  }
+  return false;
+}
+
 function extractDataReferencia(parametrosRows: unknown[][]): Date | null {
   // Procura por uma linha onde a primeira célula contém "Dt.Ref" ou "Data Base"
   for (const row of parametrosRows) {
@@ -201,12 +219,53 @@ export async function parseFinanceiroCR(buffer: Buffer): Promise<ParseResult<Tit
   const parametros = sheets.find((s) => normalizeHeader(s.name).includes("parametro"));
   const dataReferencia = parametros ? extractDataReferencia(parametros.rows) : null;
 
+  // Detecção de arquivo trocado ANTES de tentar achar a aba "Posicao dos Titulos":
+  // se qualquer aba parece um balancete contábil (DEBITO/CREDITO/LOTE), o
+  // usuário confundiu os campos no upload. Aviso específico em vez de
+  // "aba não encontrada".
+  if (sheets.some((s) => pareceBalanceteContabil(s.rows))) {
+    const primeiraAba = sheets[0];
+    return {
+      rows: [],
+      skipped: 0,
+      warnings: [
+        "Este parece ser o Balancete Contábil, não o Relatório Financeiro. " +
+          "Verifique se você não trocou os arquivos no upload: o Financeiro " +
+          "(Posição de Títulos a Receber, com colunas Prf-Numero Parcela, " +
+          "Cliente, Saldos) deve ir no campo 'Relatório Financeiro' e o " +
+          "balancete (com DEBITO, CREDITO, HISTORICO) no campo 'Balancete " +
+          `Contábil'. Primeiras células: ${listarHeaders(primeiraAba?.rows?.[0])}.`,
+      ],
+      totalSaldo: 0,
+      dataReferencia,
+    };
+  }
+
   const titulosSheet = pickTitulosSheet(sheets);
   if (!titulosSheet) {
     return {
       rows: [],
       skipped: 0,
       warnings: ["Não encontrei a aba 'Posicao dos Titulos' no arquivo."],
+      totalSaldo: 0,
+      dataReferencia,
+    };
+  }
+
+  // Defensiva (mesma checagem agora redundante, mas mantém comportamento se
+  // alguém remover a checagem global acima). Não custa.
+  if (pareceBalanceteContabil(titulosSheet.rows)) {
+    return {
+      rows: [],
+      skipped: 0,
+      warnings: [
+        "Este parece ser o Balancete Contábil, não o Relatório Financeiro. " +
+          "Verifique se você não trocou os arquivos no upload: o Financeiro " +
+          "(Posição de Títulos a Receber, com colunas Prf-Numero Parcela, " +
+          "Cliente, Saldos) deve ir no campo 'Relatório Financeiro' e o " +
+          "balancete (com DEBITO, CREDITO, HISTORICO) no campo 'Balancete " +
+          `Contábil'. Primeiras células: ${listarHeaders(titulosSheet.rows[0])}.`,
+      ],
       totalSaldo: 0,
       dataReferencia,
     };

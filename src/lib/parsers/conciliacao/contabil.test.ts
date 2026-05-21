@@ -63,6 +63,25 @@ describe("parseHistorico", () => {
   });
 });
 
+describe("parseBalanceteContabil — detecção de arquivo trocado", () => {
+  it("detecta financeiro CR no campo contábil (aba 'Posicao dos Titulos')", async () => {
+    const xlsx = await import("xlsx");
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.aoa_to_sheet([
+      ["Codigo-Lj-Nome do Cliente", "Prf-Numero Parcela", "TP", "Valor Original"],
+      ["C000297-01-3M", "2  -000032433-", "NF", 1000],
+    ]);
+    xlsx.utils.book_append_sheet(wb, ws, "01-01001 - Posicao dos Titulos");
+    const buf = xlsx.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+
+    const r = await parseBalanceteContabil(buf);
+    expect(r.rows).toEqual([]);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]).toMatch(/Relat[óo]rio Financeiro/i);
+    expect(r.warnings[0]).toMatch(/troc(ou|ado)/i);
+  });
+});
+
 describe.skipIf(!fixturesDisponiveis)("parseBalanceteContabil (fixture real)", () => {
   it("parseia o balancete completo sem erros", async () => {
     const buffer = readFileSync(join(FIXTURES, "contabil-1121010001.xlsx"));

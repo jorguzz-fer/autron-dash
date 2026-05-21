@@ -78,6 +78,26 @@ describe("parseCodigoCliente", () => {
   });
 });
 
+describe("parseFinanceiroCR — detecção de arquivo trocado", () => {
+  it("detecta balancete contábil no campo financeiro (headers DEBITO/CREDITO)", async () => {
+    // Gera in-memory um workbook com header típico de balancete (não financeiro)
+    const xlsx = await import("xlsx");
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.aoa_to_sheet([
+      ["CONTA", "DATA", "LOTE/SUB/DOC/LINHA", "HISTORICO", "DEBITO", "CREDITO", "SALDO ATUAL"],
+      ["1121010001", "2026-03-01", "001/001/001", "ALGUM HISTORICO", 1000, 0, 1000],
+    ]);
+    xlsx.utils.book_append_sheet(wb, ws, "Lancamentos");
+    const buf = xlsx.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+
+    const r = await parseFinanceiroCR(buf);
+    expect(r.rows).toEqual([]);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]).toMatch(/parece ser o Balancete Cont/i);
+    expect(r.warnings[0]).toMatch(/troc(ou|ado)/i);
+  });
+});
+
 describe.skipIf(!fixturesDisponiveis)("parseFinanceiroCR (fixture real)", () => {
   it("parseia o relatório completo sem erros", async () => {
     const buffer = readFileSync(join(FIXTURES, "financeiro-cr.xlsx"));

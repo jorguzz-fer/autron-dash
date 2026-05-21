@@ -134,6 +134,25 @@ function pickLancamentosSheet(sheets: { name: string; rows: unknown[][] }[]): { 
   );
 }
 
+/**
+ * Detecta se o arquivo parece ser o Relatório Financeiro CR (trocado de campo).
+ * Indicador: alguma aba tem o header "Prf-Numero Parcela" ou "Posicao dos Titulos"
+ * no nome — ambos exclusivos do financeiro.
+ */
+function pareceRelatorioFinanceiro(sheets: { name: string; rows: unknown[][] }[]): boolean {
+  for (const s of sheets) {
+    if (normalizeHeader(s.name).includes("posicaodostitulos")) return true;
+    for (let i = 0; i < Math.min(5, s.rows.length); i++) {
+      const row = s.rows[i];
+      if (!row) continue;
+      const flat = row.map((c) => normalizeHeader(toCleanString(c))).join("|");
+      if (flat.includes("prfnumeroparcela")) return true;
+      if (flat.includes("codigoljnomedocliente")) return true;
+    }
+  }
+  return false;
+}
+
 function pickContaSheet(sheets: { name: string; rows: unknown[][] }[]): { name: string; rows: unknown[][] } | null {
   return (
     sheets.find((s) => {
@@ -244,6 +263,32 @@ export async function parseBalanceteContabil(buffer: Buffer): Promise<ParseResul
       rows: [],
       skipped: 0,
       warnings: ["Arquivo Excel vazio."],
+      contaContabil: null,
+      descricaoConta: null,
+      saldoAnterior: 0,
+      dataInicio: null,
+      dataFim: null,
+      saldosPorNF: new Map(),
+      saldoFinalCalculado: 0,
+      totalDebitoPeriodo: 0,
+      totalCreditoPeriodo: 0,
+    };
+  }
+
+  // Detecção de arquivo trocado: se for o Relatório Financeiro CR no campo
+  // errado (aba "Posicao dos Titulos" ou header "Prf-Numero Parcela"), avisa
+  // de forma específica em vez do erro genérico "aba não encontrada".
+  if (pareceRelatorioFinanceiro(sheets)) {
+    return {
+      rows: [],
+      skipped: 0,
+      warnings: [
+        "Este parece ser o Relatório Financeiro (Posição de Títulos a Receber), " +
+          "não o Balancete Contábil. Verifique se você não trocou os arquivos: " +
+          "o Balancete (com colunas DEBITO, CREDITO, HISTORICO) deve ir neste " +
+          "campo, e o Financeiro (com Prf-Numero Parcela, Cliente, Saldos) no " +
+          "campo 'Relatório Financeiro'.",
+      ],
       contaContabil: null,
       descricaoConta: null,
       saldoAnterior: 0,
