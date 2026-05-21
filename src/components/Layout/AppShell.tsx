@@ -23,6 +23,10 @@ export default async function AppShell({ title, subtitle, actions, children }: A
   const session = await auth();
   if (!session) redirect("/login");
 
+  // Mostra o link do Chat IA apenas quando a integração está configurada
+  // (avita que o user clique e veja "ainda não disponível").
+  const chatIaEnabled = !!process.env.IA_SSO_SECRET && !!process.env.IA_CHAT_URL;
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen">
@@ -34,6 +38,7 @@ export default async function AppShell({ title, subtitle, actions, children }: A
             tenantSlug: session.user.tenantSlug,
           }}
           onSignOut={signOutAction}
+          chatIaEnabled={chatIaEnabled}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar title={title} subtitle={subtitle} actions={actions} />

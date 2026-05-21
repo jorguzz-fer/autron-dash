@@ -66,12 +66,19 @@ interface SidebarProps {
   };
   /** Server Action de sign-out (passada como prop a partir do AppShell). */
   onSignOut: () => Promise<void>;
+  /** Quando false, esconde o link "Chat IA" (env vars não configuradas). */
+  chatIaEnabled?: boolean;
 }
 
-export default function Sidebar({ user, onSignOut }: SidebarProps) {
+export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: SidebarProps) {
   const isAdmin = user.role === "ADMIN";
   const isControladoria = user.role === "ADMIN" || user.role === "CONTROLADORIA";
   const { collapsed } = useSidebar();
+
+  // Filtra itens de "Ferramentas" — esconde Chat IA quando não está habilitado.
+  const navToolsVisible = NAV_TOOLS.filter(
+    (item) => item.href !== "/chat-ia" || chatIaEnabled,
+  );
   // Quando collapsed: sidebar fica completamente oculta (transição suave de largura).
   // Em telas menores que lg, segue oculta também (responsivo).
   return (
@@ -103,7 +110,7 @@ export default function Sidebar({ user, onSignOut }: SidebarProps) {
 
         <SectionLabel className="mt-6">Ferramentas</SectionLabel>
         <ul className="space-y-0.5">
-          {NAV_TOOLS.map((item) => (
+          {navToolsVisible.map((item) => (
             <NavLink key={item.href} item={item} />
           ))}
         </ul>
