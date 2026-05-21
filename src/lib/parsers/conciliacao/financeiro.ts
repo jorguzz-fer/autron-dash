@@ -126,18 +126,45 @@ function pickTitulosSheet(sheets: { name: string; rows: unknown[][] }[]): { name
   );
 }
 
+/**
+ * Acha a linha do header. Marker = ao menos uma célula contém variação de
+ * coluna conhecida do Protheus. Procura nas primeiras 20 linhas (alguns
+ * exports têm 5-10 linhas de cabeçalho/título antes do header real).
+ *
+ * Retorna -1 se nenhuma linha bate — caller deve tratar.
+ */
 function findHeaderRow(rows: unknown[][]): number {
-  // Header costuma estar na linha 1 (índice 0). Mas se houver título antes,
-  // procuramos uma linha que tenha "Codigo" ou "Cliente" em alguma célula.
-  for (let i = 0; i < Math.min(10, rows.length); i++) {
+  const MARCADORES = [
+    "prfnumeroparcela", // "Prf-Numero Parcela"
+    "prefnumeroparcela", // "Pref-Numero Parcela" (variação)
+    "codigoljnome", // "Codigo-Lj-Nome do Cliente"
+    "codigocliente", // "Codigo Cliente"
+    "numerotitulo", // "Numero Titulo"
+    "vencimentotitulo", // "Vencimento Titulo"
+    "venctotitulo", // "Vencto Titulo"
+    "datadeemissao", // "Data de Emissao"
+    "titvencidosvaloratual", // "Tit Vencidos Valor Atual"
+    "titulosavencervaloratual", // "Titulos a Vencer Valor Atual"
+  ];
+  for (let i = 0; i < Math.min(20, rows.length); i++) {
     const row = rows[i];
     if (!row) continue;
     const flat = row.map((c) => normalizeHeader(toCleanString(c))).join("|");
-    if (flat.includes("clienteprefnumero") || flat.includes("codigoljnome") || flat.includes("nomedocliente")) {
+    if (MARCADORES.some((m) => flat.includes(m))) {
       return i;
     }
   }
-  return 0;
+  return -1;
+}
+
+/** Util: extrai os nomes de header não-vazios pra mensagem de erro autodiagnóstica. */
+function listarHeaders(headerRow: unknown[] | undefined): string {
+  if (!headerRow) return "(linha vazia)";
+  const names = headerRow
+    .map((c) => toCleanString(c))
+    .filter((s): s is string => !!s && s.length > 0);
+  if (names.length === 0) return "(nenhum nome reconhecível na linha)";
+  return names.map((n) => `"${n}"`).join(", ");
 }
 
 function extractDataReferencia(parametrosRows: unknown[][]): Date | null {
@@ -186,32 +213,68 @@ export async function parseFinanceiroCR(buffer: Buffer): Promise<ParseResult<Tit
   }
 
   const headerRowIdx = findHeaderRow(titulosSheet.rows);
-  const headerRow = titulosSheet.rows[headerRowIdx];
-  if (!headerRow) {
+  if (headerRowIdx === -1) {
     return {
       rows: [],
       skipped: 0,
-      warnings: ["Header da aba de títulos não encontrado."],
+      warnings: [
+        "Header da aba de títulos não encontrado nas primeiras 20 linhas. " +
+          "Verifique se você exportou o relatório 'Posição de Títulos a Receber' " +
+          `do Protheus. Primeiras células da aba: ${listarHeaders(titulosSheet.rows[0])}.`,
+      ],
       totalSaldo: 0,
       dataReferencia,
     };
   }
+  const headerRow = titulosSheet.rows[headerRowIdx]!;
 
   const idx = buildHeaderIndex(headerRow);
-  const cCliente = findCol(idx, "Codigo-Lj-Nome do Cliente", "Codigo Cliente", "Cliente");
-  const cTitulo = findCol(idx, "Prf-Numero Parcela", "Numero Titulo", "Titulo");
+  const cCliente = findCol(
+    idx,
+    "Codigo-Lj-Nome do Cliente",
+    "Codigo Lj Nome do Cliente",
+    "Codigo Cliente",
+    "Cliente",
+  );
+  const cTitulo = findCol(
+    idx,
+    "Prf-Numero Parcela",
+    "Prf Numero Parcela",
+    "Pref-Numero Parcela",
+    "Prefixo-Numero Parcela",
+    "Numero Titulo",
+    "No Titulo",
+    "Titulo",
+  );
   const cTipo = findCol(idx, "TP", "Tipo");
-  const cDataEmissao = findCol(idx, "Data de Emissao", "Emissao");
-  const cVencto = findCol(idx, "Vencto Real", "Vencimento", "Vencto Titulo");
-  const cValorOriginal = findCol(idx, "Valor Original", "Vlr Original");
-  const cSaldoVencidos = findCol(idx, "Tit Vencidos Valor Atual", "Vencidos Valor Atual");
-  const cSaldoAVencer = findCol(idx, "Titulos a Vencer Valor Atual", "A Vencer Valor Atual");
+  const cDataEmissao = findCol(idx, "Data de Emissao", "Emissao", "Data Emissao", "Dt Emissao");
+  const cVencto = findCol(idx, "Vencto Real", "Vencimento Real", "Vencimento", "Vencto Titulo");
+  const cValorOriginal = findCol(idx, "Valor Original", "Vlr Original", "Vlr.Original");
+  const cSaldoVencidos = findCol(
+    idx,
+    "Tit Vencidos Valor Atual",
+    "Vencidos Valor Atual",
+    "Tit.Vencidos Valor Atual",
+  );
+  const cSaldoAVencer = findCol(
+    idx,
+    "Titulos a Vencer Valor Atual",
+    "A Vencer Valor Atual",
+    "Titulos a Vencer",
+    "A Vencer",
+  );
 
   if (cTitulo === null) {
     return {
       rows: [],
       skipped: 0,
-      warnings: ["Coluna 'Prf-Numero Parcela' não encontrada."],
+      warnings: [
+        "Coluna do número do título (Prf-Numero Parcela / Numero Titulo) não " +
+          `encontrada. Headers encontrados (linha ${headerRowIdx + 1}): ` +
+          `${listarHeaders(headerRow)}. Esperado nome contendo 'Prf-Numero ` +
+          "Parcela' ou similar — verifique se o relatório é a 'Posição de " +
+          "Títulos a Receber' do Protheus.",
+      ],
       totalSaldo: 0,
       dataReferencia,
     };
