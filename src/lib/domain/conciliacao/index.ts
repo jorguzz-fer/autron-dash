@@ -28,6 +28,13 @@ export type LadoDivergencia =
 
 export interface TituloFinanceiroInput {
   numeroNF: string;
+  /**
+   * Número da parcela (ex: "1", "2", "3") ou null quando a NF é título único.
+   * Cada linha do financeiro representa 1 parcela; várias linhas com a mesma NF
+   * são parcelas distintas do mesmo título. O domínio agrega tudo por NF antes
+   * de comparar com o contábil (somando saldos e juntando a lista de parcelas).
+   */
+  parcela: string | null;
   codigoCliente: string | null;
   nomeCliente: string | null;
   saldoTotal: number;
@@ -35,6 +42,16 @@ export interface TituloFinanceiroInput {
 
 export interface Divergencia {
   numeroNF: string;
+  /**
+   * Lista descritiva das parcelas que o financeiro mostra dessa NF, ex:
+   *   "1, 2, 3"      (3 parcelas conhecidas)
+   *   "única"        (título não parcelado)
+   *   null           (NF não está no financeiro — lado SO_CONTABIL)
+   *
+   * Útil pra a Daniele entender se o saldo divergente é porque faltam parcelas
+   * no recebimento contábil ou se está tudo registrado.
+   */
+  parcelas: string | null;
   codigoCliente: string | null;
   nomeCliente: string | null;
   lado: LadoDivergencia;
@@ -62,31 +79,66 @@ export interface ConciliarOpts {
   tolerancia?: number;
 }
 
+interface AgregadoNF {
+  saldo: number;
+  codigo: string | null;
+  nome: string | null;
+  /** Set de parcelas vistas — só números (ou letras raras). Preserva ordem
+   *  de inserção pra exibir na ordem que apareceu no relatório. */
+  parcelas: Set<string>;
+  /** Marca se ao menos 1 título da NF veio SEM parcela (= título único). */
+  temSemParcela: boolean;
+}
+
 /**
  * Agrega múltiplos títulos da mesma NF (parcelas) somando o saldoTotal.
- * Preserva código/nome do primeiro título encontrado.
+ * Preserva código/nome do primeiro título encontrado e coleta as parcelas
+ * conhecidas pra exibição posterior.
  */
-function agregarFinanceiroPorNF(
-  titulos: TituloFinanceiroInput[],
-): Map<string, { saldo: number; codigo: string | null; nome: string | null }> {
-  const out = new Map<string, { saldo: number; codigo: string | null; nome: string | null }>();
+function agregarFinanceiroPorNF(titulos: TituloFinanceiroInput[]): Map<string, AgregadoNF> {
+  const out = new Map<string, AgregadoNF>();
   for (const t of titulos) {
     if (!t.numeroNF) continue;
     const cur = out.get(t.numeroNF);
+    const parcela = t.parcela?.trim() || null;
     if (cur) {
       cur.saldo += t.saldoTotal;
       // preserva codigo/nome existentes; se faltarem, complementa
       if (!cur.codigo && t.codigoCliente) cur.codigo = t.codigoCliente;
       if (!cur.nome && t.nomeCliente) cur.nome = t.nomeCliente;
+      if (parcela) cur.parcelas.add(parcela);
+      else cur.temSemParcela = true;
     } else {
       out.set(t.numeroNF, {
         saldo: t.saldoTotal,
         codigo: t.codigoCliente,
         nome: t.nomeCliente,
+        parcelas: new Set(parcela ? [parcela] : []),
+        temSemParcela: parcela == null,
       });
     }
   }
   return out;
+}
+
+/**
+ * Formata as parcelas conhecidas de uma NF em string descritiva.
+ *   - 0 parcelas + temSemParcela → "única"
+ *   - N parcelas listadas        → "1, 2, 3"
+ *   - 0 parcelas, sem flag       → null (impossível dado o algoritmo, mas defensivo)
+ */
+function formatParcelas(agg: AgregadoNF): string | null {
+  if (agg.parcelas.size === 0) {
+    return agg.temSemParcela ? "única" : null;
+  }
+  // Ordena numericamente quando possível, lexicograficamente em fallback.
+  const lista = Array.from(agg.parcelas).sort((a, b) => {
+    const na = Number(a);
+    const nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return a.localeCompare(b);
+  });
+  return lista.join(", ");
 }
 
 /**
@@ -115,10 +167,13 @@ export function conciliar(
     nfsVistas.add(nf);
     const saldoCont = saldosContabilPorNF.get(nf);
 
+    const parcelasStr = formatParcelas(dadosFin);
+
     if (saldoCont === undefined) {
       // Só no financeiro — pode ser título de período anterior (não é erro garantido).
       divergencias.push({
         numeroNF: nf,
+        parcelas: parcelasStr,
         codigoCliente: dadosFin.codigo,
         nomeCliente: dadosFin.nome,
         lado: "SO_FINANCEIRO",
@@ -139,6 +194,7 @@ export function conciliar(
     if (saldoCont < -tolerancia) {
       divergencias.push({
         numeroNF: nf,
+        parcelas: parcelasStr,
         codigoCliente: dadosFin.codigo,
         nomeCliente: dadosFin.nome,
         lado: "NF_ANTERIOR",
@@ -153,6 +209,7 @@ export function conciliar(
     if (Math.abs(dif) > tolerancia) {
       divergencias.push({
         numeroNF: nf,
+        parcelas: parcelasStr,
         codigoCliente: dadosFin.codigo,
         nomeCliente: dadosFin.nome,
         lado: "DIVERGENTE",
@@ -180,6 +237,7 @@ export function conciliar(
 
     divergencias.push({
       numeroNF: nf,
+      parcelas: null, // sem registro no financeiro → não temos info de parcelas
       codigoCliente: null,
       nomeCliente: null,
       lado: "SO_CONTABIL",

@@ -93,6 +93,7 @@ export async function gerarXlsxConciliacao(
   ws2.columns = [
     { header: "Tipo", key: "tipo", width: 18 },
     { header: "NF", key: "nf", width: 14 },
+    { header: "Parcelas", key: "parcelas", width: 16 },
     { header: "Código Cliente", key: "codigo", width: 16 },
     { header: "Cliente", key: "cliente", width: 36 },
     { header: "Saldo Financeiro (R$)", key: "salFin", width: 22 },
@@ -116,6 +117,7 @@ export async function gerarXlsxConciliacao(
     const row = ws2.addRow({
       tipo: ladoLabel(d.lado),
       nf: d.numeroNF,
+      parcelas: d.parcelas ?? "",
       codigo: d.codigoCliente ?? "",
       cliente: d.nomeCliente ?? "",
       salFin: d.saldoFinanceiro == null ? null : Number(d.saldoFinanceiro),
@@ -123,8 +125,8 @@ export async function gerarXlsxConciliacao(
       dif: d.diferenca == null ? null : Number(d.diferenca),
     });
 
-    // Formato monetário nas colunas R$
-    [5, 6, 7].forEach((col) => {
+    // Formato monetário nas colunas R$ (saldoFin=6, saldoCont=7, dif=8 após inserir Parcelas).
+    [6, 7, 8].forEach((col) => {
       const c = row.getCell(col);
       c.numFmt = '_-"R$ "#,##0.00_-;-"R$ "#,##0.00_-;"-"';
       c.alignment = { horizontal: "right" };
@@ -142,10 +144,10 @@ export async function gerarXlsxConciliacao(
     });
   }
 
-  // Auto filter
+  // Auto filter (8 colunas agora: Tipo, NF, Parcelas, CodCli, Cliente, SalFin, SalCont, Dif)
   ws2.autoFilter = {
     from: { row: 1, column: 1 },
-    to: { row: ws2.rowCount, column: 7 },
+    to: { row: ws2.rowCount, column: 8 },
   };
 
   // Linha de total no final
@@ -166,6 +168,7 @@ export async function gerarXlsxConciliacao(
     const totRow = ws2.addRow({
       tipo: "TOTAIS",
       nf: "",
+      parcelas: "",
       codigo: "",
       cliente: "",
       salFin: totalSalFin,
@@ -173,7 +176,7 @@ export async function gerarXlsxConciliacao(
       dif: totalDif,
     });
     totRow.font = { bold: true };
-    [5, 6, 7].forEach((col) => {
+    [6, 7, 8].forEach((col) => {
       totRow.getCell(col).numFmt = '_-"R$ "#,##0.00_-;-"R$ "#,##0.00_-;"-"';
     });
   }

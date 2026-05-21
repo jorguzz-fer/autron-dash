@@ -32,6 +32,7 @@ export const metadata = { title: "Conciliação — Autron Dash" };
 type DivergenciaRow = {
   id: string;
   numeroNF: string;
+  parcelas: string | null;
   codigoCliente: string | null;
   nomeCliente: string | null;
   lado: "SO_FINANCEIRO" | "SO_CONTABIL" | "DIVERGENTE" | "NF_ANTERIOR";
@@ -77,6 +78,7 @@ export default async function ConciliacaoDetailPage({
   const divergenciasPlanas: DivergenciaRow[] = conc.divergencias.map((d) => ({
     id: d.id,
     numeroNF: d.numeroNF,
+    parcelas: d.parcelas,
     codigoCliente: d.codigoCliente,
     nomeCliente: d.nomeCliente,
     lado: d.lado,
@@ -148,25 +150,26 @@ export default async function ConciliacaoDetailPage({
           </div>
         </div>
 
-        {/* KPIs principais */}
+        {/* KPIs principais — valor exato (com centavos) é o que importa pra conciliação.
+            Pedido da Dai: ela precisa ver as casas decimais pra bater os centavos. */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KPICard
             label="Total Financeiro"
-            value={fmtCurrency(totalFin, { compact: true })}
+            value={fmtCurrency(totalFin)}
             hint="soma dos saldos a receber"
             icon={<TrendingUp className="size-4" />}
             tone="brand"
           />
           <KPICard
             label="Total Contábil"
-            value={fmtCurrency(totalCont, { compact: true })}
+            value={fmtCurrency(totalCont)}
             hint="saldo anterior + lançamentos"
             icon={<TrendingDown className="size-4" />}
             tone="neutral"
           />
           <KPICard
             label="Diferença Total"
-            value={fmtCurrency(Math.abs(dif), { compact: true })}
+            value={fmtCurrency(Math.abs(dif))}
             hint={
               bateuTotal
                 ? "totais conciliam ✅"
@@ -387,6 +390,25 @@ const divergenciasCols: Column<DivergenciaRow>[] = [
     sortKey: "numeroNF",
     cell: (d) => <span className="numeric whitespace-nowrap text-[12.5px]">{d.numeroNF}</span>,
     width: "90px",
+  },
+  {
+    // Lista descritiva das parcelas conhecidas no financeiro pra essa NF.
+    // Ex: "1, 2, 3" (parcelado) ou "única" (não parcelado). Pedido da Dai.
+    key: "parcelas",
+    header: "Parcelas",
+    sortKey: "parcelas",
+    cell: (d) => (
+      <span
+        className="text-[12px]"
+        style={{
+          color: d.parcelas ? "var(--fg)" : "var(--fg-muted)",
+          fontStyle: d.parcelas === "única" ? "italic" : undefined,
+        }}
+      >
+        {d.parcelas ?? "—"}
+      </span>
+    ),
+    width: "120px",
   },
   {
     key: "cliente",

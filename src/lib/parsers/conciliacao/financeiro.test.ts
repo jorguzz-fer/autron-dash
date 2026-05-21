@@ -5,6 +5,7 @@ import {
   parseFinanceiroCR,
   parseCodigoCliente,
   parseNumeroTitulo,
+  parseParcela,
 } from "./financeiro";
 
 const FIXTURES = join(__dirname, "__fixtures__");
@@ -34,6 +35,26 @@ describe("parseNumeroTitulo", () => {
     expect(parseNumeroTitulo(null)).toBe("");
     expect(parseNumeroTitulo("")).toBe("");
     expect(parseNumeroTitulo("foo")).toBe("");
+  });
+});
+
+describe("parseParcela", () => {
+  it("extrai parcela '2  -000032464-3' → '3'", () => {
+    expect(parseParcela("2  -000032464-3")).toBe("3");
+  });
+  it("extrai parcela letrada '2  -000032433-A' → 'A'", () => {
+    expect(parseParcela("2  -000032433-A")).toBe("A");
+  });
+  it("retorna null pra título sem parcela '2  -000032433-'", () => {
+    expect(parseParcela("2  -000032433-")).toBeNull();
+  });
+  it("retorna null pra string com só espaços após hífen", () => {
+    expect(parseParcela("2  -000032433-  ")).toBeNull();
+  });
+  it("retorna null pra entrada inválida", () => {
+    expect(parseParcela(null)).toBeNull();
+    expect(parseParcela("")).toBeNull();
+    expect(parseParcela("foo")).toBeNull();
   });
 });
 

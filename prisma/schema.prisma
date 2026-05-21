@@ -437,6 +437,11 @@ model ConciliacaoDivergencia {
   numeroNF        String                                       // "32433" (sem zeros à esquerda)
   codigoCliente   String?                                      // "C000297" (quando vier do financeiro)
   nomeCliente     String?                                      // "3M - SUMARE"
+  // Parcelas conhecidas no FINANCEIRO pra essa NF. String descritiva tipo
+  // "1, 2, 3 (3 parcelas)" ou "única" (= título não parcelado). Vem agregada
+  // do domínio porque cada NF pode aparecer em múltiplas linhas do financeiro.
+  // Null quando a NF não está no financeiro (lado = SO_CONTABIL).
+  parcelas        String?
   lado            DivergenciaLado
   saldoFinanceiro Decimal?        @db.Decimal(15, 2)
   saldoContabil   Decimal?        @db.Decimal(15, 2)

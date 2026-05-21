@@ -22,6 +22,12 @@ import {
 export interface TituloFinanceiro {
   /** NF sem zeros à esquerda — ex: "32433". Vazio quando não dá pra extrair (raro). */
   numeroNF: string;
+  /**
+   * Número da parcela quando a NF foi gerada parcelada — ex: "1", "2", "3"...
+   * Vem após o segundo hífen no campo "Prf-Numero Parcela" do Protheus
+   * (ex: "2  -000032464-3" → parcela "3"). Quando vazio, é título único.
+   */
+  parcela: string | null;
   /** Código Protheus do cliente — ex: "C000297". */
   codigoCliente: string | null;
   /** Loja — ex: "01". */
@@ -71,6 +77,25 @@ export function parseNumeroTitulo(raw: string | null | undefined): string {
   if (!m) return "";
   const digits = m[1].replace(/^0+/, "");
   return digits || "0";
+}
+
+/**
+ * Extrai número da parcela (depois do segundo hífen) do campo "Prf-Numero Parcela".
+ *
+ * Formatos:
+ *  - "2  -000032464-3"  → "3"
+ *  - "2  -000032433-"   → null     (sem parcela = título único)
+ *  - "2  -000032433-A"  → "A"      (parcela letrada, raro mas existe)
+ *
+ * Trim e nulifica strings vazias / com só espaços.
+ */
+export function parseParcela(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  // Estratégia: pega tudo APÓS o segundo hífen.
+  const m = /-\s*\d+\s*-\s*([A-Za-z0-9]*)\s*$/.exec(raw);
+  if (!m) return null;
+  const parcela = m[1].trim();
+  return parcela === "" ? null : parcela;
 }
 
 /**
@@ -208,6 +233,7 @@ export async function parseFinanceiroCR(buffer: Buffer): Promise<ParseResult<Tit
       skipped++;
       continue;
     }
+    const parcela = parseParcela(tituloRaw);
 
     const clienteRaw = cCliente !== null ? toCleanString(row[cCliente]) : null;
     const { codigo, loja, nome } = parseCodigoCliente(clienteRaw);
@@ -218,6 +244,7 @@ export async function parseFinanceiroCR(buffer: Buffer): Promise<ParseResult<Tit
 
     rows.push({
       numeroNF: nf,
+      parcela,
       codigoCliente: codigo,
       loja,
       nomeCliente: nome,

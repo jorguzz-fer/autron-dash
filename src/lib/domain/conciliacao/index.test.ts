@@ -13,7 +13,7 @@ const fixturesDisponiveis =
 describe("conciliar — algoritmo isolado", () => {
   it("NF presente nos dois lados com saldos iguais — não vira divergência", () => {
     const titulos: TituloFinanceiroInput[] = [
-      { numeroNF: "100", codigoCliente: "C001", nomeCliente: "X", saldoTotal: 1000 },
+      { numeroNF: "100", parcela: null, codigoCliente: "C001", nomeCliente: "X", saldoTotal: 1000 },
     ];
     const cont = new Map([["100", 1000]]);
     const r = conciliar(titulos, cont, 1000, 1000);
@@ -23,7 +23,7 @@ describe("conciliar — algoritmo isolado", () => {
 
   it("NF com saldos diferentes vira DIVERGENTE", () => {
     const titulos: TituloFinanceiroInput[] = [
-      { numeroNF: "200", codigoCliente: "C002", nomeCliente: "Y", saldoTotal: 1500 },
+      { numeroNF: "200", parcela: null, codigoCliente: "C002", nomeCliente: "Y", saldoTotal: 1500 },
     ];
     const cont = new Map([["200", 1200]]);
     const r = conciliar(titulos, cont, 1500, 1200);
@@ -40,7 +40,7 @@ describe("conciliar — algoritmo isolado", () => {
 
   it("NF só no financeiro vira SO_FINANCEIRO (não é erro garantido — período anterior)", () => {
     const titulos: TituloFinanceiroInput[] = [
-      { numeroNF: "300", codigoCliente: "C003", nomeCliente: "Z", saldoTotal: 500 },
+      { numeroNF: "300", parcela: null, codigoCliente: "C003", nomeCliente: "Z", saldoTotal: 500 },
     ];
     const cont = new Map<string, number>();
     const r = conciliar(titulos, cont, 500, 0);
@@ -75,7 +75,7 @@ describe("conciliar — algoritmo isolado", () => {
 
   it("tolerância de 1 centavo absorve arredondamento", () => {
     const titulos: TituloFinanceiroInput[] = [
-      { numeroNF: "700", codigoCliente: null, nomeCliente: null, saldoTotal: 100.005 },
+      { numeroNF: "700", parcela: null, codigoCliente: null, nomeCliente: null, saldoTotal: 100.005 },
     ];
     const cont = new Map([["700", 100.0]]);
     const r = conciliar(titulos, cont, 100.005, 100.0);
@@ -84,19 +84,47 @@ describe("conciliar — algoritmo isolado", () => {
 
   it("agrega múltiplas parcelas da mesma NF no financeiro", () => {
     const titulos: TituloFinanceiroInput[] = [
-      { numeroNF: "800", codigoCliente: "C8", nomeCliente: "P8", saldoTotal: 300 },
-      { numeroNF: "800", codigoCliente: "C8", nomeCliente: "P8", saldoTotal: 200 },
+      { numeroNF: "800", parcela: "1", codigoCliente: "C8", nomeCliente: "P8", saldoTotal: 300 },
+      { numeroNF: "800", parcela: "2", codigoCliente: "C8", nomeCliente: "P8", saldoTotal: 200 },
     ];
     const cont = new Map([["800", 500]]);
     const r = conciliar(titulos, cont, 500, 500);
     expect(r.divergencias).toEqual([]);
   });
 
+  it("propaga lista de parcelas conhecidas no campo `parcelas` da divergência", () => {
+    // 3 parcelas no financeiro (1, 2, 3) mas contábil só registrou parte delas
+    // → divergente. A coluna parcelas mostra "1, 2, 3" pra Dai investigar.
+    const titulos: TituloFinanceiroInput[] = [
+      { numeroNF: "900", parcela: "1", codigoCliente: "C9", nomeCliente: "X", saldoTotal: 100 },
+      { numeroNF: "900", parcela: "3", codigoCliente: "C9", nomeCliente: "X", saldoTotal: 100 },
+      { numeroNF: "900", parcela: "2", codigoCliente: "C9", nomeCliente: "X", saldoTotal: 100 },
+    ];
+    const cont = new Map([["900", 50]]);
+    const r = conciliar(titulos, cont, 300, 50);
+    expect(r.divergencias).toHaveLength(1);
+    // Parcelas em ORDEM NUMÉRICA, não na ordem do input
+    expect(r.divergencias[0].parcelas).toBe("1, 2, 3");
+  });
+
+  it("título único (sem parcela) recebe rótulo 'única' no campo parcelas", () => {
+    const titulos: TituloFinanceiroInput[] = [
+      { numeroNF: "910", parcela: null, codigoCliente: null, nomeCliente: null, saldoTotal: 1000 },
+    ];
+    const r = conciliar(titulos, new Map(), 1000, 0);
+    expect(r.divergencias[0].parcelas).toBe("única");
+  });
+
+  it("NF apenas no contábil (SO_CONTABIL) tem parcelas = null", () => {
+    const r = conciliar([], new Map([["999", 500]]), 0, 500);
+    expect(r.divergencias[0].parcelas).toBeNull();
+  });
+
   it("ordena divergências: DIVERGENTE primeiro, SO_CONTABIL, SO_FINANCEIRO, NF_ANTERIOR por último", () => {
     const titulos: TituloFinanceiroInput[] = [
-      { numeroNF: "A", codigoCliente: null, nomeCliente: null, saldoTotal: 100 }, // SO_FINANCEIRO
-      { numeroNF: "B", codigoCliente: null, nomeCliente: null, saldoTotal: 500 }, // DIVERGENTE
-      { numeroNF: "D", codigoCliente: null, nomeCliente: null, saldoTotal: 50 },  // NF_ANTERIOR (saldoCont negativo)
+      { numeroNF: "A", parcela: null, codigoCliente: null, nomeCliente: null, saldoTotal: 100 }, // SO_FINANCEIRO
+      { numeroNF: "B", parcela: null, codigoCliente: null, nomeCliente: null, saldoTotal: 500 }, // DIVERGENTE
+      { numeroNF: "D", parcela: null, codigoCliente: null, nomeCliente: null, saldoTotal: 50 },  // NF_ANTERIOR (saldoCont negativo)
     ];
     const cont = new Map([
       ["B", 200],
@@ -125,6 +153,7 @@ describe("conciliar — algoritmo isolado", () => {
     const titulos: TituloFinanceiroInput[] = [
       {
         numeroNF: "32379",
+        parcela: "2", // 2ª parcela (de 2) — primeira já recebida em fev
         codigoCliente: "C009479",
         nomeCliente: "MILETO DISTRIBUIDORA",
         saldoTotal: 40500.49,
@@ -157,6 +186,7 @@ describe.skipIf(!fixturesDisponiveis)("conciliação end-to-end com arquivos rea
 
     const titulos: TituloFinanceiroInput[] = fin.rows.map((t) => ({
       numeroNF: t.numeroNF,
+      parcela: t.parcela,
       codigoCliente: t.codigoCliente,
       nomeCliente: t.nomeCliente,
       saldoTotal: t.saldoTotal,

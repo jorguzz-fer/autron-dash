@@ -62,6 +62,7 @@ export async function criarConciliacao(input: CriarConciliacaoInput): Promise<{
 
   const titulos: TituloFinanceiroInput[] = fin.rows.map((t) => ({
     numeroNF: t.numeroNF,
+    parcela: t.parcela,
     codigoCliente: t.codigoCliente,
     nomeCliente: t.nomeCliente,
     saldoTotal: t.saldoTotal,
@@ -116,6 +117,7 @@ export async function criarConciliacao(input: CriarConciliacaoInput): Promise<{
         data: resultado.divergencias.map((d) => ({
           conciliacaoId: c.id,
           numeroNF: d.numeroNF,
+          parcelas: d.parcelas,
           codigoCliente: d.codigoCliente,
           nomeCliente: d.nomeCliente,
           lado: ladoToPrisma(d.lado),
