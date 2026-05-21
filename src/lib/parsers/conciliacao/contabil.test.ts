@@ -63,6 +63,48 @@ describe("parseHistorico", () => {
   });
 });
 
+describe("parseBalanceteContabil — detecção de balancete da conta errada", () => {
+  it("avisa quando 10+ lançamentos mas nenhuma NF reconhecida (conta Banco/Caixa)", async () => {
+    const xlsx = await import("xlsx");
+    const wb = xlsx.utils.book_new();
+
+    // Aba Parametros (vazia mas precisa existir)
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet([["Parametros"]]), "Parametros");
+
+    // Aba Conta dizendo que é a conta Banco
+    xlsx.utils.book_append_sheet(
+      wb,
+      xlsx.utils.aoa_to_sheet([
+        ["CONTA", "DESCRICAO"],
+        ["1.1.1.10.2", "- BANCOS CTA. MOVIMENTO"],
+      ]),
+      "Conta",
+    );
+
+    // 10 lançamentos com histórico que NÃO casa nenhum padrão de NF (PGTO de fornecedor)
+    const linhas: unknown[][] = [["DATA", "HISTORICO", "DEBITO", "CREDITO", "SALDO ATUAL"]];
+    for (let i = 0; i < 12; i++) {
+      linhas.push([
+        "2026-03-01",
+        `PGTO NF - SPOHN NF IMP: 0000${i.toString().padStart(5, "0")} P: W`,
+        1000,
+        0,
+        "0,00 D",
+      ]);
+    }
+    xlsx.utils.book_append_sheet(wb, xlsx.utils.aoa_to_sheet(linhas), "3-Lançamentos Contábeis");
+
+    const buf = xlsx.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    const r = await parseBalanceteContabil(buf);
+
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]).toMatch(/nenhuma NF de cliente recon/i);
+    expect(r.warnings[0]).toMatch(/Clientes Nacionais/i);
+    expect(r.warnings[0]).toMatch(/1\.1\.1\.10\.2/);
+    expect(r.warnings[0]).toMatch(/BANCOS/i);
+  });
+});
+
 describe("parseBalanceteContabil — detecção de arquivo trocado", () => {
   it("detecta financeiro CR no campo contábil (aba 'Posicao dos Titulos')", async () => {
     const xlsx = await import("xlsx");

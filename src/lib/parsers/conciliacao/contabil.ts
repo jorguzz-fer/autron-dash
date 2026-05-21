@@ -417,6 +417,24 @@ export async function parseBalanceteContabil(buffer: Buffer): Promise<ParseResul
     }
   }
 
+  // Heurística: se temos lançamentos mas ZERO NFs reconhecidas, provavelmente
+  // o balancete é de uma conta diferente de Clientes (ex: Caixa, Banco,
+  // Fornecedor de Importação). A conciliação CR só faz sentido contra a conta
+  // de Clientes Nacionais (típicamente 1.1.2.x no plano de contas Protheus).
+  // Avisa o usuário em vez de gerar um relatório com Saldo Contábil vazio.
+  if (lancamentos.length >= 10 && saldosPorNF.size === 0) {
+    warnings.push(
+      `Balancete contém ${lancamentos.length} lançamentos mas nenhuma NF de ` +
+        "cliente reconhecível foi identificada nos históricos. Isso sugere que " +
+        `o balancete é de uma conta diferente da esperada${conta ? ` (conta ` +
+        `detectada: ${conta}${descricao ? ` — ${descricao}` : ""})` : ""}. ` +
+        "A conciliação Financeiro CR exige o balancete da conta Clientes " +
+        "Nacionais (geralmente 1.1.2.x no Protheus), onde os históricos " +
+        "aparecem como 'NF NNNN - CLIENTE' (criação) ou 'REC. NF. NNNN' " +
+        "(recebimento). Exporte o balancete da conta correta e tente de novo.",
+    );
+  }
+
   return {
     rows: lancamentos,
     skipped,
