@@ -1,0 +1,27 @@
+{
+  "name": "ia-sso-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mini-proxy SSO entre autron-dash e Open WebUI — valida JWT, gerencia sessão e proxy reverso (incl. WebSocket)",
+  "main": "dist/server.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "http-proxy": "^1.18.1",
+    "jose": "^6.2.3"
+  },
+  "devDependencies": {
+    "@types/http-proxy": "^1.17.16",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}
