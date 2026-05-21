@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
     "Ação",
     "SC / OP",
     "Prazo Entrega",
+    "Dt. Confirma",
     "Dt. Necessidade Cliente",
   ];
 
@@ -68,6 +69,7 @@ export async function GET(req: NextRequest) {
       p.acaoNecessaria,
       scOp,
       prazoEntrega,
+      csvDate(p.fuDtConfirma),
       csvDate(p.dtFatCli),
     ];
   });

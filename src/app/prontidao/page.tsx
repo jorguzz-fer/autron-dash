@@ -879,6 +879,16 @@ const acaoCols: Column<PedidoEnriched>[] = [
     ),
   },
   {
+    key: "dtConfirma",
+    header: "Dt. Confirma",
+    sortKey: "fuDtConfirma",
+    cell: (p) => (
+      <span className="numeric whitespace-nowrap text-[12px]">
+        {p.fuDtConfirma ? fmtDate(p.fuDtConfirma) : "—"}
+      </span>
+    ),
+  },
+  {
     key: "dtNec",
     header: "Dt. Necessidade Cliente",
     sortKey: "dtFatCli",
@@ -1034,6 +1044,19 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
     cell: (p) => (
       <span className="numeric whitespace-nowrap text-[12px]">
         {p.prazoRealEntrega instanceof Date ? fmtDate(p.prazoRealEntrega) : p.prazoRealEntrega ?? "—"}
+      </span>
+    ),
+  },
+  {
+    // fuDtConfirma = coluna "Dt. Confirma" do relatório follow-up (data de
+    // confirmação do prazo de entrega pelo fornecedor/PCP). Sua ausência
+    // dispara a ação "Item sem data confirmada" (ver domain/action.ts).
+    key: "dtConfirma",
+    header: "Dt. Confirma",
+    sortKey: "fuDtConfirma",
+    cell: (p) => (
+      <span className="numeric whitespace-nowrap text-[12px]">
+        {p.fuDtConfirma ? fmtDate(p.fuDtConfirma) : "—"}
       </span>
     ),
   },

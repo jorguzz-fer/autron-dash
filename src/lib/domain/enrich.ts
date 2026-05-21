@@ -111,6 +111,7 @@ export function enrichPedidos(args: EnrichArgs): PedidoEnriched[] {
       temSC,
       temOP,
       temSCManual,
+      fuDtConfirma: fu.fuDtConfirma,
     });
 
     return {

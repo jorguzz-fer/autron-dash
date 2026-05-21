@@ -54,7 +54,7 @@ describe("acaoNecessaria", () => {
     ).toBe("ERRO no CADASTRO");
   });
 
-  it("Comprando + tem SC sem OP = SC gerada", () => {
+  it("Comprando + tem SC sem OP + com Dt. Confirma = SC gerada", () => {
     expect(
       acaoNecessaria({
         status: "EM ABERTO",
@@ -63,8 +63,23 @@ describe("acaoNecessaria", () => {
         tipoProduto: "Comprando",
         temSC: true,
         temOP: false,
+        fuDtConfirma: new Date("2026-06-15"),
       }),
     ).toBe("SC gerada - Aguardando");
+  });
+
+  it("Comprando + tem SC sem OP + sem Dt. Confirma = Item sem data confirmada", () => {
+    expect(
+      acaoNecessaria({
+        status: "EM ABERTO",
+        ehServico: false,
+        disponibilidade: "NAO",
+        tipoProduto: "Comprando",
+        temSC: true,
+        temOP: false,
+        fuDtConfirma: null,
+      }),
+    ).toBe("Item sem data confirmada");
   });
 
   it("Comprando sem SC nem OP = Necessario gerar SC", () => {
@@ -80,7 +95,7 @@ describe("acaoNecessaria", () => {
     ).toBe("Necessario gerar SC");
   });
 
-  it("Produzindo + tem OP = OP gerada", () => {
+  it("Produzindo + tem OP + com Dt. Confirma = OP gerada", () => {
     expect(
       acaoNecessaria({
         status: "EM ABERTO",
@@ -89,8 +104,23 @@ describe("acaoNecessaria", () => {
         tipoProduto: "Produzindo",
         temSC: false,
         temOP: true,
+        fuDtConfirma: new Date("2026-06-15"),
       }),
     ).toBe("OP gerada - Aguardando");
+  });
+
+  it("Produzindo + tem OP + sem Dt. Confirma = Item sem data confirmada", () => {
+    expect(
+      acaoNecessaria({
+        status: "EM ABERTO",
+        ehServico: false,
+        disponibilidade: "NAO",
+        tipoProduto: "Produzindo",
+        temSC: false,
+        temOP: true,
+        fuDtConfirma: null,
+      }),
+    ).toBe("Item sem data confirmada");
   });
 
   it("Produzindo sem OP = Necessario gerar OP", () => {

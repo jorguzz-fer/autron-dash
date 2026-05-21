@@ -73,6 +73,7 @@ export type AcaoNecessaria =
   | "Necessario gerar OP"
   | "SC gerada - Aguardando"
   | "OP gerada - Aguardando"
+  | "Item sem data confirmada"
   | "ERRO no CADASTRO"
   | "Verificar classificacao";
 
