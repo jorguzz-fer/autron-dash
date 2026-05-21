@@ -23,3 +23,8 @@ autron-dash/
 materiais/
 reunioes/
 contrato/
+
+# Mini-proxy SSO tem seu próprio Dockerfile/build separado.
+# Excluir aqui evita o Next.js tentar typecheckar o código dele (que importa
+# http-proxy, lib que NÃO está nas deps do autron-dash).
+services/

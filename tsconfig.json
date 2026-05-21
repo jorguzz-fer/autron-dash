@@ -27,6 +27,7 @@
     "node_modules",
     "autron-dash",
     "materiais",
-    "reunioes"
+    "reunioes",
+    "services"
   ]
 }
