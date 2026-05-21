@@ -2,11 +2,6 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 
-# Atualiza npm para a mesma major usada no dev (lockfile foi gerado com npm 11).
-# O node:22-alpine vem com npm 10, que é mais estrito com optional peer deps
-# (caso do @emnapi/runtime — falha com "Missing from lock file" no npm ci).
-RUN npm install -g npm@11
-
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 
