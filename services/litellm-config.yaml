@@ -1,0 +1,57 @@
+# Config do LiteLLM — router OpenAI-compat na frente de Anthropic + OpenAI + Gemini.
+#
+# Como funciona:
+#   - `model_name` = o nome que aparece no dropdown do Open WebUI
+#   - `litellm_params.model` = o ID real no provider (prefixo define o provider)
+#   - `api_key: os.environ/X` = lê da env var X (definida no Coolify)
+#
+# IMPORTANTE: os IDs de modelo abaixo refletem o que estava disponível em
+# mai/2026. Se algum der erro "model not found", ajuste o `model:` pro ID
+# exato que sua conta tem acesso (veja console.anthropic.com / platform.openai.com
+# / aistudio.google.com). O `model_name` (dropdown) você pode deixar amigável.
+
+model_list:
+  # ─── Anthropic (Claude) ───────────────────────────────────────────────
+  - model_name: Claude Opus
+    litellm_params:
+      model: anthropic/claude-opus-4-1
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: Claude Sonnet
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: Claude Haiku (rápido/barato)
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # ─── OpenAI (GPT) ─────────────────────────────────────────────────────
+  - model_name: GPT-5
+    litellm_params:
+      model: openai/gpt-5
+      api_key: os.environ/OPENAI_API_KEY
+  - model_name: GPT-5 mini (rápido/barato)
+    litellm_params:
+      model: openai/gpt-5-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  # ─── Google (Gemini) ──────────────────────────────────────────────────
+  - model_name: Gemini 2.5 Pro
+    litellm_params:
+      model: gemini/gemini-2.5-pro
+      api_key: os.environ/GOOGLE_API_KEY
+  - model_name: Gemini 2.5 Flash (rápido/barato)
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GOOGLE_API_KEY
+
+general_settings:
+  # Chave que o Open WebUI usa pra falar com o LiteLLM (rede interna).
+  # Lida da env LITELLM_MASTER_KEY; o default no compose é sk-litellm-master-key.
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  # Não derruba a stack se 1 provider falhar — só aquele modelo fica indisponível.
+  drop_params: true
+  # Telemetria desligada.
+  telemetry: false

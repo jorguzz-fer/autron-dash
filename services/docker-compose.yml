@@ -1,0 +1,79 @@
+# Stack do Chat IA empresarial — deploy único no Coolify (VPS de IA).
+#
+# 3 serviços na mesma rede Docker (se enxergam por nome):
+#   - litellm      → router OpenAI-compat na frente de Anthropic/OpenAI/Gemini (interno)
+#   - open-webui   → interface de chat (interno, autenticação por trusted header)
+#   - ia-sso-proxy → único exposto publicamente (ia.tudomudou.com.br); valida o
+#                    JWT do autron-dash, injeta os trusted headers e faz reverse
+#                    proxy pro Open WebUI (HTTP + WebSocket)
+#
+# Fluxo: usuário no autron-dash clica "Chat IA" → /chat-ia emite JWT →
+#        redireciona pra ia.tudomudou.com.br/sso?token=... → mini-proxy valida,
+#        seta cookie, redireciona pra / → Open WebUI logado → LiteLLM → LLM.
+#
+# Coolify: criar recurso "Docker Compose", Base Directory = services,
+# Compose file = docker-compose.yml. Domínio ia.tudomudou.com.br no serviço
+# ia-sso-proxy (porta 8080). Env vars no painel (ver README-IA-DEPLOY.md).
+
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      # master_key também via env (LiteLLM lê LITELLM_MASTER_KEY se setado)
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-litellm-master-key}
+    # SEM `ports:` → não exposto publicamente, só acessível na rede interna.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    volumes:
+      - open-webui-data:/app/backend/data
+    environment:
+      WEBUI_AUTH: "true"
+      ENABLE_SIGNUP: "false"
+      # Autenticação por header confiável injetado pelo mini-proxy (nunca pelo
+      # cliente — o proxy faz strip dos headers vindos de fora).
+      WEBUI_AUTH_TRUSTED_EMAIL_HEADER: X-Forwarded-Email
+      WEBUI_AUTH_TRUSTED_NAME_HEADER: X-Forwarded-Name
+      DEFAULT_USER_ROLE: user
+      # Aponta pro LiteLLM como se fosse a OpenAI.
+      OPENAI_API_BASE_URL: http://litellm:4000/v1
+      OPENAI_API_KEY: ${LITELLM_MASTER_KEY:-sk-litellm-master-key}
+      # Desabilita Ollama (não usamos modelos locais).
+      ENABLE_OLLAMA_API: "false"
+      WEBUI_NAME: "Autron IA"
+    depends_on:
+      - litellm
+    # SEM `ports:` → só o mini-proxy fala com ele.
+
+  ia-sso-proxy:
+    build:
+      context: ./ia-sso-proxy
+    restart: unless-stopped
+    environment:
+      IA_SSO_SECRET: ${IA_SSO_SECRET}
+      OPEN_WEBUI_URL: http://open-webui:8080
+      EXPECTED_ISSUER: autron-dash
+      SESSION_TTL_HOURS: "8"
+      PORT: "8080"
+    # Coolify expõe este serviço via domínio (ia.tudomudou.com.br → :8080).
+    expose:
+      - "8080"
+    depends_on:
+      - open-webui
+
+volumes:
+  open-webui-data:
