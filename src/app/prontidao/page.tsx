@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
 import { getPrazosEngByTenant } from "@/lib/services/prazoEngenhariaIND21";
+import { getObservacoesByTenant } from "@/lib/services/observacaoPV";
 import KPICard from "@/components/UI/KPICard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
@@ -11,6 +12,7 @@ import HBarRanking from "@/components/UI/HBarRanking";
 import FilterSelect from "@/components/UI/FilterSelect";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import PrazoEngCell from "@/components/UI/PrazoEngCell";
+import ObservacaoCell from "@/components/UI/ObservacaoCell";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import { ROLES_MANAGE, type Role } from "@/lib/authz";
@@ -123,14 +125,17 @@ export default async function ProntidaoPage({
 
   const userRole = session.user.role as Role;
   const canEditPrazoEng = ROLES_MANAGE.includes(userRole);
+  // Observações: liberadas para qualquer usuário logado (a página já exige sessão).
+  const canEditObs = true;
 
-  const [all, prazosEngMap] = await Promise.all([
+  const [all, prazosEngMap, obsMap] = await Promise.all([
     getEnrichedPedidos({
       tenantId: session.user.tenantId,
       dataInicio,
       dataFim,
     }),
     getPrazosEngByTenant(session.user.tenantId),
+    getObservacoesByTenant(session.user.tenantId),
   ]);
 
   // Cancelados: fuPasta contém "CAN" — contados do dataset completo (sempre visível).
@@ -634,7 +639,7 @@ export default async function ProntidaoPage({
           </div>
 
           <DataTable
-            columns={prontidaoCols}
+            columns={prontidaoCols(obsMap, canEditObs)}
             rows={tabela}
             rowKey={(p) => p.id}
             emptyMessage="Sem pedidos com os filtros selecionados."
@@ -725,7 +730,7 @@ export default async function ProntidaoPage({
             </div>
           </div>
           <DataTable
-            columns={ergomecCols(prazosEngMap, canEditPrazoEng)}
+            columns={ergomecCols(prazosEngMap, canEditPrazoEng, obsMap, canEditObs)}
             rows={ergomecTabela}
             rowKey={(p) => p.id}
             emptyMessage={
@@ -900,7 +905,11 @@ const acaoCols: Column<PedidoEnriched>[] = [
   },
 ];
 
-const prontidaoCols: Column<PedidoEnriched>[] = [
+function prontidaoCols(
+  obsMap: Awaited<ReturnType<typeof getObservacoesByTenant>>,
+  canEditObs: boolean,
+): Column<PedidoEnriched>[] {
+  return [
   {
     key: "pv",
     header: "PV",
@@ -1098,7 +1107,32 @@ const prontidaoCols: Column<PedidoEnriched>[] = [
       </span>
     ),
   },
-];
+    obsColumn(obsMap, canEditObs),
+  ];
+}
+
+/** Coluna de observações gerais por PV — compartilhada entre as tabelas. */
+function obsColumn(
+  obsMap: Awaited<ReturnType<typeof getObservacoesByTenant>>,
+  canEdit: boolean,
+): Column<PedidoEnriched> {
+  return {
+    key: "obs",
+    header: "Observações",
+    cell: (p) => {
+      const o = obsMap.get(p.numPedido);
+      return (
+        <ObservacaoCell
+          numPedido={p.numPedido}
+          texto={o?.texto ?? null}
+          atualizadoEm={o?.atualizadoEm ?? null}
+          atualizadoPorNome={o?.atualizadoPorNome ?? null}
+          canEdit={canEdit}
+        />
+      );
+    },
+  };
+}
 
 function atendBadge(p: PedidoEnriched) {
   const c = classifAtend(p);
@@ -1110,6 +1144,8 @@ function atendBadge(p: PedidoEnriched) {
 function ergomecCols(
   prazosMap: Awaited<ReturnType<typeof getPrazosEngByTenant>>,
   canEdit: boolean,
+  obsMap: Awaited<ReturnType<typeof getObservacoesByTenant>>,
+  canEditObs: boolean,
 ): Column<PedidoEnriched>[] {
   return [
     {
@@ -1241,5 +1277,6 @@ function ergomecCols(
         );
       },
     },
+    obsColumn(obsMap, canEditObs),
   ];
 }
