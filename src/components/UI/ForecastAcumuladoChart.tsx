@@ -64,6 +64,12 @@ export default function ForecastAcumuladoChart({
   }));
   const metaData = metaAcum.map((y, i) => ({ x: categories[i], y }));
 
+  // Rótulo por barra: neutro nos meses apurados, vermelho de destaque na projeção.
+  const corLabelProjetado = isDark ? "#fb7185" : COR_PROJETADO;
+  const dataLabelColors = realizadoFlags.map((apurado) =>
+    apurado ? fgColor : corLabelProjetado,
+  );
+
   const options: ApexOptions = {
     chart: {
       toolbar: { show: false },
@@ -77,9 +83,12 @@ export default function ForecastAcumuladoChart({
     dataLabels: {
       enabled: true,
       enabledOnSeries: [0],
+      // distributed: indexa style.colors por barra (ponto), não por série —
+      // necessário pois o gráfico é misto (column + line).
+      distributed: true,
       formatter: (val) => fmtCompact(Number(val)),
-      offsetY: -4,
-      style: { fontSize: "9px", fontWeight: 600, colors: [fgColor] },
+      offsetY: -14,
+      style: { fontSize: "9px", fontWeight: 700, colors: dataLabelColors },
       background: { enabled: false },
     },
     stroke: { width: [0, 2.5], curve: "smooth", dashArray: [0, 5] },
