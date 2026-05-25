@@ -1203,6 +1203,18 @@ function ergomecCols(
       ),
     },
     {
+      // dtEntrega = coluna "Entrega" do entrada_pedido — exibida como
+      // "Dt. Faturamento" na tabela geral de Pedidos (paridade).
+      key: "dtFaturamento",
+      header: "Dt. Faturamento",
+      sortKey: "dtEntrega",
+      cell: (p) => (
+        <span className="numeric text-[12px]">
+          {p.dtEntrega ? fmtDate(p.dtEntrega) : "—"}
+        </span>
+      ),
+    },
+    {
       key: "atend",
       header: "Atendim.",
       cell: atendBadge,
