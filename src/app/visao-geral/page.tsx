@@ -350,6 +350,16 @@ const visaoGeralCols: Column<PedidoEnriched>[] = [
     align: "right",
     cell: (p) => <span className="numeric font-medium">{fmtCurrency(p.vlrTotal)}</span>,
   },
+  {
+    key: "cliente",
+    header: "Cliente",
+    sortKey: "clienteNome",
+    cell: (p) => (
+      <span className="block max-w-[200px] truncate" title={p.clienteNome ?? p.cliente ?? ""}>
+        {p.clienteNome ?? p.cliente ?? "—"}
+      </span>
+    ),
+  },
   { key: "vendedor", header: "Vendedor", sortKey: "nomeVendedor", cell: (p) => <span className="truncate">{p.nomeVendedor ?? "—"}</span> },
   {
     key: "emissao",
