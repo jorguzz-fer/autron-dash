@@ -34,6 +34,7 @@ model Tenant {
   dataUploads           DataUpload[]
   prazosEngenhariaIND21 PrazoEngenhariaIND21[]
   conciliacoes          Conciliacao[]
+  observacoesPV         ObservacaoPV[]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ model User {
   dataUploads           DataUpload[]
   prazosEngenhariaIND21 PrazoEngenhariaIND21[]
   conciliacoes          Conciliacao[]
+  observacoesPV         ObservacaoPV[]
 
   @@unique([tenantId, email])
   @@index([email])
@@ -371,6 +373,27 @@ model PrazoEngenhariaIND21 {
 
   @@index([tenantId, numPedido, criadoEm(sort: Desc)])
   @@index([tenantId, criadoEm])
+}
+
+// ── 8b. ObservacaoPV — Observações gerais por PV (Prontidão) ───────────────
+// Texto livre por pedido (numPedido) visível nas tabelas de Prontidão (lista
+// geral + Ergomec). Diferente do PrazoEngenhariaIND21, aqui NÃO há histórico:
+// um único registro por (tenantId, numPedido), atualizado in-place via upsert.
+// `atualizadoEm` (@updatedAt) e `atualizadoPor` registram quem mexeu por último.
+// Granularidade por PV (não por item) — a observação vale pro pedido inteiro.
+model ObservacaoPV {
+  id            String   @id @default(cuid())
+  tenantId      String
+  numPedido     String
+  texto         String
+  atualizadoPor String
+  atualizadoEm  DateTime @default(now()) @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [atualizadoPor], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, numPedido])
+  @@index([tenantId])
 }
 
 // ── 9. Conciliação Financeiro × Contábil ───────────────────────────────────
