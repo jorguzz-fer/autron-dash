@@ -7,6 +7,7 @@ import DataTable, { type Column } from "@/components/UI/DataTable";
 import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
+import FilterSelect from "@/components/UI/FilterSelect";
 import SegmentedControl from "@/components/UI/SegmentedControl";
 import TimeSeriesChart from "@/components/UI/TimeSeriesChart";
 import DistributionChart, { type DistributionView } from "@/components/UI/DistributionChart";
@@ -29,6 +30,9 @@ interface SP {
   kpi?: string;
   /** Filtro por vendedor (clique no chart top vendedores). */
   vend?: string;
+  /** Filtros do quadro Top vendedores (escopo só do ranking). */
+  vendAno?: string;
+  vendMes?: string;
 }
 
 /** Toggle de query param preservando os outros. */
@@ -59,6 +63,12 @@ const VIEW_OPTS = [
   { value: "pie", label: "Pizza" },
   { value: "table", label: "Tabela" },
 ];
+
+const MES_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MES_OPTIONS = MES_LABELS.map((nome, i) => ({
+  value: String(i + 1),
+  label: `${nome.charAt(0).toUpperCase()}${nome.slice(1)}`,
+}));
 
 function parseView(v: string | undefined, fallback: DistributionView = "bar"): DistributionView {
   return (["bar", "pie", "donut", "line", "table"] as const).includes(v as DistributionView)
@@ -106,13 +116,40 @@ export default async function VisaoGeralPage({
     gran,
   ).slice(gran === "month" ? -12 : gran === "week" ? -16 : -30);
 
+  // ── Top vendedores: filtro próprio de ano/mês (escopo só do ranking) ──
+  // Anos disponíveis derivados da emissão de todo o universo (sem o filtro
+  // de vendedor) pra que as opções não sumam ao estreitar o ranking.
+  const anosDisponiveis = Array.from(
+    new Set(
+      allPedidos
+        .map((p) => p.dtEmissao?.getFullYear())
+        .filter((y): y is number => y != null),
+    ),
+  ).sort((a, b) => b - a);
+  const ANO_OPTIONS = anosDisponiveis.map((y) => ({ value: String(y), label: String(y) }));
+
+  const vendAno = sp.vendAno ? Number(sp.vendAno) : null;
+  const vendMes = sp.vendMes ? Number(sp.vendMes) : null;
+  const pedidosVend = pedidos.filter((p) => {
+    if (vendAno == null && vendMes == null) return true;
+    if (!p.dtEmissao) return false;
+    if (vendAno != null && p.dtEmissao.getFullYear() !== vendAno) return false;
+    if (vendMes != null && p.dtEmissao.getMonth() + 1 !== vendMes) return false;
+    return true;
+  });
+
+  // Ranking por soma do Valor Total (vlrTotal) dos pedidos de cada vendedor.
   const byVendedor = new Map<string, number>();
-  for (const p of pedidos) {
+  for (const p of pedidosVend) {
     const v = p.nomeVendedor ?? "Sem vendedor";
-    byVendedor.set(v, (byVendedor.get(v) ?? 0) + 1);
+    byVendedor.set(v, (byVendedor.get(v) ?? 0) + (p.vlrTotal ?? 0));
   }
   const topVendedores = Array.from(byVendedor.entries())
-    .map(([label, value]) => ({ label, value }))
+    .map(([label, value]) => ({
+      label,
+      value,
+      display: fmtCurrency(value, { compact: true }),
+    }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
 
@@ -239,7 +276,7 @@ export default async function VisaoGeralPage({
           </CardSection>
           <CardSection
             title="Top vendedores"
-            subtitle="Por número de linhas"
+            subtitle="Por soma do Valor Total dos pedidos"
             actions={
               <SegmentedControl
                 name="vendView"
@@ -250,7 +287,28 @@ export default async function VisaoGeralPage({
               />
             }
           >
-            <DistributionChart data={topVendedores} view={vendView} hbarTone="brand" />
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <FilterSelect
+                name="vendAno"
+                label="Ano"
+                value={sp.vendAno}
+                allLabel="Todos os anos"
+                options={ANO_OPTIONS}
+              />
+              <FilterSelect
+                name="vendMes"
+                label="Mês"
+                value={sp.vendMes}
+                allLabel="Todos os meses"
+                options={MES_OPTIONS}
+              />
+            </div>
+            <DistributionChart
+              data={topVendedores}
+              view={vendView}
+              valueFormat="currencyCompact"
+              hbarTone="brand"
+            />
           </CardSection>
         </section>
 
