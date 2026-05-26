@@ -10,6 +10,8 @@ import type { FaturamentoRow } from "@/lib/parsers/faturamento";
 import type { ClassificacaoRow } from "@/lib/parsers/classificacao";
 import type { MetaRow } from "@/lib/parsers/metas";
 import type { PloomesRow } from "@/lib/parsers/ploomes";
+import type { AnaliticoRow } from "@/lib/parsers/comissao/analitico";
+import type { MetaComissaoRow } from "@/lib/parsers/comissao/metas";
 
 // Tamanho de chunk para createMany. Postgres tem limite de 65535 parâmetros por query;
 // Pedido tem 18 colunas, então 3000 rows ≈ 54000 params (margem segura).
@@ -51,7 +53,10 @@ export async function processUpload(input: ProcessUploadInput): Promise<ProcessU
   });
 
   try {
-    const parser = PARSERS[dataset];
+    const parser = PARSERS[dataset as keyof typeof PARSERS];
+    if (!parser) {
+      throw new Error(`Parser não implementado para dataset: ${dataset}`);
+    }
     const parsed = await parser(buffer);
 
     if (parsed.rows.length === 0) {
@@ -190,6 +195,54 @@ async function replaceDataset(
         tx.ploomesOportunidade.createMany({ data: chunk.map((r) => ({ tenantId, ...r })) }),
       );
       return;
+
+    case "COMISSAO_ANALITICO":
+      await tx.comissaoLancamento.deleteMany({ where: { tenantId } });
+      await insertChunks(rows as AnaliticoRow[], (chunk) =>
+        tx.comissaoLancamento.createMany({
+          data: chunk.map((r) => ({
+            tenantId,
+            numeroPedido: r.numeroPedido,
+            itemPedido: r.itemPedido,
+            dataEmissao: r.dataEmissao!,
+            codCliente: r.codCliente,
+            cliente: r.cliente,
+            produto: r.produto,
+            quantidade: r.quantidade,
+            valor: r.valor,
+            codVendedor: r.codVendedor,
+            tipoNegocio: r.tipoNegocio,
+            dataEntrega: r.dataEntrega,
+            dataVencimento: r.dataVencimento,
+            dataPagamento: r.dataPagamento,
+            condicaoPagamento: r.condicaoPagamento,
+            parcela: r.parcela,
+            pctRateio: r.pctRateio,
+            classificacao: r.classificacao,
+          })),
+        }),
+      );
+      return;
+
+    case "COMISSAO_META":
+      await tx.comissaoMeta.deleteMany({ where: { tenantId } });
+      await insertChunks(rows as MetaComissaoRow[], (chunk) =>
+        tx.comissaoMeta.createMany({
+          data: chunk.map((r) => ({
+            tenantId,
+            codVendedor: r.codVendedor,
+            ano: r.ano,
+            mes: r.mes,
+            valorMeta: r.valorMeta,
+          })),
+        }),
+      );
+      return;
+
+    default: {
+      const _exhaustive: never = dataset;
+      throw new Error(`replaceDataset: dataset não mapeado: ${String(_exhaustive)}`);
+    }
   }
 }
 

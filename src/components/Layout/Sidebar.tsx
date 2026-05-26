@@ -12,6 +12,7 @@ import {
   LineChart,
   LogOut,
   Package,
+  Percent,
   Receipt,
   Scale,
   ScrollText,
@@ -52,6 +53,14 @@ const NAV_CONTROLADORIA: NavItem[] = [
   { label: "Conciliação Fin × Cont", href: "/conciliacao", icon: Scale },
 ];
 
+// Restrito às roles ADMIN, DIRETOR e CONTROLADORIA.
+const NAV_COMISSOES: NavItem[] = [
+  { label: "Visão Geral", href: "/comissoes", icon: Percent },
+  { label: "Extrato", href: "/comissoes/extrato", icon: ScrollText },
+  { label: "Vendedores", href: "/comissoes/vendedores", icon: Users },
+  { label: "Upload", href: "/comissoes/upload", icon: Upload },
+];
+
 const NAV_ADMIN: NavItem[] = [
   { label: "Usuários", href: "/admin/usuarios", icon: Users },
   { label: "Logs", href: "/admin/logs", icon: ScrollText },
@@ -73,6 +82,7 @@ interface SidebarProps {
 export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: SidebarProps) {
   const isAdmin = user.role === "ADMIN";
   const isControladoria = user.role === "ADMIN" || user.role === "CONTROLADORIA";
+  const isComissoes = ["ADMIN", "DIRETOR", "CONTROLADORIA"].includes(user.role ?? "");
   const { collapsed } = useSidebar();
 
   // Filtra itens de "Ferramentas" — esconde Chat IA quando não está habilitado.
@@ -120,6 +130,17 @@ export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: Side
             <SectionLabel className="mt-6">Controladoria</SectionLabel>
             <ul className="space-y-0.5">
               {NAV_CONTROLADORIA.map((item) => (
+                <NavLink key={item.href} item={item} />
+              ))}
+            </ul>
+          </>
+        )}
+
+        {isComissoes && (
+          <>
+            <SectionLabel className="mt-6">Comissões</SectionLabel>
+            <ul className="space-y-0.5">
+              {NAV_COMISSOES.map((item) => (
                 <NavLink key={item.href} item={item} />
               ))}
             </ul>

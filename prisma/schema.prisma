@@ -34,6 +34,10 @@ model Tenant {
   dataUploads           DataUpload[]
   prazosEngenhariaIND21 PrazoEngenhariaIND21[]
   conciliacoes          Conciliacao[]
+  comissaoCargos        ComissaoCargo[]
+  comissaoVendedores    ComissaoVendedor[]
+  comissaoLancamentos   ComissaoLancamento[]
+  comissaoMetas         ComissaoMeta[]
   observacoesPV         ObservacaoPV[]
 }
 
@@ -143,6 +147,8 @@ enum Dataset {
   CLASSIFICACAO
   META
   PLOOMES
+  COMISSAO_ANALITICO
+  COMISSAO_META
 }
 
 enum MetaCategoria {
@@ -473,4 +479,87 @@ model ConciliacaoDivergencia {
   conciliacao Conciliacao @relation(fields: [conciliacaoId], references: [id], onDelete: Cascade)
 
   @@index([conciliacaoId, lado])
+}
+
+// ── 10. Comissões ─────────────────────────────────────────────────────────────
+
+enum ComissaoClassificacao {
+  PREVISTO
+  FATURADO
+  PAGO
+}
+
+model ComissaoCargo {
+  id          String   @id @default(cuid())
+  tenantId    String
+  ano         Int
+  cargo       String
+  comissaoPct Decimal  @db.Decimal(6, 4)
+  gatilhoPct  Decimal  @db.Decimal(6, 4)
+  base        String   // "INDIVIDUAL" | "COLETIVO" | "CARTEIRA"
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, ano, cargo])
+}
+
+model ComissaoVendedor {
+  id              String   @id @default(cuid())
+  tenantId        String
+  codigoProtheus  String
+  nome            String
+  cargo           String
+  tipo            String   // "CLT" | "PJ" | "REPRESENTANTE"
+  nivel           Int?
+  gatilhoOverride Decimal? @db.Decimal(6, 4)
+  ativo           Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, codigoProtheus])
+}
+
+model ComissaoLancamento {
+  id                String                @id @default(cuid())
+  tenantId          String
+  numeroPedido      String
+  itemPedido        String?
+  dataEmissao       DateTime
+  codCliente        String?
+  cliente           String?
+  produto           String?
+  quantidade        Int?
+  valor             Decimal               @db.Decimal(15, 2)
+  codVendedor       String
+  tipoNegocio       String?
+  dataEntrega       DateTime?
+  dataVencimento    DateTime?
+  dataPagamento     DateTime?
+  condicaoPagamento String?
+  parcela           Int?
+  pctRateio         Decimal               @db.Decimal(8, 4)
+  classificacao     ComissaoClassificacao
+  createdAt         DateTime              @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, codVendedor, dataEmissao])
+  @@index([tenantId, classificacao])
+  @@index([tenantId, dataPagamento])
+}
+
+model ComissaoMeta {
+  id          String   @id @default(cuid())
+  tenantId    String
+  codVendedor String
+  ano         Int
+  mes         Int
+  valorMeta   Decimal  @db.Decimal(15, 2)
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, codVendedor, ano, mes])
 }
