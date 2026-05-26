@@ -142,16 +142,12 @@ export async function parseAnaliticoComissao(buffer: Buffer): Promise<ParseResul
     const clienteRaw = cCliente !== null ? toCleanString(row[cCliente]) : null;
     const { codigo: codCliente, nome: clienteNome } = splitCodigo(clienteRaw);
 
-    // pctRateio
-    const pctRateioRaw = cPctRateio !== null ? toDecimalStr(row[cPctRateio]) : null;
-    if (!pctRateioRaw) {
-      skipped++;
-      continue;
-    }
+    // Produto split (codigo used as itemPedido for dedup key)
+    const prod = splitCodigo(cProduto !== null ? toCleanString(row[cProduto]) : null);
 
     rows.push({
       numeroPedido: numeroPedidoRaw,
-      itemPedido: null,
+      itemPedido: prod.codigo,
       dataEmissao: dataEmissaoRaw,
       codCliente,
       cliente: clienteNome,
@@ -165,7 +161,7 @@ export async function parseAnaliticoComissao(buffer: Buffer): Promise<ParseResul
       dataPagamento: cDataPagamento !== null ? toDate(row[cDataPagamento]) : null,
       condicaoPagamento: cCondicaoPagamento !== null ? toCleanString(row[cCondicaoPagamento]) : null,
       parcela: cParcela !== null ? toInt(row[cParcela]) : null,
-      pctRateio: pctRateioRaw,
+      pctRateio: (cPctRateio !== null ? toDecimalStr(row[cPctRateio]) : null) ?? "100",
       classificacao: mapClassificacao(cClassificacao !== null ? toCleanString(row[cClassificacao]) : null),
     });
   }
