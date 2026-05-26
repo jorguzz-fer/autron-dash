@@ -108,10 +108,14 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
   const deltaPenetracao = pctContrato - pctContratoAnt;
 
   // ── Por Cliente (top) ─────────────────────────────────────────────
-  const byCliente = new Map<string, { pvs: Set<string>; pecas: number; valor: number; valorAnt: number }>();
+  // Agrupa pelo código (p.cliente) mas exibe a Razão Social resolvida via
+  // Ploomes (clienteNome). Fallback pro código/identificador quando não há
+  // match no CRM.
+  const byCliente = new Map<string, { razaoSocial: string | null; pvs: Set<string>; pecas: number; valor: number; valorAnt: number }>();
   for (const p of all) {
     const cli = p.cliente ?? p.pedCliente ?? "Sem cliente";
-    const cur = byCliente.get(cli) ?? { pvs: new Set(), pecas: 0, valor: 0, valorAnt: 0 };
+    const cur = byCliente.get(cli) ?? { razaoSocial: null, pvs: new Set(), pecas: 0, valor: 0, valorAnt: 0 };
+    if (cur.razaoSocial == null && p.clienteNome) cur.razaoSocial = p.clienteNome;
     if (p.dtEmissao?.getFullYear() === anoBase) {
       cur.pvs.add(p.numPedido);
       cur.pecas += p.quantidade;
@@ -124,6 +128,7 @@ export default async function EntradaPedidosPage({ searchParams }: { searchParam
   const topClientes = Array.from(byCliente.entries())
     .map(([cliente, v]) => ({
       cliente,
+      razaoSocial: v.razaoSocial ?? cliente,
       pvs: v.pvs.size,
       pecas: v.pecas,
       valor: v.valor,
@@ -354,6 +359,7 @@ const unidadeCols: Column<UnidadeRow>[] = [
 
 interface ClienteRow {
   cliente: string;
+  razaoSocial: string;
   pvs: number;
   pecas: number;
   valor: number;
@@ -365,11 +371,11 @@ function clienteCols(anoBase: number): Column<ClienteRow>[] {
   return [
     {
       key: "cli",
-      header: "Cliente",
-      sortKey: "cliente",
+      header: "Razão Social",
+      sortKey: "razaoSocial",
       cell: (c) => (
-        <span className="block max-w-[280px] truncate" title={c.cliente}>
-          {c.cliente}
+        <span className="block max-w-[280px] truncate" title={c.razaoSocial}>
+          {c.razaoSocial}
         </span>
       ),
     },

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null); git add -A 2>/dev/null; if git diff --cached --quiet 2>/dev/null; then printf \"{\\\"systemMessage\\\": \\\"Auto-commit: nenhuma alteracao pendente na branch '$branch'.\\\"}\"; else git commit -m \"chore: auto-commit ao final da interacao\" 2>/dev/null && git push -u origin \"$branch\" 2>/dev/null && printf \"{\\\"systemMessage\\\": \\\"Auto-commit e push realizados na branch '$branch'.\\\"}\"; fi",
+            "timeout": 60,
+            "statusMessage": "Fazendo commit e push automatico..."
+          }
+        ]
+      }
+    ]
+  }
+}

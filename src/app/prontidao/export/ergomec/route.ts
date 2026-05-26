@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
 import { getPrazosEngByTenant } from "@/lib/services/prazoEngenhariaIND21";
+import { getObservacoesByTenant } from "@/lib/services/observacaoPV";
 import { parseDateInput } from "@/lib/sort";
 import { classifAtend, filterByStatus } from "@/lib/prontidao/filter";
 import { csvCurrency, csvDate, toCsv, type CsvRow } from "@/lib/csv";
@@ -23,9 +24,10 @@ export async function GET(req: NextRequest) {
   const dataInicio = parseDateInput(u.get("from") ?? undefined);
   const dataFim = parseDateInput(u.get("to") ?? undefined, true);
 
-  const [all, prazosMap] = await Promise.all([
+  const [all, prazosMap, obsMap] = await Promise.all([
     getEnrichedPedidos({ tenantId: session.user.tenantId, dataInicio, dataFim }),
     getPrazosEngByTenant(session.user.tenantId),
+    getObservacoesByTenant(session.user.tenantId),
   ]);
 
   // Filtros em cascata — igual ao page.tsx
@@ -76,10 +78,13 @@ export async function GET(req: NextRequest) {
     "Valor Total",
     "Dt. Ofertada",
     "Dt. Fat. Cli.",
+    "Dt. Faturamento",
     "Atendimento Prazo",
     "Pronto?",
     "Prazo Engenharia",
     "Últ. Atualização Prazo",
+    "Observações",
+    "Últ. Atualização Obs.",
   ];
 
   const rows: CsvRow[] = sorted.map((p) => {
@@ -92,6 +97,7 @@ export async function GET(req: NextRequest) {
           : "Sem prazo definido";
 
     const prazoEng = prazosMap.get(p.numPedido);
+    const obs = obsMap.get(p.numPedido);
 
     return [
       p.numPedido,
@@ -104,10 +110,13 @@ export async function GET(req: NextRequest) {
       csvCurrency(p.vlrTotal),
       csvDate(p.dtOfertada),
       csvDate(p.dtFatCli),
+      csvDate(p.dtEntrega),
       atendLabel,
       p.prontoParaFazer,
       csvDate(prazoEng?.prazoAtual),
       csvDate(prazoEng?.ultimaAtualizacao),
+      obs?.texto ?? "",
+      csvDate(obs?.atualizadoEm),
     ];
   });
 

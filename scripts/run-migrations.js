@@ -52,7 +52,17 @@ async function main() {
       (d) =>
         !d.endsWith(".toml") && fs.statSync(path.join(migrationsDir, d)).isDirectory(),
     )
-    .sort();
+    .sort((a, b) => {
+      // Ordena pelo prefixo numérico (1, 2, ... 9, 10, 11...). O .sort()
+      // lexicográfico puro colocaria "10_" antes de "2_", quebrando a ordem
+      // das FKs em bancos novos. Empate ou sem prefixo numérico: cai pro
+      // comparativo de string. Para as migrations 1-9 o resultado é idêntico
+      // ao sort anterior (zero mudança de comportamento).
+      const na = parseInt(a, 10);
+      const nb = parseInt(b, 10);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && na !== nb) return na - nb;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
 
   for (const entry of entries) {
     if (applied.has(entry)) {

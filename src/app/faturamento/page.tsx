@@ -14,6 +14,7 @@ import { getEnrichedPedidos } from "@/lib/services/dashboard";
 import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import BarCompareChart from "@/components/UI/BarCompareChart";
+import ForecastAcumuladoChart from "@/components/UI/ForecastAcumuladoChart";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import HBarRanking from "@/components/UI/HBarRanking";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
@@ -338,6 +339,26 @@ export default async function FaturamentoPage({
       ) as unknown as FaturamentoRow[])
     : fatDetalheDefault;
 
+  // ── Forecast de Receita Líquida — Acumulado (Meta × Realizado) ──
+  // Realizado mensal = "Total Líquido" do quadro: fat. líquido emitido +
+  // carteira líquida (-17%). Acumula mês a mês contra a meta acumulada.
+  // Meses <= mês atual são apurados (barra verde); à frente é projeção (vermelho).
+  const realizadoMensal = Array.from(
+    { length: 12 },
+    (_, i) => fatMes(anoAtual, i + 1) + cartMes(i + 1) * FATOR_LIQUIDO,
+  );
+  const metaMensal = Array.from({ length: 12 }, (_, i) => metaReceita.get(i + 1) ?? 0);
+  let accReal = 0;
+  let accMeta = 0;
+  const realizadoAcum = realizadoMensal.map((v) => (accReal += v));
+  const metaAcum = metaMensal.map((v) => (accMeta += v));
+  const realizadoFlags = Array.from({ length: 12 }, (_, i) => i + 1 <= mesAtual);
+
+  const metaAno = metaAcum[11];
+  const realizadoAno = totalAnoAt; // faturamento líquido emitido no ano
+  const atgAno = metaAno === 0 ? 0 : (realizadoAno / metaAno) * 100;
+  const atingidaAno = realizadoAno >= metaAno;
+
   return (
     <AppShell title="Faturamento" subtitle="Meta × Realizado · Carteira · Comparativo Anual">
       <div className="space-y-10">
@@ -543,6 +564,51 @@ export default async function FaturamentoPage({
               value={fmtNum(carteiraLinhas)}
               hint="itens de pedido"
               tone="neutral"
+            />
+          </div>
+        </SectionBlock>
+
+        {/* ── Forecast de Receita Líquida — Acumulado (Meta × Realizado) ── */}
+        <SectionBlock title={`Forecast de Receita Líquida — Acumulado ${anoAtual}`}>
+          <CardSection
+            title="Meta × Realizado consolidado ao longo dos meses"
+            subtitle="Faturamentos já emitidos + pedidos em carteira (líq. −17%, projeção dos meses futuros), acumulados mês a mês"
+          >
+            <ForecastAcumuladoChart
+              categories={MES_LABELS}
+              realizadoAcum={realizadoAcum}
+              metaAcum={metaAcum}
+              realizadoFlags={realizadoFlags}
+              height={340}
+            />
+          </CardSection>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <KPICard
+              label="Objetivo (Meta Ano)"
+              value={fmtCurrency(metaAno, { decimals: 0 })}
+              hint="receita líquida · GRUPO"
+              tone="neutral"
+              icon={<Target className="size-4" />}
+            />
+            <KPICard
+              label="Realizado (Ano)"
+              value={fmtCurrency(realizadoAno, { decimals: 0 })}
+              hint={`fat. líq. emitido · últ. apuração ${labelMesAtual}`}
+              tone="success"
+              icon={<TrendingUp className="size-4" />}
+            />
+            <KPICard
+              label="% Atingimento Ano"
+              value={fmtPct(atgAno, 0)}
+              hint="realizado / objetivo"
+              tone={atgAno >= 100 ? "success" : atgAno >= 80 ? "warning" : "danger"}
+              icon={<Percent className="size-4" />}
+            />
+            <KPICard
+              label="Status"
+              value={atingidaAno ? "ATINGIDA" : "NÃO ATINGIDA"}
+              hint="meta anual consolidada"
+              tone={atingidaAno ? "success" : "danger"}
             />
           </div>
         </SectionBlock>
