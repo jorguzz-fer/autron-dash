@@ -6,7 +6,7 @@ import type { LancamentoInput, MetaInput, RegraVendedor, ApuracaoAno, MesApuraca
  * - EP do mês = soma do valor dos pedidos com dataEmissao no mês, deduplicando
  *   parcelas (mesma numeroPedido+itemPedido conta uma vez, valor do pedido).
  * - gatilho = meta * gatilhoPct; saldo = ep - meta.
- * - habilita (elegibilidade) = mensal: ep_m >= gatilho_m.
+ * - habilita (elegibilidade) = YTD: Σep(jan..m) >= Σgatilho(jan..m).
  *   gatilhoPct === 0 => sempre habilita.
  * - previsao fica 0 aqui; preenchida pela composição em getExtratoVendedor.
  */
@@ -36,13 +36,17 @@ export function apurarAno(
 
   const result: MesApuracao[] = [];
   let saldoAcum = 0;
+  let epAcum = 0;
+  let gatilhoAcum = 0;
   for (let i = 0; i < 12; i++) {
     const meta = metaPorMes[i];
     const ep = epPorMes[i];
     const gatilho = meta * regra.gatilhoPct;
     const saldo = ep - meta;
     saldoAcum += saldo;
-    const habilita = regra.gatilhoPct === 0 ? true : ep >= gatilho;
+    epAcum += ep;
+    gatilhoAcum += gatilho;
+    const habilita = regra.gatilhoPct === 0 ? true : epAcum >= gatilhoAcum;
     result.push({
       mes: i + 1,
       meta,

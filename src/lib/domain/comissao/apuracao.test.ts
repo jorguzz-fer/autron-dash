@@ -41,14 +41,14 @@ describe("apurarAno", () => {
     expect(ap[0].saldo).toBe(200);
   });
 
-  it("elegibilidade mensal: cada mês avaliado independentemente", () => {
-    // JAN EP 2000 (meta 1000, gatilho 700) -> habilita
-    // FEV EP 100 (meta 1000, gatilho 700) -> NÃO habilita (mês fraco não compensado pelo JAN forte)
+  it("elegibilidade acumulada YTD: mês forte compensa mês fraco", () => {
+    // JAN EP 2000 (meta 1000, gatilho 700) -> YTD EP 2000 >= YTD gatilho 700 -> habilita
+    // FEV EP 100 (meta 1000, gatilho 700) -> YTD EP 2100 >= YTD gatilho 1400 -> habilita (JAN forte compensa)
     const lancs = [lanc(1, 2000, "P1"), lanc(2, 100, "P2")];
     const metas = [meta(1, 1000), meta(2, 1000)];
     const ap = apurarAno(lancs, metas, regra, 2026);
     expect(ap[0].habilita).toBe(true);
-    expect(ap[1].habilita).toBe(false);
+    expect(ap[1].habilita).toBe(true);
   });
 
   it("perde elegibilidade quando acumulado YTD cai abaixo do gatilho", () => {

@@ -5,10 +5,15 @@
 //   Analítico: comissionamento/materiais/Comissao 2026 - pgto EP 21.03.2026 a 20.04.2026-Analitco.xlsx
 //   Extrato:   comissionamento/materiais/Comissao 2026 - pgto EP 21.03.2026 a 20.04.2026-Extrato.xlsx
 //
-// Bugs descobertos e corrigidos nesta iteração:
-//   1. apuracao.ts: habilita era YTD acumulado; Extrato usa comparação MENSAL (ep_m >= gatilho_m)
-//   2. pagamento.ts: comissão não deve ser multiplicada por pctRateio
-//   3. types.ts / comissao.ts / pagamento.ts: comissaoPct precisa ser por linha (campo opcional)
+// Correções nesta iteração:
+//   1. pagamento.ts: comissão não deve ser multiplicada por pctRateio
+//   2. types.ts / comissao.ts / pagamento.ts: comissaoPct precisa ser por linha (campo opcional)
+//
+// Nota sobre divergência TO-BE vs AS-IS Protheus (Alexsiano):
+//   O Extrato Protheus usa comparação MENSAL (ep_m >= gatilho_m) para habilita.
+//   A spec TO-BE exige acumulado YTD: Σep(jan..m) >= Σgatilho(jan..m).
+//   Os testes do Alexsiano refletem o comportamento TO-BE (YTD), que diverge
+//   intencionalmente do Extrato AS-IS para FEV.
 //
 // Notas sobre EP vs Extrato:
 //   O Analítico fornecido é um recorte da janela 21/03-20/04; por isso os EP totais
@@ -180,16 +185,22 @@ const regraAdriano: RegraVendedor = {
 // ---------------------------------------------------------------------------
 // FIXTURES: Alexsiano Porfirio (cod 000029)
 // ---------------------------------------------------------------------------
-// Extrato Protheus (aba "ALEXSIANO PORFIRIO"):
+// Extrato Protheus AS-IS (aba "ALEXSIANO PORFIRIO") — regra MENSAL:
 //   META JAN: R$ 269.953,48  | GATILHO JAN: R$ 188.967,44
 //   META FEV: R$ 263.300,94  | GATILHO FEV: R$ 184.310,66
 //   EP JAN:   R$ 47.488,83   | EP FEV: R$ 254.211,14
 //   HABILITA JAN: NÃO  (EP<GATILHO mensal)
-//   HABILITA FEV: SIM  (EP>GATILHO mensal)
-//   PREVISÃO FEV: R$ 3.027,04
+//   HABILITA FEV: SIM  (EP>GATILHO mensal)  ← AS-IS Protheus
+//   PREVISÃO FEV: R$ 3.027,04               ← AS-IS Protheus
 //
-// Nota: EP FEV da nossa amostra = 245.836,84 (faltam linhas no recorte).
-// Ainda assim 245.836 >= 184.310 -> habilita FEV = true ✓
+// TO-BE (regra YTD acumulada — spec):
+//   EP JAN+FEV amostra ≈ 47.488 + 245.836 = 293.325
+//   GATILHO JAN+FEV    ≈ 188.967 + 184.310 = 373.278
+//   293.325 < 373.278  → HABILITA FEV = NÃO sob YTD
+//   PREVISÃO FEV = 0   (não habilitado)
+//
+// Nota: os testes abaixo refletem o comportamento TO-BE (YTD).
+// O divergência com o Extrato Protheus é intencional e documentada.
 
 const lancamentosAlexsiano: LancamentoInput[] = [
   // JAN — Pedido 21049 — Pago
@@ -322,18 +333,20 @@ describe("aceite — reproduz Extrato Protheus", () => {
       expect(ap[0].habilita).toBe(false);
     });
 
-    it("habilita FEV = true (EP mensal acima do gatilho)", () => {
+    it("habilita FEV = false (YTD acumulado abaixo do gatilho acumulado)", () => {
       const ap = apurarAno(lancamentosAlexsiano, metasAlexsiano, regraAlexsiano, 2026);
-      // EP FEV amostra: ~245.836 >= gatilho FEV: 184.310 -> SIM
-      expect(ap[1].habilita).toBe(true);
+      // YTD: EP JAN+FEV ≈ 293k < gatilho JAN+FEV ≈ 373k → NÃO habilitado
+      // (TO-BE YTD diverge do AS-IS Protheus que usa comparação mensal)
+      expect(ap[1].habilita).toBe(false);
     });
 
-    it("previsao FEV ≈ R$3.027,04 (±R$1)", () => {
+    it("previsao FEV = 0 (não habilitado sob regra YTD)", () => {
       const ap = apurarAno(lancamentosAlexsiano, metasAlexsiano, regraAlexsiano, 2026);
       const habArr = ap.map((m) => m.habilita);
       const prev = previsaoMensal(lancamentosAlexsiano, regraAlexsiano.comissaoPct, habArr, 2026);
-      // Motor: ~3027.06; Extrato: 3027.04. Δ < R$0,03
-      expect(prev[1]).toBeCloseTo(3027.04, 0);
+      // FEV não habilitado (YTD) → previsão = 0
+      // Extrato Protheus AS-IS mostra R$3.027,04 porque usa regra mensal
+      expect(prev[1]).toBe(0);
     });
 
     it("previsao JAN = 0 (não habilitado)", () => {
