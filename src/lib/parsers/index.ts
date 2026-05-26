@@ -6,6 +6,8 @@ import { parseFaturamento } from "./faturamento";
 import { parseClassificacao } from "./classificacao";
 import { parseMetas } from "./metas";
 import { parsePloomes } from "./ploomes";
+import { parseAnaliticoComissao } from "./comissao/analitico";
+import { parseMetasComissao } from "./comissao/metas";
 
 export const PARSERS = {
   PEDIDO: parsePedido,
@@ -15,6 +17,8 @@ export const PARSERS = {
   CLASSIFICACAO: parseClassificacao,
   META: parseMetas,
   PLOOMES: parsePloomes,
+  COMISSAO_ANALITICO: parseAnaliticoComissao,
+  COMISSAO_META: parseMetasComissao,
 } as const;
 
 export const DATASET_LABELS: Record<Dataset, string> = {
