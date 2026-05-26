@@ -18,8 +18,9 @@ export function janelaPagamento(d: Date): string {
 
 /**
  * Grid de comissão PAGA: Map<janela "YYYY-MM", number[12]> onde o array é
- * indexado pelo mês de ORIGEM (emissão, 0=jan). Valor = comissaoLinha *
- * (pctRateio/100). Só linhas classificacao === "PAGO" com dataPagamento.
+ * indexado pelo mês de ORIGEM (emissão, 0=jan). Valor = comissaoLinha
+ * (valor * comissaoPct, sem aplicar pctRateio). Só linhas classificacao === "PAGO"
+ * com dataPagamento.
  */
 export function gridPedidosPagos(
   lancamentos: LancamentoInput[],
@@ -30,7 +31,8 @@ export function gridPedidosPagos(
     if (l.classificacao !== "PAGO" || !l.dataPagamento) continue;
     const janela = janelaPagamento(l.dataPagamento);
     const origem = l.dataEmissao.getMonth(); // 0-11
-    const valorPago = comissaoLinha(l.valor, comissaoPct) * (l.pctRateio / 100);
+    const pct = l.comissaoPct ?? comissaoPct;
+    const valorPago = comissaoLinha(l.valor, pct);
     if (!grid.has(janela)) grid.set(janela, new Array<number>(12).fill(0));
     grid.get(janela)![origem] += valorPago;
   }

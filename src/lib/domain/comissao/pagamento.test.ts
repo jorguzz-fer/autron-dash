@@ -19,23 +19,23 @@ describe("janelaPagamento", () => {
 });
 
 describe("gridPedidosPagos", () => {
-  it("agrupa comissão paga por janela x mês origem, proporcional ao rateio", () => {
+  it("agrupa comissão paga por janela x mês origem", () => {
     const lancs: LancamentoInput[] = [
       { numeroPedido: "P1", itemPedido: "A", dataEmissao: new Date(2026, 0, 10), valor: 10000, codVendedor: "V", dataPagamento: new Date(2026, 2, 24), parcela: 1, pctRateio: 100, classificacao: "PAGO" },
       // Não pago (FATURADO) — ignorado
       { numeroPedido: "P2", itemPedido: "A", dataEmissao: new Date(2026, 0, 12), valor: 5000, codVendedor: "V", dataPagamento: null, parcela: 1, pctRateio: 100, classificacao: "FATURADO" },
     ];
     const grid = gridPedidosPagos(lancs, 0.015);
-    // P1: comissao 10000*0.015=150, rateio 100% -> 150 na janela 2026-04, origem jan(0)
+    // P1: comissao 10000*0.015=150 na janela 2026-04, origem jan(0)
     expect(grid.get("2026-04")?.[0]).toBeCloseTo(150, 6);
   });
 
-  it("parcela paga libera proporção do rateio", () => {
+  it("pctRateio não afeta o valor da comissão (comissão = valor * pct integralmente)", () => {
     const lancs: LancamentoInput[] = [
       { numeroPedido: "P1", itemPedido: "A", dataEmissao: new Date(2026, 0, 10), valor: 30000, codVendedor: "V", dataPagamento: new Date(2026, 3, 22), parcela: 1, pctRateio: 33.33, classificacao: "PAGO" },
     ];
     const grid = gridPedidosPagos(lancs, 0.005);
-    // comissao linha = 30000*0.005=150; * 33.33% = 49.995
-    expect(grid.get("2026-05")?.[0]).toBeCloseTo(49.995, 3);
+    // comissao = 30000*0.005 = 150 (pctRateio ignorado no cálculo)
+    expect(grid.get("2026-05")?.[0]).toBeCloseTo(150, 3);
   });
 });

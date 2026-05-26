@@ -13,6 +13,9 @@ export interface LancamentoInput {
   parcela: number | null;
   pctRateio: number; // 100, 33.33...
   classificacao: Classificacao;
+  /** Percentual de comissão efetivo da linha (ex.: 0.01, 0.005, 0.013).
+   *  Quando ausente, usa o comissaoPct da RegraVendedor como fallback. */
+  comissaoPct?: number;
 }
 
 export interface MetaInput {

@@ -41,14 +41,14 @@ describe("apurarAno", () => {
     expect(ap[0].saldo).toBe(200);
   });
 
-  it("elegibilidade acumulada YTD: mês fraco compensado por mês forte", () => {
-    // JAN EP 2000 (meta 1000) sobra; FEV EP 100 (meta 1000) fraco.
-    // YTD FEV: EP 2100 >= gatilho YTD 1400 (0.7*(1000+1000)) -> habilita
+  it("elegibilidade mensal: cada mês avaliado independentemente", () => {
+    // JAN EP 2000 (meta 1000, gatilho 700) -> habilita
+    // FEV EP 100 (meta 1000, gatilho 700) -> NÃO habilita (mês fraco não compensado pelo JAN forte)
     const lancs = [lanc(1, 2000, "P1"), lanc(2, 100, "P2")];
     const metas = [meta(1, 1000), meta(2, 1000)];
     const ap = apurarAno(lancs, metas, regra, 2026);
     expect(ap[0].habilita).toBe(true);
-    expect(ap[1].habilita).toBe(true);
+    expect(ap[1].habilita).toBe(false);
   });
 
   it("perde elegibilidade quando acumulado YTD cai abaixo do gatilho", () => {
@@ -73,5 +73,94 @@ describe("apurarAno", () => {
     const ap = apurarAno(lancs, metas, regra, 2026);
     expect(ap[0].saldoAcumulado).toBe(200);   // +200
     expect(ap[1].saldoAcumulado).toBe(100);   // +200 -100
+  });
+
+  it("dedup: two null itemPedido of same pedido counted as one", () => {
+    const lancs = [
+      lanc(1, 500, "P1", "", null, 100),
+      lanc(1, 500, "P1", "", null, 100),
+    ];
+    // Create proper null-item lancs
+    const lancamentos: LancamentoInput[] = [
+      {
+        numeroPedido: "P1",
+        itemPedido: null,
+        dataEmissao: new Date(2026, 0, 10),
+        valor: 500,
+        codVendedor: VEND,
+        dataPagamento: null,
+        parcela: null,
+        pctRateio: 100,
+        classificacao: "PREVISTO",
+      },
+      {
+        numeroPedido: "P1",
+        itemPedido: null,
+        dataEmissao: new Date(2026, 0, 10),
+        valor: 500,
+        codVendedor: VEND,
+        dataPagamento: null,
+        parcela: null,
+        pctRateio: 100,
+        classificacao: "PREVISTO",
+      },
+    ];
+    const ap = apurarAno(lancamentos, [meta(1, 1000)], regra, 2026);
+    expect(ap[0].ep).toBe(500); // counted once, not twice
+  });
+
+  it("different itemPedido of same pedido are separate", () => {
+    const lancamentos: LancamentoInput[] = [
+      {
+        numeroPedido: "P1",
+        itemPedido: "A",
+        dataEmissao: new Date(2026, 0, 10),
+        valor: 100,
+        codVendedor: VEND,
+        dataPagamento: null,
+        parcela: null,
+        pctRateio: 100,
+        classificacao: "PREVISTO",
+      },
+      {
+        numeroPedido: "P1",
+        itemPedido: "B",
+        dataEmissao: new Date(2026, 0, 10),
+        valor: 200,
+        codVendedor: VEND,
+        dataPagamento: null,
+        parcela: null,
+        pctRateio: 100,
+        classificacao: "PREVISTO",
+      },
+    ];
+    const ap = apurarAno(lancamentos, [meta(1, 1000)], regra, 2026);
+    expect(ap[0].ep).toBe(300); // both items counted separately
+  });
+
+  it("ignores lancamentos from different year", () => {
+    const lancamentos: LancamentoInput[] = [
+      lanc(1, 1000, "P1"),
+      {
+        numeroPedido: "P2",
+        itemPedido: "A",
+        dataEmissao: new Date(2025, 0, 10), // different year
+        valor: 1000,
+        codVendedor: VEND,
+        dataPagamento: null,
+        parcela: null,
+        pctRateio: 100,
+        classificacao: "PREVISTO",
+      },
+    ];
+    const ap = apurarAno(lancamentos, [meta(1, 1000)], regra, 2026);
+    expect(ap[0].ep).toBe(1000); // only 2026 counted
+  });
+
+  it("zero metas default to 0", () => {
+    const ap = apurarAno([lanc(1, 500, "P1")], [], regra, 2026);
+    expect(ap[0].meta).toBe(0);
+    expect(ap[0].gatilho).toBe(0);
+    expect(ap[0].saldo).toBe(500); // ep - meta = 500 - 0
   });
 });
