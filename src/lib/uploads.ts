@@ -51,7 +51,10 @@ export async function processUpload(input: ProcessUploadInput): Promise<ProcessU
   });
 
   try {
-    const parser = PARSERS[dataset];
+    const parser = PARSERS[dataset as keyof typeof PARSERS];
+    if (!parser) {
+      throw new Error(`Parser não implementado para dataset: ${dataset}`);
+    }
     const parsed = await parser(buffer);
 
     if (parsed.rows.length === 0) {
