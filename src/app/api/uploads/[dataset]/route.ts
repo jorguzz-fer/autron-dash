@@ -4,20 +4,10 @@ import { requireRole, ROLES_WRITE } from "@/lib/authz";
 import { rateLimit } from "@/lib/rateLimit";
 import { processUpload } from "@/lib/uploads";
 import { getClientIp, getUserAgent, logAudit } from "@/lib/audit";
-import { DATASET_ACCEPTS } from "@/lib/parsers";
+import { DATASET_ACCEPTS, PARSERS } from "@/lib/parsers";
 
 const MAX_UPLOAD_BYTES = (Number(process.env.MAX_UPLOAD_SIZE_MB ?? 20)) * 1024 * 1024;
-const VALID_DATASETS = new Set<Dataset>([
-  "PEDIDO",
-  "FOLLOWUP",
-  "ESTOQUE",
-  "FATURAMENTO",
-  "CLASSIFICACAO",
-  "META",
-  "PLOOMES",
-  "COMISSAO_ANALITICO",
-  "COMISSAO_META",
-]);
+const VALID_DATASETS = new Set(Object.keys(PARSERS) as Dataset[]);
 
 export const maxDuration = 120;
 
