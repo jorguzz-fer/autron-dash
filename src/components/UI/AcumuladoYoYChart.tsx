@@ -111,19 +111,22 @@ export default function AcumuladoYoYChart({
     },
     yaxis: [
       {
-        // eixo esquerdo — valores R$ (série 2025)
+        // eixo esquerdo — valores R$ — escala compartilhada pelas 2 séries de barra
+        seriesName: String(anoAnterior),
         labels: {
           style: { fontSize: "11px" },
           formatter: fmtCompact,
         },
       },
       {
-        // série 2026 usa o mesmo eixo esquerdo (oculto)
+        // série 2026 usa EXATAMENTE a mesma escala de 2025 (seriesName idêntico)
+        seriesName: String(anoAnterior),
         show: false,
         labels: { formatter: fmtCompact },
       },
       {
         // eixo direito — % crescimento (linha)
+        seriesName: "Crescimento % acum.",
         opposite: true,
         labels: {
           style: { fontSize: "11px", colors: ["#f59e0b"] },
