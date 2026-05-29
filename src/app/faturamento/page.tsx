@@ -15,6 +15,7 @@ import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import BarCompareChart from "@/components/UI/BarCompareChart";
 import ForecastAcumuladoChart from "@/components/UI/ForecastAcumuladoChart";
+import AcumuladoYoYChart from "@/components/UI/AcumuladoYoYChart";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import HBarRanking from "@/components/UI/HBarRanking";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
@@ -243,6 +244,13 @@ export default async function FaturamentoPage({
   const acumAtUltimo = (acumAnoAtArr[mesAtual - 1] as number) ?? 0;
   const varAcumYoY =
     acumAntUltimo === 0 ? 0 : ((acumAtUltimo - acumAntUltimo) / acumAntUltimo) * 100;
+
+  // % crescimento acumulado por mês (null para meses sem dado do anoAtual)
+  const crescimentoAcum: (number | null)[] = acumAnoAntArr.map((ant, i) => {
+    const at = acumAnoAtArr[i];
+    if (at == null || ant === 0) return null;
+    return ((at - ant) / ant) * 100;
+  });
 
   // ── Quadro Meta × Realizado (12 meses × 7 linhas) ─────────────
   // Paridade Streamlit app.py:2294-2319.
@@ -669,12 +677,15 @@ export default async function FaturamentoPage({
             title={`Acumulado Mês a Mês — ${anoAnterior} × ${anoAtual}`}
             subtitle={`Fat. líquido acumulado jan→${MES_LABELS[mesAtual - 1]} · % crescimento ano a ano`}
           >
-            {/* Gráfico de barras agrupadas */}
-            <BarCompareChart
-              seriesA={{ name: String(anoAnterior), data: acumAnoAntArr }}
-              seriesB={{ name: String(anoAtual), data: acumAnoAtArr.map((v) => v ?? 0) }}
+            {/* Barras agrupadas acumuladas + linha de crescimento % */}
+            <AcumuladoYoYChart
               categories={MES_LABELS}
-              height={300}
+              dataAnoAnt={acumAnoAntArr}
+              dataAnoAt={acumAnoAtArr.map((v) => v ?? 0)}
+              crescimento={crescimentoAcum}
+              anoAnterior={anoAnterior}
+              anoAtual={anoAtual}
+              height={320}
             />
 
             {/* KPIs de resumo */}
