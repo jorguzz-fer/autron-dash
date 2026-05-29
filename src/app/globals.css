@@ -86,17 +86,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar refinado — escuro persistente em sidebar, theme-responsive em conteúdo */
-* { scrollbar-width: thin; }
-::-webkit-scrollbar { width: 10px; height: 10px; }
+/* Scrollbar minimalista — 4 px, aparece apenas no hover */
+* { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+*:hover { scrollbar-color: rgba(255,255,255,0.18) transparent; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 8px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background: transparent;
+  border-radius: 99px;
+  transition: background 0.2s;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); background-clip: padding-box; }
+*:hover::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); }
+*:hover::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.35); }
 
 /* Utility: tabular-nums em todo lugar onde quisermos números alinhados */
 .numeric { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
