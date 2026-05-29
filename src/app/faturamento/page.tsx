@@ -669,6 +669,14 @@ export default async function FaturamentoPage({
             title={`Acumulado Mês a Mês — ${anoAnterior} × ${anoAtual}`}
             subtitle={`Fat. líquido acumulado jan→${MES_LABELS[mesAtual - 1]} · % crescimento ano a ano`}
           >
+            {/* Gráfico de barras agrupadas */}
+            <BarCompareChart
+              seriesA={{ name: String(anoAnterior), data: acumAnoAntArr }}
+              seriesB={{ name: String(anoAtual), data: acumAnoAtArr.map((v) => v ?? 0) }}
+              categories={MES_LABELS}
+              height={300}
+            />
+
             {/* KPIs de resumo */}
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <KPICard
