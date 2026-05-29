@@ -222,6 +222,28 @@ export default async function FaturamentoPage({
   const totalAnoAt = seriesAnoAt.data.reduce((a, v) => a + v, 0);
   const variacaoYoY = totalAnoAnt === 0 ? 0 : ((totalAnoAt - totalAnoAnt) / totalAnoAnt) * 100;
 
+  // ── Acumulado YoY mês a mês ────────────────────────────────────
+  // Para anoAtual, apenas meses <= mesAtual têm dado real; os demais ficam null.
+  const acumAnoAntArr: number[] = [];
+  const acumAnoAtArr: (number | null)[] = [];
+  let _runAnt = 0;
+  let _runAt = 0;
+  for (let i = 0; i < 12; i++) {
+    _runAnt += fatMes(anoAnterior, i + 1);
+    acumAnoAntArr.push(_runAnt);
+    if (i + 1 <= mesAtual) {
+      _runAt += fatMes(anoAtual, i + 1);
+      acumAnoAtArr.push(_runAt);
+    } else {
+      acumAnoAtArr.push(null);
+    }
+  }
+  // Variação acumulada até o último mês com dados (mesAtual)
+  const acumAntUltimo = acumAnoAntArr[mesAtual - 1] ?? 0;
+  const acumAtUltimo = (acumAnoAtArr[mesAtual - 1] as number) ?? 0;
+  const varAcumYoY =
+    acumAntUltimo === 0 ? 0 : ((acumAtUltimo - acumAntUltimo) / acumAntUltimo) * 100;
+
   // ── Quadro Meta × Realizado (12 meses × 7 linhas) ─────────────
   // Paridade Streamlit app.py:2294-2319.
   //   Total Líquido      = Fat. Líquido (realizado) + Total Líq. a Faturar (-17%)
@@ -641,6 +663,186 @@ export default async function FaturamentoPage({
               tone={variacaoYoY >= 0 ? "success" : "danger"}
             />
           </div>
+
+          {/* ── Acumulado mês a mês ── */}
+          <CardSection
+            title={`Acumulado Mês a Mês — ${anoAnterior} × ${anoAtual}`}
+            subtitle={`Fat. líquido acumulado jan→${MES_LABELS[mesAtual - 1]} · % crescimento ano a ano`}
+          >
+            {/* KPIs de resumo */}
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <KPICard
+                label={`Acum. ${anoAnterior} (${MES_LABELS[mesAtual - 1]})`}
+                value={fmtCurrency(acumAntUltimo, { decimals: 0 })}
+                tone="neutral"
+              />
+              <KPICard
+                label={`Acum. ${anoAtual} (${MES_LABELS[mesAtual - 1]})`}
+                value={fmtCurrency(acumAtUltimo, { decimals: 0 })}
+                tone="brand"
+              />
+              <KPICard
+                label="Crescimento Acumulado"
+                value={`${varAcumYoY >= 0 ? "+" : ""}${fmtPct(varAcumYoY, 1)}`}
+                hint={`vs ${anoAnterior} no mesmo período`}
+                tone={varAcumYoY >= 0 ? "success" : "danger"}
+              />
+              <KPICard
+                label="Δ Acumulado"
+                value={fmtCurrency(Math.abs(acumAtUltimo - acumAntUltimo), { decimals: 0 })}
+                hint={acumAtUltimo >= acumAntUltimo ? "acima do ano anterior" : "abaixo do ano anterior"}
+                tone={acumAtUltimo >= acumAntUltimo ? "success" : "danger"}
+              />
+            </div>
+
+            {/* Tabela mensal */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr
+                    className="text-[10.5px] uppercase tracking-wider"
+                    style={{
+                      color: "var(--fg-muted)",
+                      backgroundColor: "var(--surface-2)",
+                      borderBottom: "1px solid var(--border-soft)",
+                    }}
+                  >
+                    <th className="px-3 py-2.5 text-left font-semibold" style={{ minWidth: 60 }}>
+                      Mês
+                    </th>
+                    <th className="px-3 py-2.5 text-right font-semibold" style={{ minWidth: 140 }}>
+                      Acum. {anoAnterior}
+                    </th>
+                    <th className="px-3 py-2.5 text-right font-semibold" style={{ minWidth: 140 }}>
+                      Acum. {anoAtual}
+                    </th>
+                    <th className="px-3 py-2.5 text-right font-semibold" style={{ minWidth: 110 }}>
+                      Cresc. %
+                    </th>
+                    <th className="px-3 py-2.5 text-right font-semibold" style={{ minWidth: 140 }}>
+                      Δ R$
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {MES_LABELS.map((mes, i) => {
+                    const ant = acumAnoAntArr[i];
+                    const at = acumAnoAtArr[i];
+                    const cresc = at != null && ant > 0 ? ((at - ant) / ant) * 100 : null;
+                    const delta = at != null ? at - ant : null;
+                    const isCurrentMonth = i + 1 === mesAtual;
+                    const isFuture = i + 1 > mesAtual;
+                    return (
+                      <tr
+                        key={mes}
+                        style={{
+                          borderTop: "1px solid var(--border-soft)",
+                          backgroundColor: isCurrentMonth
+                            ? "color-mix(in srgb, var(--color-brand-500) 7%, var(--surface))"
+                            : undefined,
+                          opacity: isFuture ? 0.45 : 1,
+                        }}
+                      >
+                        <td
+                          className="px-3 py-2 font-semibold uppercase"
+                          style={{
+                            color: isCurrentMonth ? "var(--color-brand-500)" : "var(--fg-strong)",
+                          }}
+                        >
+                          {mes}
+                        </td>
+                        {/* Acumulado ano anterior */}
+                        <td className="numeric px-3 py-2 text-right" style={{ color: "var(--fg)" }}>
+                          {fmtCurrency(ant, { decimals: 0 })}
+                        </td>
+                        {/* Acumulado ano atual */}
+                        <td
+                          className="numeric px-3 py-2 text-right font-semibold"
+                          style={{ color: at != null ? "var(--fg-strong)" : "var(--fg-muted)" }}
+                        >
+                          {at != null ? fmtCurrency(at, { decimals: 0 }) : "—"}
+                        </td>
+                        {/* Crescimento % */}
+                        <td
+                          className="numeric px-3 py-2 text-right font-semibold"
+                          style={{
+                            color:
+                              cresc == null
+                                ? "var(--fg-muted)"
+                                : cresc >= 0
+                                ? "#10b981"
+                                : "#e11d48",
+                          }}
+                        >
+                          {cresc == null
+                            ? "—"
+                            : `${cresc >= 0 ? "+" : ""}${fmtPct(cresc, 1)}`}
+                        </td>
+                        {/* Delta R$ */}
+                        <td
+                          className="numeric px-3 py-2 text-right"
+                          style={{
+                            color:
+                              delta == null
+                                ? "var(--fg-muted)"
+                                : delta >= 0
+                                ? "#10b981"
+                                : "#e11d48",
+                          }}
+                        >
+                          {delta == null
+                            ? "—"
+                            : `${delta >= 0 ? "+" : "−"}${fmtCurrency(Math.abs(delta), { decimals: 0 })}`}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                {/* Rodapé: totais anuais */}
+                <tfoot>
+                  <tr
+                    style={{
+                      borderTop: "2px solid var(--border-soft)",
+                      backgroundColor: "var(--surface-2)",
+                    }}
+                  >
+                    <td
+                      className="px-3 py-2.5 text-[10.5px] font-bold uppercase tracking-wider"
+                      style={{ color: "var(--fg-strong)" }}
+                    >
+                      TOTAL ANO
+                    </td>
+                    <td
+                      className="numeric px-3 py-2.5 text-right text-[11px] font-bold"
+                      style={{ color: "var(--fg-strong)" }}
+                    >
+                      {fmtCurrency(totalAnoAnt, { decimals: 0 })}
+                    </td>
+                    <td
+                      className="numeric px-3 py-2.5 text-right text-[11px] font-bold"
+                      style={{ color: "var(--color-brand-500)" }}
+                    >
+                      {fmtCurrency(totalAnoAt, { decimals: 0 })}
+                    </td>
+                    <td
+                      className="numeric px-3 py-2.5 text-right text-[11px] font-bold"
+                      style={{ color: variacaoYoY >= 0 ? "#10b981" : "#e11d48" }}
+                    >
+                      {`${variacaoYoY >= 0 ? "+" : ""}${fmtPct(variacaoYoY, 1)}`}
+                    </td>
+                    <td
+                      className="numeric px-3 py-2.5 text-right text-[11px] font-bold"
+                      style={{
+                        color: totalAnoAt - totalAnoAnt >= 0 ? "#10b981" : "#e11d48",
+                      }}
+                    >
+                      {`${totalAnoAt - totalAnoAnt >= 0 ? "+" : "−"}${fmtCurrency(Math.abs(totalAnoAt - totalAnoAnt), { decimals: 0 })}`}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </CardSection>
         </SectionBlock>
 
         {/* ── Quadro Meta × Realizado ── */}
