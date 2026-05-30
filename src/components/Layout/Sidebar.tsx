@@ -82,7 +82,9 @@ interface SidebarProps {
 export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: SidebarProps) {
   const isAdmin = user.role === "ADMIN";
   const isControladoria = user.role === "ADMIN" || user.role === "CONTROLADORIA";
-  const isComissoes = ["ADMIN", "DIRETOR", "CONTROLADORIA"].includes(user.role ?? "");
+  // Comissões: visível apenas para Fernando durante o período de configuração inicial.
+  // Remover ou ampliar esta restrição quando o módulo estiver validado com dados reais.
+  const isComissoes = user.email === "fer.jorge@gmail.com";
   const { collapsed } = useSidebar();
 
   // Filtra itens de "Ferramentas" — esconde Chat IA quando não está habilitado.
