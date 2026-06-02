@@ -19,7 +19,15 @@ services:
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
     restart: unless-stopped
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    # --num_workers 2: fixa a concorrência (VPS de 2 vCPU). Sem isso a imagem
+    # pode subir mais workers do que o ideal e competir por CPU.
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
+    # Teto de CPU/memória pra nenhum serviço sozinho derrubar o host.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
     volumes:
       - ./litellm-config.yaml:/app/config.yaml:ro
     environment:
@@ -39,6 +47,14 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     restart: unless-stopped
+    # Teto de recursos: o Open WebUI carrega um modelo de embeddings local
+    # (sentence-transformers) p/ RAG, que é CPU-bound e costuma ser o maior
+    # consumidor de CPU desta stack. O limite impede que ele tome o host todo.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1500m
     volumes:
       - open-webui-data:/app/backend/data
     environment:
@@ -63,6 +79,12 @@ services:
     build:
       context: ./ia-sso-proxy
     restart: unless-stopped
+    # Proxy leve: teto baixo é suficiente.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
     environment:
       IA_SSO_SECRET: ${IA_SSO_SECRET}
       OPEN_WEBUI_URL: http://open-webui:8080
