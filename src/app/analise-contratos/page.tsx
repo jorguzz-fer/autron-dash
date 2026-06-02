@@ -8,6 +8,7 @@ import CardSection from "@/components/UI/CardSection";
 import TimeSeriesChart from "@/components/UI/TimeSeriesChart";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import StatusBadge from "@/components/UI/StatusBadge";
+import FilterSelect from "@/components/UI/FilterSelect";
 import { fmtCurrency, fmtNum, fmtPct } from "@/lib/format";
 import { parseSort, sortRows } from "@/lib/sort";
 import {
@@ -35,6 +36,8 @@ interface SP {
   dirC?: string;
   sortP?: string;
   dirP?: string;
+  /** Filtro por cliente (código) na tabela de produtos ano a ano. */
+  cli?: string;
 }
 
 export default async function AnaliseContratosPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -258,9 +261,18 @@ export default async function AnaliseContratosPage({ searchParams }: { searchPar
       status: statusProduto(p.qtdAnt, p.qtdBase),
     };
   });
+  // Opções do filtro por cliente — clientes presentes na tabela de produtos.
+  const clienteOptions = Array.from(new Map(produtoRowsBase.map((p) => [p.codigo, p.razaoSocial])).entries())
+    .map(([codigo, razao]) => ({ value: codigo, label: razao === codigo ? codigo : `${razao} (${codigo})` }))
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+
+  const cliFiltro = sp.cli && clienteOptions.some((o) => o.value === sp.cli) ? sp.cli : undefined;
+  const produtoRowsFiltradas = cliFiltro
+    ? produtoRowsBase.filter((p) => p.codigo === cliFiltro)
+    : produtoRowsBase;
   const produtoRows = sortStateProd
-    ? (sortRows(produtoRowsBase as unknown as Record<string, unknown>[], sortStateProd) as unknown as ProdutoRow[])
-    : [...produtoRowsBase].sort((a, b) => Math.max(b.valorBase, b.valorAnt) - Math.max(a.valorBase, a.valorAnt));
+    ? (sortRows(produtoRowsFiltradas as unknown as Record<string, unknown>[], sortStateProd) as unknown as ProdutoRow[])
+    : [...produtoRowsFiltradas].sort((a, b) => Math.max(b.valorBase, b.valorAnt) - Math.max(a.valorBase, a.valorAnt));
 
   // ── Alerta: produtos que deixaram de ser vendidos (mesmo período) ────
   const descontinuados = produtoRowsBase
@@ -454,7 +466,18 @@ export default async function AnaliseContratosPage({ searchParams }: { searchPar
                 Valor por ano · cliente × produto ({periodoLabel})
               </span>
             }
-            subtitle={`${fmtNum(produtoRows.length)} combinações cliente/produto · valores no mesmo período de cada ano (${anoInicio}–${anoBase})`}
+            subtitle={`${fmtNum(produtoRows.length)} ${cliFiltro ? "produto(s) do cliente selecionado" : "combinações cliente/produto"} · valores no mesmo período de cada ano (${anoInicio}–${anoBase})`}
+            actions={
+              <div className="w-64">
+                <FilterSelect
+                  name="cli"
+                  label="Cliente"
+                  options={clienteOptions}
+                  value={cliFiltro}
+                  allLabel="Todos os clientes"
+                />
+              </div>
+            }
           >
             <DataTable
               columns={produtoCols(anosMulti)}
