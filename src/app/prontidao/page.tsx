@@ -516,7 +516,7 @@ export default async function ProntidaoPage({
               }
             >
               <DataTable
-                columns={acaoCols}
+                columns={prontidaoCols(obsMap, canEditObs)}
                 rows={pedidosAcao}
                 rowKey={(p) => p.id}
                 emptyMessage="Nenhum pedido nesta ação."
@@ -805,105 +805,6 @@ function atendTexto(p: PedidoEnriched) {
   const color = c === "dentro" ? "#10b981" : c === "fora" ? "#e11d48" : "var(--fg-muted)";
   return <span className="whitespace-nowrap text-[12px]" style={{ color }}>{label}</span>;
 }
-
-// Colunas ENXUTAS da tabela dedicada de Ação Necessária — foco no que
-// importa pra resolver a ação e imprimir limpo.
-const acaoCols: Column<PedidoEnriched>[] = [
-  {
-    key: "pv",
-    header: "PV",
-    sortKey: "numPedido",
-    cell: (p) => <span className="numeric whitespace-nowrap text-[12px]">{p.numPedido}</span>,
-    width: "90px",
-  },
-  {
-    key: "item",
-    header: "Item",
-    sortKey: "item",
-    cell: (p) => <span className="numeric text-[12px]">{p.item}</span>,
-    width: "55px",
-  },
-  {
-    key: "produto",
-    header: "Produto",
-    sortKey: "produto",
-    cell: (p) => (
-      <div>
-        <code className="whitespace-nowrap font-mono text-[12px]">{p.produto}</code>
-        <div
-          className="max-w-[240px] truncate text-[11.5px]"
-          title={p.descricaoProduto ?? ""}
-          style={{ color: "var(--fg-muted)" }}
-        >
-          {p.descricaoProduto ?? ""}
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: "cliente",
-    header: "Cliente",
-    sortKey: "clienteNome",
-    cell: (p) => (
-      <span
-        className="block max-w-[200px] truncate text-[12px]"
-        title={p.clienteNome ?? p.cliente ?? ""}
-        style={{ color: "var(--fg)" }}
-      >
-        {p.clienteNome ?? p.cliente ?? "—"}
-      </span>
-    ),
-  },
-  {
-    key: "qtd",
-    header: "Qtd",
-    sortKey: "quantidade",
-    align: "right",
-    cell: (p) => <span className="numeric text-[12px]">{fmtNum(p.quantidade)}</span>,
-  },
-  {
-    key: "acao",
-    header: "Ação",
-    sortKey: "acaoNecessaria",
-    cell: (p) => <span className="whitespace-nowrap">{acaoBadge(p.acaoNecessaria)}</span>,
-  },
-  {
-    key: "scop",
-    header: "SC / OP",
-    cell: scOpCell,
-  },
-  {
-    key: "prazoEnt",
-    header: "Prazo Entrega",
-    cell: (p) => (
-      <span className="numeric whitespace-nowrap text-[12px]">
-        {p.prazoRealEntrega instanceof Date
-          ? fmtDate(p.prazoRealEntrega)
-          : p.prazoRealEntrega ?? "—"}
-      </span>
-    ),
-  },
-  {
-    key: "dtConfirma",
-    header: "Dt. Confirma",
-    sortKey: "fuDtConfirma",
-    cell: (p) => (
-      <span className="numeric whitespace-nowrap text-[12px]">
-        {p.fuDtConfirma ? fmtDate(p.fuDtConfirma) : "—"}
-      </span>
-    ),
-  },
-  {
-    key: "dtNec",
-    header: "Dt. Necessidade Cliente",
-    sortKey: "dtFatCli",
-    cell: (p) => (
-      <span className="numeric whitespace-nowrap text-[12px]">
-        {p.dtFatCli ? fmtDate(p.dtFatCli) : "—"}
-      </span>
-    ),
-  },
-];
 
 function prontidaoCols(
   obsMap: Awaited<ReturnType<typeof getObservacoesByTenant>>,
