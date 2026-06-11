@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
+import { getObservacoesByTenant } from "@/lib/services/observacaoPV";
 import { parseDateInput } from "@/lib/sort";
 import {
   applyProntidaoFilters,
@@ -28,11 +29,14 @@ export async function GET(req: NextRequest) {
   const dataInicio = parseDateInput(u.get("from") ?? undefined);
   const dataFim = parseDateInput(u.get("to") ?? undefined, true);
 
-  const all = await getEnrichedPedidos({
-    tenantId: session.user.tenantId,
-    dataInicio,
-    dataFim,
-  });
+  const [all, obsMap] = await Promise.all([
+    getEnrichedPedidos({
+      tenantId: session.user.tenantId,
+      dataInicio,
+      dataFim,
+    }),
+    getObservacoesByTenant(session.user.tenantId),
+  ]);
 
   // Status (em aberto default; "finalizado" exibe os outros) + filtros da tabela.
   const universo = filterByStatus(all, u.get("status") ?? undefined);
@@ -68,6 +72,8 @@ export async function GET(req: NextRequest) {
   const headers = [
     "PV",
     "Item",
+    "Emissão",
+    "Dt. Faturamento",
     "Cód. Cliente",
     "Cliente",
     "Produto",
@@ -85,10 +91,13 @@ export async function GET(req: NextRequest) {
     "Atendimento Prazo",
     "Semana",
     "Ped. Cliente",
+    "Observações",
+    "Últ. Atualização Obs.",
   ];
 
   const rows: CsvRow[] = sorted.map((p) => {
     const scOp = p.numeroSC ? `SC ${p.numeroSC}` : p.numeroOP ? `OP ${p.numeroOP}` : "";
+    const obs = obsMap.get(p.numPedido);
     const prazoEntrega =
       p.prazoRealEntrega instanceof Date
         ? csvDate(p.prazoRealEntrega)
@@ -104,6 +113,8 @@ export async function GET(req: NextRequest) {
     return [
       p.numPedido,
       p.item,
+      csvDate(p.dtEmissao),
+      csvDate(p.dtEntrega),
       p.cliente ?? "",
       p.clienteNome ?? "",
       p.produto,
@@ -121,6 +132,8 @@ export async function GET(req: NextRequest) {
       atendLabel,
       p.semanaEntrega ?? "",
       p.pedCliente ?? "",
+      obs?.texto ?? "",
+      csvDate(obs?.atualizadoEm),
     ];
   });
 
