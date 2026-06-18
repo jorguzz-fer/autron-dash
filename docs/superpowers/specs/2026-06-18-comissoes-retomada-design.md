@@ -64,17 +64,21 @@ mas ainda não codado.
 | A5 | % por cargo, versionado por ano | Márcio | ✅ feito | `ComissaoCargo(ano)` |
 | A6 | Upload das planilhas "do jeito que vêm do Protheus" | Silvio | ✅ feito | Mapeamento tolerante de colunas |
 | A7 | Extrato (RH acompanha; vendedor **não** acessa, recebe extrato) | Silvio | ✅ feito | Acesso só RH/Diretoria |
-| A8 | **Carteira/hierarquia** (gestor comissiona sobre subordinados) | Ambas | 🟡 specado | Fase 2 §4–5 |
-| A9 | **"Pulo do gato"**: pedido emitido em mês não-habilitado **nunca paga** | Márcio | 🟡 specado | Fase 2 §5.2 (gate por mês de emissão) |
-| A10 | **Garantido** (3–4 meses p/ recém-contratado; paga excedente) | Márcio | 🟡 specado | Fase 2 §5.2 `garantido.ts` |
-| A11 | **Tela de parametrização por vendedor** (%, gatilho, garantido, datas) | Márcio | 🟡 specado | Fase 2 §5.6 ("eu não tinha previsto, vou fazê-la") |
-| A12 | Refino do gatilho: `ARRED(atingim.;2) ≥ 70%` (bate o simulador) | Márcio | 🟡 specado | Fase 2 §5.2 (D2) |
-| A13 | Parsers lendo o **formato real** (valor c/ cambial, `/  /`, % por linha) | Márcio | 🟡 specado | Fase 2 §5.4 |
+| A8 | **Carteira/hierarquia** (gestor comissiona sobre subordinados) | Ambas | ✅ feito | `getCarteiraMembros`/`getExtratoVendedor` |
+| A9 | **"Pulo do gato"**: pedido emitido em mês não-habilitado **nunca paga** | Márcio | ✅ feito | `gridPedidosPagos(habilita[])` |
+| A10 | **Garantido** (3–4 meses p/ recém-contratado; paga excedente) | Márcio | ✅ feito | `garantido.ts` + CRUD |
+| A11 | **Tela de parametrização por vendedor** (%, gatilho, garantido, datas) | Márcio | ✅ feito | CRUD vendedor (supervisor + garantido) |
+| A12 | Refino do gatilho: `ARRED(atingim.;2) ≥ 70%` (bate o simulador) | Márcio | ✅ feito | `apuracao.ts` + teste do simulador |
+| A13 | Parsers lendo % por linha ("Informe o Percentual") | Márcio | ✅ feito | `analitico.ts` + coluna `comissaoPct` |
 | **N1** | **Representante Autônomo**: sem gatilho, pagamento **dia 15**, **% a definir** | Márcio | ⛔ aberto | Contrato recém-fechado; falta o % (Leandro) |
-| **N2** | Extrato distinguir **"Programado p/ pagar" (faturado, aguardando cliente)** de **"Pago"** | Silvio | ❓ a decidir | Hoje o grid só conta `PAGO` |
-| **N3** | Metas sazonais: **só upload** ou **também cadastro manual** mês a mês? | Márcio | ❓ a decidir | Métas são aprovadas/assinadas no ano |
+| **N2** | Extrato distinguir **"Programado p/ pagar" (faturado, aguardando cliente)** de **"Pago"** | Silvio | ✅ feito | `gridProgramados` + grid no extrato |
+| **N3** | Metas sazonais: só upload ou também cadastro manual? | Márcio | ✅ decidido | **Só upload** (sem mudança) |
 
-Legenda: ✅ feito · 🟡 specado (Fase 2, falta codar) · ⛔ aberto (depende de dado do cliente) · ❓ decisão de produto.
+Legenda: ✅ feito · 🟡 specado (falta codar) · ⛔ aberto (depende de dado do cliente).
+
+> **Decisões da retomada (2026-06-18):** começar pela Fase 2 (Bloco 1 — implementado nesta
+> rodada); N2 aprovado (estado "Programado p/ pagar" no extrato); N3 = metas só por upload;
+> N1 (Representante Autônomo) segue fora de escopo até o % fechar com o Leandro.
 
 ---
 
@@ -147,6 +151,9 @@ uma **tela de cadastro manual** das metas mês a mês (para o caso de não vir d
 ---
 
 ## 6. Plano de ação (sequenciamento)
+
+> **Status:** Bloco 1 e o item N2 implementados em `claude/wizardly-shannon-qugs4s`
+> (motor + migration 11 + service + parser + CRUD + extrato; 135 testes passando, build OK).
 
 **Bloco 1 — Implementar a Fase 2 já especificada** (desbloqueia carteira + garantido):
 1. Parsers no formato real (A13) + testes.

@@ -210,6 +210,7 @@ async function replaceDataset(
             produto: r.produto,
             quantidade: r.quantidade,
             valor: r.valor,
+            comissaoPct: r.comissaoPct,
             codVendedor: r.codVendedor,
             tipoNegocio: r.tipoNegocio,
             dataEntrega: r.dataEntrega,

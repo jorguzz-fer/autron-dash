@@ -6,10 +6,14 @@ import type { LancamentoInput, MetaInput, RegraVendedor, ApuracaoAno, MesApuraca
  * - EP do mês = soma do valor dos pedidos com dataEmissao no mês, deduplicando
  *   parcelas (mesma numeroPedido+itemPedido conta uma vez, valor do pedido).
  * - gatilho = meta * gatilhoPct; saldo = ep - meta.
- * - habilita (elegibilidade) = YTD: Σep(jan..m) >= Σgatilho(jan..m).
- *   gatilhoPct === 0 => sempre habilita.
+ * - habilita (elegibilidade) = YTD com arredondamento de 2 casas (igual ao
+ *   simulador do Márcio): ARRED(Σep / Σmeta ; 2) >= gatilhoPct.
+ *   gatilhoPct === 0 => sempre habilita; Σmeta(jan..m) === 0 => não habilita.
  * - previsao fica 0 aqui; preenchida pela composição em getExtratoVendedor.
  */
+function round2(x: number): number {
+  return Math.round(x * 100) / 100;
+}
 export function apurarAno(
   lancamentos: LancamentoInput[],
   metas: MetaInput[],
@@ -37,7 +41,7 @@ export function apurarAno(
   const result: MesApuracao[] = [];
   let saldoAcum = 0;
   let epAcum = 0;
-  let gatilhoAcum = 0;
+  let metaAcum = 0;
   for (let i = 0; i < 12; i++) {
     const meta = metaPorMes[i];
     const ep = epPorMes[i];
@@ -45,8 +49,11 @@ export function apurarAno(
     const saldo = ep - meta;
     saldoAcum += saldo;
     epAcum += ep;
-    gatilhoAcum += gatilho;
-    const habilita = regra.gatilhoPct === 0 ? true : epAcum >= gatilhoAcum;
+    metaAcum += meta;
+    const habilita =
+      regra.gatilhoPct === 0
+        ? true
+        : metaAcum > 0 && round2(epAcum / metaAcum) >= regra.gatilhoPct;
     result.push({
       mes: i + 1,
       meta,

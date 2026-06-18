@@ -513,12 +513,19 @@ model ComissaoVendedor {
   tipo            String   // "CLT" | "PJ" | "REPRESENTANTE"
   nivel           Int?
   gatilhoOverride Decimal? @db.Decimal(6, 4)
+  // Carteira/hierarquia (Fase 2): codigoProtheus do gestor. NULL = sem gestor.
+  supervisorCodigo String?
+  // Garantido (Fase 2): piso mensal por N meses para recém-contratado.
+  garantidoValor  Decimal?  @db.Decimal(15, 2)
+  garantidoInicio DateTime? // 1º dia do mês de início da janela
+  garantidoMeses  Int?      // duração (3-4 normalmente)
   ativo           Boolean  @default(true)
   createdAt       DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, codigoProtheus])
+  @@index([tenantId, supervisorCodigo])
 }
 
 model ComissaoLancamento {
@@ -532,6 +539,7 @@ model ComissaoLancamento {
   produto           String?
   quantidade        Int?
   valor             Decimal               @db.Decimal(15, 2)
+  comissaoPct       Decimal?              @db.Decimal(6, 4) // "Informe o Percentual" ÷ 100; fallback = % do cargo
   codVendedor       String
   tipoNegocio       String?
   dataEntrega       DateTime?

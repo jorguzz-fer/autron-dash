@@ -18,12 +18,31 @@ interface VendedorData {
   tipo: string;
   nivel: number | null;
   gatilhoOverride: string | number | null;
+  supervisorCodigo: string | null;
+  garantidoValor: string | number | null;
+  garantidoInicio: string | null; // "YYYY-MM"
+  garantidoMeses: number | null;
   ativo: boolean;
+}
+
+export interface SupervisorOption {
+  codigoProtheus: string;
+  nome: string;
+}
+
+/** Lê os campos comuns (supervisor + garantido) de um FormData. */
+function readExtraFields(fd: FormData) {
+  return {
+    supervisorCodigo: String(fd.get("supervisorCodigo") ?? "").trim() || null,
+    garantidoValor: fd.get("garantidoValor") ? Number(fd.get("garantidoValor")) : null,
+    garantidoInicio: String(fd.get("garantidoInicio") ?? "").trim() || null,
+    garantidoMeses: fd.get("garantidoMeses") ? Number(fd.get("garantidoMeses")) : null,
+  };
 }
 
 // ─────────────────────────── Criar Vendedor ──────────────────────────────────
 
-export function VendedorCriarBtn() {
+export function VendedorCriarBtn({ supervisores = [] }: { supervisores?: SupervisorOption[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +61,7 @@ export function VendedorCriarBtn() {
       tipo: String(fd.get("tipo") ?? "CLT"),
       nivel: fd.get("nivel") ? Number(fd.get("nivel")) : null,
       gatilhoOverride: fd.get("gatilhoOverride") ? Number(fd.get("gatilhoOverride")) : null,
+      ...readExtraFields(fd),
       ativo: fd.get("ativo") === "on",
     };
 
@@ -163,6 +183,12 @@ export function VendedorCriarBtn() {
               </Field>
             </div>
 
+            <Field label="Supervisor (carteira)" hint="gestor cuja carteira soma este vendedor; opcional">
+              <SupervisorSelect supervisores={supervisores} />
+            </Field>
+
+            <GarantidoFields />
+
             <label className="flex items-center gap-2 cursor-pointer text-[13px]" style={{ color: "var(--fg)" }}>
               <input type="checkbox" name="ativo" defaultChecked className="size-4 rounded" />
               Ativo
@@ -188,7 +214,13 @@ export function VendedorCriarBtn() {
 
 // ─────────────────────────── Editar Vendedor ─────────────────────────────────
 
-export function VendedorEditarBtn({ vendedor }: { vendedor: VendedorData }) {
+export function VendedorEditarBtn({
+  vendedor,
+  supervisores = [],
+}: {
+  vendedor: VendedorData;
+  supervisores?: SupervisorOption[];
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -205,6 +237,7 @@ export function VendedorEditarBtn({ vendedor }: { vendedor: VendedorData }) {
       tipo: String(fd.get("tipo") ?? "CLT"),
       nivel: fd.get("nivel") ? Number(fd.get("nivel")) : null,
       gatilhoOverride: fd.get("gatilhoOverride") ? Number(fd.get("gatilhoOverride")) : null,
+      ...readExtraFields(fd),
       ativo: fd.get("ativo") === "on",
     };
 
@@ -323,6 +356,19 @@ export function VendedorEditarBtn({ vendedor }: { vendedor: VendedorData }) {
               </Field>
             </div>
 
+            <Field label="Supervisor (carteira)" hint="gestor cuja carteira soma este vendedor; opcional">
+              <SupervisorSelect
+                supervisores={supervisores.filter((s) => s.codigoProtheus !== vendedor.codigoProtheus)}
+                value={vendedor.supervisorCodigo ?? ""}
+              />
+            </Field>
+
+            <GarantidoFields
+              valor={vendedor.garantidoValor != null ? Number(vendedor.garantidoValor) : undefined}
+              inicio={vendedor.garantidoInicio ?? undefined}
+              meses={vendedor.garantidoMeses ?? undefined}
+            />
+
             <label className="flex items-center gap-2 cursor-pointer text-[13px]" style={{ color: "var(--fg)" }}>
               <input
                 type="checkbox"
@@ -347,6 +393,82 @@ export function VendedorEditarBtn({ vendedor }: { vendedor: VendedorData }) {
         </form>
       </dialog>
     </>
+  );
+}
+
+// ─────────────────────────── Supervisor & Garantido ──────────────────────────
+
+function SupervisorSelect({
+  supervisores,
+  value = "",
+}: {
+  supervisores: SupervisorOption[];
+  value?: string;
+}) {
+  return (
+    <select name="supervisorCodigo" defaultValue={value} className={INPUT_CLASS} style={INPUT_STYLE}>
+      <option value="">— sem supervisor (individual) —</option>
+      {supervisores.map((s) => (
+        <option key={s.codigoProtheus} value={s.codigoProtheus}>
+          {s.codigoProtheus} — {s.nome}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function GarantidoFields({
+  valor,
+  inicio,
+  meses,
+}: {
+  valor?: number;
+  inicio?: string;
+  meses?: number;
+}) {
+  return (
+    <fieldset
+      className="rounded-lg border p-3"
+      style={{ borderColor: "var(--border-soft)" }}
+    >
+      <legend className="px-1 text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--fg-muted)" }}>
+        Garantido (opcional)
+      </legend>
+      <div className="grid grid-cols-3 gap-3">
+        <Field label="Valor/mês" hint="ex: 2000">
+          <input
+            type="number"
+            name="garantidoValor"
+            min={0}
+            step={0.01}
+            defaultValue={valor ?? ""}
+            className={INPUT_CLASS}
+            style={INPUT_STYLE}
+          />
+        </Field>
+        <Field label="Início" hint="mês/ano">
+          <input
+            type="month"
+            name="garantidoInicio"
+            defaultValue={inicio ?? ""}
+            className={INPUT_CLASS}
+            style={INPUT_STYLE}
+          />
+        </Field>
+        <Field label="Meses" hint="3–4">
+          <input
+            type="number"
+            name="garantidoMeses"
+            min={1}
+            max={12}
+            step={1}
+            defaultValue={meses ?? ""}
+            className={INPUT_CLASS}
+            style={INPUT_STYLE}
+          />
+        </Field>
+      </div>
+    </fieldset>
   );
 }
 

@@ -9,6 +9,7 @@ export interface LancamentoInput {
   dataEmissao: Date;
   valor: number;
   codVendedor: string;
+  dataVencimento?: Date | null;
   dataPagamento: Date | null;
   parcela: number | null;
   pctRateio: number; // 100, 33.33...
@@ -16,6 +17,14 @@ export interface LancamentoInput {
   /** Percentual de comissão efetivo da linha (ex.: 0.01, 0.005, 0.013).
    *  Quando ausente, usa o comissaoPct da RegraVendedor como fallback. */
   comissaoPct?: number;
+}
+
+/** Configuração de comissão garantida de um vendedor recém-contratado. */
+export interface GarantidoConfig {
+  valor: number;     // piso mensal (ex.: 2000)
+  inicioAno: number; // ano do 1º mês garantido
+  inicioMes: number; // 1-12
+  meses: number;     // duração (3-4 normalmente)
 }
 
 export interface MetaInput {

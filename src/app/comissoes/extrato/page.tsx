@@ -156,7 +156,32 @@ export default async function ExtratoPage({
                 </strong>
                 {" · Ano: "}
                 <strong>{ano}</strong>
+                {extrato.membros.length > 1 && (
+                  <>
+                    {" · "}Carteira:{" "}
+                    <strong>{extrato.membros.length} membros</strong>{" "}
+                    <span style={{ color: "var(--fg-subtle)" }}>
+                      ({extrato.membros.join(", ")})
+                    </span>
+                  </>
+                )}
+                {extrato.garantido && (
+                  <>
+                    {" · "}Garantido:{" "}
+                    <strong>
+                      {fmtCurrency(extrato.garantido.valor, { decimals: 0 })}/mês ·{" "}
+                      {extrato.garantido.meses}m a partir de{" "}
+                      {String(extrato.garantido.inicioMes).padStart(2, "0")}/
+                      {extrato.garantido.inicioAno}
+                    </strong>
+                  </>
+                )}
               </p>
+              {extrato.membros.length > 1 && (
+                <p className="mt-1 text-[11.5px]" style={{ color: "var(--fg-subtle)" }}>
+                  Apuração agregada da carteira (vendas e metas somadas; gatilho 70% sobre o total).
+                </p>
+              )}
             </div>
 
             {/* ── Grid 1: Apuração ── */}
@@ -260,85 +285,35 @@ export default async function ExtratoPage({
                       totalFn="sum"
                       bold
                     />
+                    {/* A Receber (com piso do garantido) — só quando há garantido */}
+                    {extrato.garantido && (
+                      <ApuracaoRow
+                        label="A Receber"
+                        values={extrato.aReceber}
+                        totalFn="sum"
+                        bold
+                      />
+                    )}
                   </tbody>
                 </table>
               </div>
             </SectionBlock>
 
+            {/* ── Grid: Programado para Pagar (faturado, aguardando cliente) ── */}
+            {extrato.programados.size > 0 && (
+              <SectionBlock title="Programado para Pagar (faturado · aguardando cliente)">
+                <JanelaGrid grid={extrato.programados} />
+                <p className="px-2 text-[11.5px]" style={{ color: "var(--fg-subtle)" }}>
+                  Pedidos já faturados, com pagamento previsto pela data de vencimento.
+                  Ainda não caíram — dependem do cliente pagar.
+                </p>
+              </SectionBlock>
+            )}
+
             {/* ── Grid 2: Pedidos Pagos por Janela ── */}
             {extrato.pedidosPagos.size > 0 && (
               <SectionBlock title="Pedidos Pagos por Janela">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[12px]">
-                    <thead>
-                      <tr
-                        className="text-[10.5px] uppercase tracking-wider"
-                        style={{
-                          color: "var(--fg-muted)",
-                          backgroundColor: "var(--surface-2)",
-                          borderBottom: "1px solid var(--border-soft)",
-                        }}
-                      >
-                        <th
-                          className="px-3 py-2.5 text-left font-semibold"
-                          style={{ minWidth: 130 }}
-                        >
-                          Janela
-                        </th>
-                        {MESES.map((m) => (
-                          <th
-                            key={m}
-                            className="px-2 py-2.5 text-right font-semibold"
-                            style={{ minWidth: 80, color: "var(--fg-muted)" }}
-                          >
-                            {m}
-                          </th>
-                        ))}
-                        <th
-                          className="px-2 py-2.5 text-right font-semibold"
-                          style={{ minWidth: 88, color: "var(--fg-strong)" }}
-                        >
-                          TOTAL
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Array.from(extrato.pedidosPagos.entries())
-                        .sort(([a], [b]) => a.localeCompare(b))
-                        .map(([janela, valores]) => {
-                          const total = valores.reduce((s, v) => s + v, 0);
-                          return (
-                            <tr
-                              key={janela}
-                              style={{ borderTop: "1px solid var(--border-soft)" }}
-                            >
-                              <td
-                                className="px-3 py-2 font-medium"
-                                style={{ color: "var(--fg-strong)" }}
-                              >
-                                {janela}
-                              </td>
-                              {valores.map((v, i) => (
-                                <td
-                                  key={i}
-                                  className="numeric px-2 py-2 text-right"
-                                  style={{ color: v ? "var(--fg)" : "var(--fg-muted)" }}
-                                >
-                                  {v ? fmtCurrency(v, { decimals: 0 }) : "—"}
-                                </td>
-                              ))}
-                              <td
-                                className="numeric px-2 py-2 text-right font-semibold"
-                                style={{ color: "var(--fg-strong)" }}
-                              >
-                                {fmtCurrency(total, { decimals: 0 })}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
+                <JanelaGrid grid={extrato.pedidosPagos} />
               </SectionBlock>
             )}
 
@@ -361,6 +336,73 @@ export default async function ExtratoPage({
 }
 
 // ── Helpers ────────────────────────────────────────────────────
+
+function JanelaGrid({ grid }: { grid: Map<string, number[]> }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr
+            className="text-[10.5px] uppercase tracking-wider"
+            style={{
+              color: "var(--fg-muted)",
+              backgroundColor: "var(--surface-2)",
+              borderBottom: "1px solid var(--border-soft)",
+            }}
+          >
+            <th className="px-3 py-2.5 text-left font-semibold" style={{ minWidth: 130 }}>
+              Janela
+            </th>
+            {MESES.map((m) => (
+              <th
+                key={m}
+                className="px-2 py-2.5 text-right font-semibold"
+                style={{ minWidth: 80, color: "var(--fg-muted)" }}
+              >
+                {m}
+              </th>
+            ))}
+            <th
+              className="px-2 py-2.5 text-right font-semibold"
+              style={{ minWidth: 88, color: "var(--fg-strong)" }}
+            >
+              TOTAL
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from(grid.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([janela, valores]) => {
+              const total = valores.reduce((s, v) => s + v, 0);
+              return (
+                <tr key={janela} style={{ borderTop: "1px solid var(--border-soft)" }}>
+                  <td className="px-3 py-2 font-medium" style={{ color: "var(--fg-strong)" }}>
+                    {janela}
+                  </td>
+                  {valores.map((v, i) => (
+                    <td
+                      key={i}
+                      className="numeric px-2 py-2 text-right"
+                      style={{ color: v ? "var(--fg)" : "var(--fg-muted)" }}
+                    >
+                      {v ? fmtCurrency(v, { decimals: 0 }) : "—"}
+                    </td>
+                  ))}
+                  <td
+                    className="numeric px-2 py-2 text-right font-semibold"
+                    style={{ color: "var(--fg-strong)" }}
+                  >
+                    {fmtCurrency(total, { decimals: 0 })}
+                  </td>
+                </tr>
+              );
+            })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function ApuracaoRow({
   label,
