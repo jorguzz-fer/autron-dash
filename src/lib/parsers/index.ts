@@ -8,6 +8,7 @@ import { parseMetas } from "./metas";
 import { parsePloomes } from "./ploomes";
 import { parseAnaliticoComissao } from "./comissao/analitico";
 import { parseMetasComissao } from "./comissao/metas";
+import { parseTituloReceber } from "./tituloReceber";
 
 export const PARSERS = {
   PEDIDO: parsePedido,
@@ -19,6 +20,7 @@ export const PARSERS = {
   PLOOMES: parsePloomes,
   COMISSAO_ANALITICO: parseAnaliticoComissao,
   COMISSAO_META: parseMetasComissao,
+  TITULO_RECEBER: parseTituloReceber,
 } as const;
 
 export const DATASET_LABELS: Record<Dataset, string> = {
@@ -31,6 +33,7 @@ export const DATASET_LABELS: Record<Dataset, string> = {
   PLOOMES: "Ploomes — Oportunidades Ganhas (Ganhas.xlsx)",
   COMISSAO_ANALITICO: "Comissões — Analítico (comissao_analitico.xlsx)",
   COMISSAO_META: "Comissões — Metas (comissao_metas.xlsx)",
+  TITULO_RECEBER: "Títulos a Receber (FINR130 — Posição dos Títulos)",
 };
 
 export const DATASET_ACCEPTS: Record<Dataset, string> = {
@@ -43,6 +46,7 @@ export const DATASET_ACCEPTS: Record<Dataset, string> = {
   PLOOMES: ".xlsx",
   COMISSAO_ANALITICO: ".xlsx",
   COMISSAO_META: ".xlsx",
+  TITULO_RECEBER: ".xlsx",
 };
 
 export type { PedidoRow } from "./pedido";
@@ -52,3 +56,4 @@ export type { FaturamentoRow } from "./faturamento";
 export type { ClassificacaoRow } from "./classificacao";
 export type { MetaRow } from "./metas";
 export type { PloomesRow } from "./ploomes";
+export type { TituloReceberRow } from "./tituloReceber";

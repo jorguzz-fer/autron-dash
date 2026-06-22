@@ -12,6 +12,7 @@ import type { MetaRow } from "@/lib/parsers/metas";
 import type { PloomesRow } from "@/lib/parsers/ploomes";
 import type { AnaliticoRow } from "@/lib/parsers/comissao/analitico";
 import type { MetaComissaoRow } from "@/lib/parsers/comissao/metas";
+import type { TituloReceberRow } from "@/lib/parsers/tituloReceber";
 
 // Tamanho de chunk para createMany. Postgres tem limite de 65535 parâmetros por query;
 // Pedido tem 18 colunas, então 3000 rows ≈ 54000 params (margem segura).
@@ -237,6 +238,13 @@ async function replaceDataset(
             valorMeta: r.valorMeta,
           })),
         }),
+      );
+      return;
+
+    case "TITULO_RECEBER":
+      await tx.tituloReceber.deleteMany({ where: { tenantId } });
+      await insertChunks(rows as TituloReceberRow[], (chunk) =>
+        tx.tituloReceber.createMany({ data: chunk.map((r) => ({ tenantId, ...r })) }),
       );
       return;
 

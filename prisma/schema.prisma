@@ -39,6 +39,7 @@ model Tenant {
   comissaoLancamentos   ComissaoLancamento[]
   comissaoMetas         ComissaoMeta[]
   observacoesPV         ObservacaoPV[]
+  titulosReceber        TituloReceber[]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -175,6 +176,7 @@ enum Dataset {
   PLOOMES
   COMISSAO_ANALITICO
   COMISSAO_META
+  TITULO_RECEBER
 }
 
 enum MetaCategoria {
@@ -596,4 +598,40 @@ model ComissaoMeta {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, codVendedor, ano, mes])
+}
+
+// ── 11. KPI Financeiro — Títulos a Receber (FINR130 — Posição dos Títulos) ──
+// Snapshot atual da posição de títulos a receber do Protheus (relatório
+// "Posição dos Títulos" / FINR130). Cada linha = 1 título/parcela em aberto na
+// data de referência, classificado em VENCIDO (saldoVencido) ou A VENCER
+// (saldoAVencer). Estratégia "snapshot atual": cada upload substitui tudo.
+//
+// Usado na seção KPI Financeiro (acesso restrito a ADMIN + Controladoria) para
+// o aging de "a receber" — quanto temos vencido e a vencer, agrupado por
+// cliente (uma linha por cliente, somando filiais/cadastros de mesmo nome).
+model TituloReceber {
+  id             String    @id @default(cuid())
+  tenantId       String
+  codigoCliente  String? // "C000297"
+  loja           String? // "01"
+  nomeCliente    String? // "3M - SUMARE"
+  numeroNF       String // NF sem zeros à esquerda — "32838"
+  parcela        String? // "2" quando parcelado; null = título único
+  tipo           String? // "NF", "RA"...
+  natureza       String?
+  dataEmissao    DateTime?
+  vencimento     DateTime? // Vencto Real
+  valorOriginal  Decimal?  @db.Decimal(15, 2)
+  saldoVencido   Decimal   @default(0) @db.Decimal(15, 2) // Tit Vencidos Valor Atual
+  saldoAVencer   Decimal   @default(0) @db.Decimal(15, 2) // Titulos a Vencer Valor Atual
+  diasAtraso     Int       @default(0) // > 0 = vencido há N dias
+  historico      String?
+  dataReferencia DateTime? // Dt.Ref do relatório (aba Parametros)
+  createdAt      DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, nomeCliente])
+  @@index([tenantId, vencimento])
+  @@index([tenantId, codigoCliente])
 }

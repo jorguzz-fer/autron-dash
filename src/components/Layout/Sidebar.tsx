@@ -20,10 +20,12 @@ import {
   Sparkles,
   Upload,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import Logo from "./Logo";
 import { useSidebar } from "./SidebarProvider";
+import { canSeeKpiFinanceiro } from "@/lib/kpiAccess";
 
 interface NavItem {
   label: string;
@@ -55,6 +57,11 @@ const NAV_CONTROLADORIA: NavItem[] = [
   { label: "Conciliação Fin × Cont", href: "/conciliacao", icon: Scale },
 ];
 
+// Restrito a ADMIN e à Controladoria (Daiana) — ver lib/kpiAccess.
+const NAV_KPI_FINANCEIRO: NavItem[] = [
+  { label: "KPI Financeiro", href: "/kpi-financeiro", icon: Wallet },
+];
+
 // Restrito às roles ADMIN, DIRETOR e CONTROLADORIA.
 const NAV_COMISSOES: NavItem[] = [
   { label: "Visão Geral", href: "/comissoes", icon: Percent },
@@ -84,6 +91,7 @@ interface SidebarProps {
 export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: SidebarProps) {
   const isAdmin = user.role === "ADMIN";
   const isControladoria = user.role === "ADMIN" || user.role === "CONTROLADORIA";
+  const isKpiFinanceiro = canSeeKpiFinanceiro(user);
   // Comissões: visível apenas para Fernando durante o período de configuração inicial.
   // Remover ou ampliar esta restrição quando o módulo estiver validado com dados reais.
   const isComissoes = user.email === "fer.jorge@gmail.com";
@@ -134,6 +142,17 @@ export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: Side
             <SectionLabel className="mt-6">Controladoria</SectionLabel>
             <ul className="space-y-0.5">
               {NAV_CONTROLADORIA.map((item) => (
+                <NavLink key={item.href} item={item} />
+              ))}
+            </ul>
+          </>
+        )}
+
+        {isKpiFinanceiro && (
+          <>
+            <SectionLabel className="mt-6">Financeiro</SectionLabel>
+            <ul className="space-y-0.5">
+              {NAV_KPI_FINANCEIRO.map((item) => (
                 <NavLink key={item.href} item={item} />
               ))}
             </ul>
