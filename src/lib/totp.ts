@@ -85,15 +85,16 @@ export function generateTotp(secretBase32: string, atMs: number = Date.now()): s
 }
 
 /**
- * Verifica um código TOTP com tolerância de ±`window` períodos (default 1,
- * = ±30s) para absorver drift de relógio. Comparação em tempo constante.
+ * Verifica um código TOTP com tolerância de ±`window` períodos (default 2,
+ * = ±60s) para absorver drift de relógio entre o servidor e o dispositivo do
+ * usuário. Comparação em tempo constante.
  */
 export function verifyTotp(
   secretBase32: string,
   token: string,
   opts: { window?: number; atMs?: number } = {},
 ): boolean {
-  const window = opts.window ?? 1;
+  const window = opts.window ?? 2;
   const atMs = opts.atMs ?? Date.now();
   const normalized = token.replace(/\s+/g, "");
   if (!/^\d{6}$/.test(normalized)) return false;

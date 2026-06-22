@@ -48,11 +48,14 @@ describe("TOTP (RFC 6238, SHA1, 6 dígitos)", () => {
     expect(verifyTotp(secret, "abc", { atMs: now })).toBe(false);
   });
 
-  it("aceita drift de ±1 período mas não além", () => {
+  it("aceita drift de ±2 períodos (±60s) mas não além", () => {
     const base = 1234567890 * 1000;
     const codeAtBase = generateTotp(secret, base);
     expect(verifyTotp(secret, codeAtBase, { atMs: base + 30_000 })).toBe(true); // +1 período
+    expect(verifyTotp(secret, codeAtBase, { atMs: base + 60_000 })).toBe(true); // +2 períodos
     expect(verifyTotp(secret, codeAtBase, { atMs: base + 90_000 })).toBe(false); // +3 períodos
+    // Janela explícita continua respeitada.
+    expect(verifyTotp(secret, codeAtBase, { atMs: base + 60_000, window: 1 })).toBe(false);
   });
 });
 
