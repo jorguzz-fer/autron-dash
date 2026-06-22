@@ -14,8 +14,12 @@ export default async function ConfigurarMfaPage() {
   const session = await auth();
   if (!session) redirect("/login");
   if (session.user.mustChangePassword) redirect("/mudar-senha");
-  // Já configurado e verificado → não faz sentido reconfigurar aqui.
-  if (session.user.mfaEnabled && session.user.mfaVerified) redirect("/dashboard");
+  // Já tem MFA ativo → nunca reconfigurar aqui (evita render destrutivo). Quem
+  // ainda não verificou nesta sessão vai para a tela de código; verificado vai
+  // direto ao painel.
+  if (session.user.mfaEnabled) {
+    redirect(session.user.mfaVerified ? "/dashboard" : "/mfa/verificar");
+  }
 
   // Gera (ou regenera) o segredo pendente e monta o QR no servidor — o
   // otpauth:// URI carrega o segredo e nunca sai do nosso backend.

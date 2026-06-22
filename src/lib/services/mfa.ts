@@ -34,16 +34,42 @@ export async function getUserMfaState(userId: string) {
  * segredo novo — se o usuário recarregar a página de setup, o anterior é
  * descartado (ainda não confirmado).
  */
+/**
+ * Prepara o setup: devolve os dados para montar o QR. É IDEMPOTENTE e
+ * não-destrutiva — roda no render (GET) da página de configuração, então NÃO
+ * pode alterar `mfaEnabled` (senão um re-render/prefetch do Next reverteria um
+ * MFA já ativo). Reaproveita um segredo pendente existente para manter o QR
+ * estável entre reloads; só gera e grava um novo se não houver nenhum.
+ */
 export async function startMfaSetup(args: {
   userId: string;
   account: string;
   issuer: string;
 }): Promise<MfaSetupData> {
-  const secret = generateTotpSecret();
-  await prisma.user.update({
+  const u = await prisma.user.findUnique({
     where: { id: args.userId },
-    data: { mfaSecret: encryptSecret(secret), mfaEnabled: false, mfaConfirmedAt: null },
+    select: { mfaEnabled: true, mfaSecret: true },
   });
+
+  let secret: string | null = null;
+  // Só reaproveita o segredo se ainda for pendente (MFA não confirmado). Para
+  // um usuário já habilitado esta função não deveria ser chamada (a página
+  // redireciona), mas, por garantia, nunca sobrescrevemos um segredo ativo.
+  if (u && !u.mfaEnabled && u.mfaSecret) {
+    try {
+      secret = decryptSecret(u.mfaSecret);
+    } catch {
+      secret = null;
+    }
+  }
+  if (!secret) {
+    secret = generateTotpSecret();
+    await prisma.user.update({
+      where: { id: args.userId },
+      data: { mfaSecret: encryptSecret(secret) },
+    });
+  }
+
   return {
     secret,
     secretFormatted: formatSecretForDisplay(secret),
