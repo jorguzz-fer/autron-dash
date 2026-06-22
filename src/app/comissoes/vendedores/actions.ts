@@ -25,6 +25,13 @@ async function getRequestMeta() {
 
 // ─────────────────────────── Vendedor ────────────────────────────────────────
 
+// Garantido: ou todos os 3 campos preenchidos, ou nenhum.
+const garantidoFields = {
+  garantidoValor: z.coerce.number().min(0).optional().nullable(),
+  garantidoInicio: z.string().trim().optional().nullable(), // "YYYY-MM"
+  garantidoMeses: z.coerce.number().int().min(1).max(12).optional().nullable(),
+};
+
 const vendedorSchema = z.object({
   codigoProtheus: z.string().trim().min(1, "Código Protheus obrigatório").max(30),
   nome: z.string().trim().min(2, "Nome muito curto").max(120),
@@ -32,18 +39,34 @@ const vendedorSchema = z.object({
   tipo: z.enum(TIPO_VALUES, { errorMap: () => ({ message: "Tipo inválido" }) }),
   nivel: z.coerce.number().int().min(1).max(10).optional().nullable(),
   gatilhoOverride: z.coerce.number().min(0).max(9.9999).optional().nullable(),
+  supervisorCodigo: z.string().trim().max(30).optional().nullable(),
+  ...garantidoFields,
   ativo: z.boolean().optional(),
 });
 
-export async function criarVendedor(input: {
+/** Converte "YYYY-MM" no 1º dia do mês (UTC), ou null. */
+function parseInicio(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})$/.exec(s.trim());
+  if (!m) return null;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1));
+}
+
+type VendedorInput = {
   codigoProtheus: string;
   nome: string;
   cargo: string;
   tipo: string;
   nivel?: number | null;
   gatilhoOverride?: number | null;
+  supervisorCodigo?: string | null;
+  garantidoValor?: number | null;
+  garantidoInicio?: string | null;
+  garantidoMeses?: number | null;
   ativo?: boolean;
-}): Promise<SimpleResult> {
+};
+
+export async function criarVendedor(input: VendedorInput): Promise<SimpleResult> {
   const guard = await requireRole(ALLOWED_ROLES);
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
@@ -52,7 +75,17 @@ export async function criarVendedor(input: {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
   }
-  const { codigoProtheus, nome, cargo, tipo, nivel, gatilhoOverride, ativo } = parsed.data;
+  const { codigoProtheus, nome, cargo, tipo, nivel, gatilhoOverride, supervisorCodigo, garantidoValor, garantidoInicio, garantidoMeses, ativo } = parsed.data;
+
+  // Garantido: exige valor + início + meses juntos (ou nenhum).
+  const gInicio = parseInicio(garantidoInicio);
+  const temGarantido = garantidoValor != null && garantidoValor > 0;
+  if (temGarantido && (!gInicio || !garantidoMeses)) {
+    return { ok: false, error: "Garantido exige valor, mês de início e duração" };
+  }
+  if (supervisorCodigo && supervisorCodigo === codigoProtheus) {
+    return { ok: false, error: "Um vendedor não pode ser supervisor de si mesmo" };
+  }
 
   // Unicidade: tenantId + codigoProtheus
   const existing = await prisma.comissaoVendedor.findFirst({
@@ -72,6 +105,10 @@ export async function criarVendedor(input: {
         tipo,
         nivel: nivel ?? null,
         gatilhoOverride: gatilhoOverride ?? null,
+        supervisorCodigo: supervisorCodigo || null,
+        garantidoValor: temGarantido ? garantidoValor : null,
+        garantidoInicio: temGarantido ? gInicio : null,
+        garantidoMeses: temGarantido ? garantidoMeses : null,
         ativo: ativo ?? true,
       },
     });
@@ -98,15 +135,7 @@ export async function criarVendedor(input: {
 
 export async function atualizarVendedor(
   id: string,
-  input: {
-    codigoProtheus: string;
-    nome: string;
-    cargo: string;
-    tipo: string;
-    nivel?: number | null;
-    gatilhoOverride?: number | null;
-    ativo?: boolean;
-  },
+  input: VendedorInput,
 ): Promise<SimpleResult> {
   const guard = await requireRole(ALLOWED_ROLES);
   if (guard.error) return { ok: false, error: "Sem permissão" };
@@ -118,13 +147,24 @@ export async function atualizarVendedor(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
   }
-  const { codigoProtheus, nome, cargo, tipo, nivel, gatilhoOverride, ativo } = parsed.data;
+  const { codigoProtheus, nome, cargo, tipo, nivel, gatilhoOverride, supervisorCodigo, garantidoValor, garantidoInicio, garantidoMeses, ativo } = parsed.data;
+
+  const gInicio = parseInicio(garantidoInicio);
+  const temGarantido = garantidoValor != null && garantidoValor > 0;
+  if (temGarantido && (!gInicio || !garantidoMeses)) {
+    return { ok: false, error: "Garantido exige valor, mês de início e duração" };
+  }
 
   // Anti cross-tenant
   const target = await prisma.comissaoVendedor.findFirst({
     where: { id, tenantId: session.user.tenantId },
   });
   if (!target) return { ok: false, error: "Vendedor não encontrado" };
+
+  // Não pode ser supervisor de si mesmo
+  if (supervisorCodigo && supervisorCodigo === codigoProtheus) {
+    return { ok: false, error: "Um vendedor não pode ser supervisor de si mesmo" };
+  }
 
   // Se mudou código, verificar unicidade
   if (target.codigoProtheus !== codigoProtheus) {
@@ -146,6 +186,10 @@ export async function atualizarVendedor(
         tipo,
         nivel: nivel ?? null,
         gatilhoOverride: gatilhoOverride ?? null,
+        supervisorCodigo: supervisorCodigo || null,
+        garantidoValor: temGarantido ? garantidoValor : null,
+        garantidoInicio: temGarantido ? gInicio : null,
+        garantidoMeses: temGarantido ? garantidoMeses : null,
         ativo: ativo ?? target.ativo,
       },
     });

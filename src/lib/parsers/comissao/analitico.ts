@@ -19,6 +19,7 @@ export interface AnaliticoRow {
   produto: string | null;
   quantidade: number | null;
   valor: string; // Decimal string for Prisma
+  comissaoPct: string | null; // "Informe o Percentual" ÷ 100 (Decimal string); null = usa % do cargo
   codVendedor: string;
   tipoNegocio: string | null;
   dataEntrega: Date | null;
@@ -86,6 +87,7 @@ export async function parseAnaliticoComissao(buffer: Buffer): Promise<ParseResul
   const cProduto = findCol(idx, "Informe o Nome do produto", "Nome do produto", "Produto");
   const cQuantidade = findCol(idx, "Quantidade do Pedido", "Quantidade", "Qtd");
   const cValor = findCol(idx, "Valor c/ Var. Cambial", "Valor c/ Var Cambial", "Valor", "Vlr c/ Var. Cambial");
+  const cPercentual = findCol(idx, "Informe o Percentual", "Percentual", "% Comissao", "% Comissão");
   const cVendedor = findCol(idx, "Nome do Vendedor", "Vendedor");
   const cDataEntrega = findCol(idx, "Data da Entrega", "Data Entrega");
   const cTipoNegocio = findCol(idx, "Tipo Negocio", "Tipo de Negocio", "Tipo de Negócio", "Tipo Negócio");
@@ -145,6 +147,11 @@ export async function parseAnaliticoComissao(buffer: Buffer): Promise<ParseResul
     // Produto split (codigo used as itemPedido for dedup key)
     const prod = splitCodigo(cProduto !== null ? toCleanString(row[cProduto]) : null);
 
+    // % por linha: vem como 1; 0,5; 1,3 (percentual) -> divide por 100.
+    const pctRaw = cPercentual !== null ? toDecimalStr(row[cPercentual]) : null;
+    const comissaoPct =
+      pctRaw != null && pctRaw !== "" ? (Number(pctRaw) / 100).toString() : null;
+
     rows.push({
       numeroPedido: numeroPedidoRaw,
       itemPedido: prod.codigo,
@@ -154,6 +161,7 @@ export async function parseAnaliticoComissao(buffer: Buffer): Promise<ParseResul
       produto: cProduto !== null ? toCleanString(row[cProduto]) : null,
       quantidade: cQuantidade !== null ? toInt(row[cQuantidade]) : null,
       valor: valorRaw,
+      comissaoPct,
       codVendedor,
       tipoNegocio: cTipoNegocio !== null ? toCleanString(row[cTipoNegocio]) : null,
       dataEntrega: cDataEntrega !== null ? toDate(row[cDataEntrega]) : null,

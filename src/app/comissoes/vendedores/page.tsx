@@ -6,7 +6,7 @@ import { type Role } from "@/lib/authz";
 import CardSection from "@/components/UI/CardSection";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import StatusBadge from "@/components/UI/StatusBadge";
-import { VendedorCriarBtn, VendedorEditarBtn } from "./VendedorBtns";
+import { VendedorCriarBtn, VendedorEditarBtn, type SupervisorOption } from "./VendedorBtns";
 import { CargoCriarBtn, CargoEditarBtn } from "./CargoBtns";
 import { Users, Briefcase } from "lucide-react";
 
@@ -29,7 +29,17 @@ function fmtPct(val: string | number | null | undefined): string {
   return isNaN(n) ? "—" : `${(n * 100).toFixed(2)}%`;
 }
 
-const vendedorColumns: Column<VendedorRow>[] = [
+/** "YYYY-MM" a partir de uma data (para preencher input type=month). */
+function toMonthInput(d: Date | null): string | null {
+  if (!d) return null;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function vendedorColumns(
+  supervisores: SupervisorOption[],
+  nomePorCodigo: Map<string, string>,
+): Column<VendedorRow>[] {
+  return [
   {
     key: "codigoProtheus",
     header: "Código",
@@ -89,6 +99,27 @@ const vendedorColumns: Column<VendedorRow>[] = [
     ),
   },
   {
+    key: "supervisorCodigo",
+    header: "Supervisor",
+    cell: (v) => (
+      <span className="text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        {v.supervisorCodigo ? nomePorCodigo.get(v.supervisorCodigo) ?? v.supervisorCodigo : "—"}
+      </span>
+    ),
+  },
+  {
+    key: "garantidoValor",
+    header: "Garantido",
+    align: "right",
+    cell: (v) => (
+      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        {v.garantidoValor != null && v.garantidoMeses
+          ? `R$ ${Number(v.garantidoValor).toLocaleString("pt-BR")} · ${v.garantidoMeses}m`
+          : "—"}
+      </span>
+    ),
+  },
+  {
     key: "ativo",
     header: "Status",
     sortKey: "ativo",
@@ -104,6 +135,7 @@ const vendedorColumns: Column<VendedorRow>[] = [
     header: "",
     cell: (v) => (
       <VendedorEditarBtn
+        supervisores={supervisores}
         vendedor={{
           id: v.id,
           codigoProtheus: v.codigoProtheus,
@@ -112,12 +144,17 @@ const vendedorColumns: Column<VendedorRow>[] = [
           tipo: v.tipo,
           nivel: v.nivel ?? null,
           gatilhoOverride: v.gatilhoOverride?.toString() ?? null,
+          supervisorCodigo: v.supervisorCodigo ?? null,
+          garantidoValor: v.garantidoValor?.toString() ?? null,
+          garantidoInicio: toMonthInput(v.garantidoInicio),
+          garantidoMeses: v.garantidoMeses ?? null,
           ativo: v.ativo,
         }}
       />
     ),
   },
-];
+  ];
+}
 
 const BASE_TONE: Record<string, "brand" | "success" | "warning"> = {
   INDIVIDUAL: "brand",
@@ -219,6 +256,14 @@ export default async function VendedoresPage() {
   const anoAtual = new Date().getFullYear();
   const cargosAno = cargos.filter((c) => c.ano === anoAtual).length;
 
+  // Opções de supervisor (qualquer vendedor pode ser gestor de carteira).
+  const supervisores: SupervisorOption[] = vendedores.map((v) => ({
+    codigoProtheus: v.codigoProtheus,
+    nome: v.nome,
+  }));
+  const nomePorCodigo = new Map(vendedores.map((v) => [v.codigoProtheus, v.nome]));
+  const colunas = vendedorColumns(supervisores, nomePorCodigo);
+
   return (
     <AppShell
       title="Vendedores & Cargos"
@@ -266,10 +311,10 @@ export default async function VendedoresPage() {
         <CardSection
           title="Vendedores"
           subtitle={`${vendedores.length} cadastrado${vendedores.length !== 1 ? "s" : ""} · ativos primeiro`}
-          actions={<VendedorCriarBtn />}
+          actions={<VendedorCriarBtn supervisores={supervisores} />}
         >
           <DataTable
-            columns={vendedorColumns}
+            columns={colunas}
             rows={vendedores}
             rowKey={(v) => v.id}
             emptyMessage="Nenhum vendedor cadastrado. Clique em Novo vendedor para começar."

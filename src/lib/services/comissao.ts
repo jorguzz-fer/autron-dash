@@ -3,8 +3,15 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { apurarAno } from "@/lib/domain/comissao/apuracao";
 import { previsaoMensal } from "@/lib/domain/comissao/comissao";
-import { gridPedidosPagos } from "@/lib/domain/comissao/pagamento";
-import type { LancamentoInput, MetaInput, RegraVendedor, ApuracaoAno } from "@/lib/domain/comissao/types";
+import { gridPedidosPagos, gridProgramados } from "@/lib/domain/comissao/pagamento";
+import { aplicaGarantido } from "@/lib/domain/comissao/garantido";
+import type {
+  LancamentoInput,
+  MetaInput,
+  RegraVendedor,
+  ApuracaoAno,
+  GarantidoConfig,
+} from "@/lib/domain/comissao/types";
 
 function num(d: Prisma.Decimal | null | undefined): number {
   return d == null ? 0 : Number(d);
@@ -22,6 +29,44 @@ export async function getCargos(tenantId: string, ano?: number) {
     where: { tenantId, ...(ano ? { ano } : {}) },
     orderBy: [{ ano: "desc" }, { cargo: "asc" }],
   });
+}
+
+/** Subordinados diretos de um gestor (vendedores cujo supervisorCodigo == cod). */
+export async function getSubordinados(
+  tenantId: string,
+  codVendedor: string,
+): Promise<string[]> {
+  const subs = await prisma.comissaoVendedor.findMany({
+    where: { tenantId, supervisorCodigo: codVendedor },
+    select: { codigoProtheus: true },
+  });
+  return subs.map((s) => s.codigoProtheus);
+}
+
+/** Membros da carteira = o próprio vendedor + subordinados diretos (1 nível). */
+export async function getCarteiraMembros(
+  tenantId: string,
+  codVendedor: string,
+): Promise<string[]> {
+  const subs = await getSubordinados(tenantId, codVendedor);
+  return [codVendedor, ...subs];
+}
+
+/** Garantido configurado para o vendedor, ou null. */
+function garantidoDoVendedor(vend: {
+  garantidoValor: Prisma.Decimal | null;
+  garantidoInicio: Date | null;
+  garantidoMeses: number | null;
+}): GarantidoConfig | null {
+  if (vend.garantidoValor == null || vend.garantidoInicio == null || !vend.garantidoMeses) {
+    return null;
+  }
+  return {
+    valor: num(vend.garantidoValor),
+    inicioAno: vend.garantidoInicio.getFullYear(),
+    inicioMes: vend.garantidoInicio.getMonth() + 1,
+    meses: vend.garantidoMeses,
+  };
 }
 
 /** Regra efetiva (comissão + gatilho) de um vendedor para o ano. */
@@ -45,11 +90,11 @@ export async function getRegraVendedor(
 
 async function getLancamentos(
   tenantId: string,
-  codVendedor: string,
+  codVendedores: string[],
   ano: number,
 ): Promise<LancamentoInput[]> {
   const rows = await prisma.comissaoLancamento.findMany({
-    where: { tenantId, codVendedor },
+    where: { tenantId, codVendedor: { in: codVendedores } },
   });
   return rows
     .filter((r) => r.dataEmissao.getFullYear() === ano)
@@ -59,20 +104,22 @@ async function getLancamentos(
       dataEmissao: r.dataEmissao,
       valor: num(r.valor),
       codVendedor: r.codVendedor,
+      dataVencimento: r.dataVencimento,
       dataPagamento: r.dataPagamento,
       parcela: r.parcela,
       pctRateio: num(r.pctRateio),
       classificacao: r.classificacao as LancamentoInput["classificacao"],
+      comissaoPct: r.comissaoPct != null ? num(r.comissaoPct) : undefined,
     }));
 }
 
 async function getMetas(
   tenantId: string,
-  codVendedor: string,
+  codVendedores: string[],
   ano: number,
 ): Promise<MetaInput[]> {
   const rows = await prisma.comissaoMeta.findMany({
-    where: { tenantId, codVendedor, ano },
+    where: { tenantId, codVendedor: { in: codVendedores }, ano },
   });
   return rows.map((r) => ({
     codVendedor: r.codVendedor,
@@ -84,26 +131,54 @@ async function getMetas(
 
 export interface ExtratoVendedor {
   apuracao: ApuracaoAno;
+  /** Pedidos efetivamente PAGOS (cliente pagou), por janela 21→20. */
   pedidosPagos: Map<string, number[]>;
+  /** Pedidos FATURADOS aguardando pagamento do cliente (N2 — "programado p/ pagar"). */
+  programados: Map<string, number[]>;
   regra: RegraVendedor;
+  /** Carteira apurada (≥2 quando o vendedor é gestor). */
+  membros: string[];
+  /** "A receber" = max(previsão, garantido) na janela do garantido. */
+  aReceber: number[];
+  /** Config de garantido aplicada, ou null. */
+  garantido: GarantidoConfig | null;
 }
 
-/** Compõe o extrato completo de um vendedor/ano (apuração + previsão + pagos). */
+/**
+ * Compõe o extrato completo de um vendedor/ano.
+ * Carteira uniforme: todo vendedor é apurado como carteira = {ele} ∪ {subordinados}.
+ * Para um individual a carteira tem 1 membro e o resultado é idêntico ao MVP.
+ * A regra (% e gatilho) é sempre a do próprio vendedor (gestor); a base agregada
+ * é a soma das vendas/metas dos membros.
+ */
 export async function getExtratoVendedor(
   tenantId: string,
   codVendedor: string,
   ano: number,
 ): Promise<ExtratoVendedor | null> {
+  const vend = await prisma.comissaoVendedor.findFirst({
+    where: { tenantId, codigoProtheus: codVendedor },
+  });
+  if (!vend) return null;
   const regra = await getRegraVendedor(tenantId, codVendedor, ano);
   if (!regra) return null;
+
+  const membros = await getCarteiraMembros(tenantId, codVendedor);
   const [lancs, metas] = await Promise.all([
-    getLancamentos(tenantId, codVendedor, ano),
-    getMetas(tenantId, codVendedor, ano),
+    getLancamentos(tenantId, membros, ano),
+    getMetas(tenantId, membros, ano),
   ]);
+
   const apuracao = apurarAno(lancs, metas, regra, ano);
   const habilita = apuracao.map((m) => m.habilita);
   const prev = previsaoMensal(lancs, regra.comissaoPct, habilita, ano);
   apuracao.forEach((m, i) => (m.previsao = prev[i]));
-  const pedidosPagos = gridPedidosPagos(lancs, regra.comissaoPct);
-  return { apuracao, pedidosPagos, regra };
+
+  const garantido = garantidoDoVendedor(vend);
+  const aReceber = aplicaGarantido(prev, ano, garantido);
+
+  const pedidosPagos = gridPedidosPagos(lancs, regra.comissaoPct, habilita);
+  const programados = gridProgramados(lancs, regra.comissaoPct, habilita);
+
+  return { apuracao, pedidosPagos, programados, regra, membros, aReceber, garantido };
 }

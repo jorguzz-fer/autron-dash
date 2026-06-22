@@ -21,20 +21,53 @@ export function janelaPagamento(d: Date): string {
  * indexado pelo mês de ORIGEM (emissão, 0=jan). Valor = comissaoLinha
  * (valor * comissaoPct, sem aplicar pctRateio). Só linhas classificacao === "PAGO"
  * com dataPagamento.
+ *
+ * "Pulo do gato" (A9): pedido emitido em mês NÃO habilitado nunca paga, mesmo
+ * que o cliente pague depois. Quando `habilitaPorMesEmissao` é fornecido, linhas
+ * cujo mês de emissão não está habilitado são descartadas.
  */
 export function gridPedidosPagos(
   lancamentos: LancamentoInput[],
   comissaoPct: number,
+  habilitaPorMesEmissao?: boolean[],
 ): Map<string, number[]> {
   const grid = new Map<string, number[]>();
   for (const l of lancamentos) {
     if (l.classificacao !== "PAGO" || !l.dataPagamento) continue;
-    const janela = janelaPagamento(l.dataPagamento);
     const origem = l.dataEmissao.getMonth(); // 0-11
+    if (habilitaPorMesEmissao && !habilitaPorMesEmissao[origem]) continue;
+    const janela = janelaPagamento(l.dataPagamento);
     const pct = l.comissaoPct ?? comissaoPct;
     const valorPago = comissaoLinha(l.valor, pct);
     if (!grid.has(janela)) grid.set(janela, new Array<number>(12).fill(0));
     grid.get(janela)![origem] += valorPago;
+  }
+  return grid;
+}
+
+/**
+ * Grid de comissão PROGRAMADA para pagar (N2 — pedido da reunião com Silvio):
+ * pedidos FATURADOS, aguardando o cliente pagar. NÃO é o mesmo que pago.
+ * Agrupa pela janela 21→20 da **data de vencimento** (previsão de quando deve
+ * cair), por mês de ORIGEM (emissão). Respeita o pulo do gato (A9).
+ * Quando não há vencimento, usa a própria emissão como referência.
+ */
+export function gridProgramados(
+  lancamentos: LancamentoInput[],
+  comissaoPct: number,
+  habilitaPorMesEmissao?: boolean[],
+): Map<string, number[]> {
+  const grid = new Map<string, number[]>();
+  for (const l of lancamentos) {
+    if (l.classificacao !== "FATURADO") continue;
+    const origem = l.dataEmissao.getMonth(); // 0-11
+    if (habilitaPorMesEmissao && !habilitaPorMesEmissao[origem]) continue;
+    const ref = l.dataVencimento ?? l.dataEmissao;
+    const janela = janelaPagamento(ref);
+    const pct = l.comissaoPct ?? comissaoPct;
+    const valor = comissaoLinha(l.valor, pct);
+    if (!grid.has(janela)) grid.set(janela, new Array<number>(12).fill(0));
+    grid.get(janela)![origem] += valor;
   }
   return grid;
 }
