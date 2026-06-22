@@ -52,10 +52,12 @@ export async function startMfaSetup(args: {
   });
 
   let secret: string | null = null;
-  // Só reaproveita o segredo se ainda for pendente (MFA não confirmado). Para
-  // um usuário já habilitado esta função não deveria ser chamada (a página
-  // redireciona), mas, por garantia, nunca sobrescrevemos um segredo ativo.
-  if (u && !u.mfaEnabled && u.mfaSecret) {
+  // Reaproveita QUALQUER segredo já existente (pendente OU confirmado) sem
+  // regravar — assim o QR fica estável entre reloads e, principalmente, nunca
+  // sobrescrevemos o segredo de um MFA já ativo (o que invalidaria o app do
+  // usuário e geraria "código inválido"). Só geramos e gravamos um novo
+  // quando o usuário não tem segredo algum (1º setup ou pós-reset do admin).
+  if (u?.mfaSecret) {
     try {
       secret = decryptSecret(u.mfaSecret);
     } catch {
