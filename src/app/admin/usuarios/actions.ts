@@ -18,6 +18,7 @@ import {
   setPasswordHashInTenant,
   updateUserInTenant,
 } from "@/lib/services/users";
+import { resetUserMfa } from "@/lib/services/mfa";
 
 type OkEmpty = { ok: true };
 type Ok<T> = { ok: true } & T;
@@ -267,6 +268,48 @@ export async function resetarSenha(input: {
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao resetar senha";
+    return { ok: false, error: message };
+  }
+}
+
+// ───────────────────────── Resetar MFA ───────────────────────────────────
+
+/**
+ * Zera o segundo fator de um usuário (perda de dispositivo). Ele será forçado
+ * a reconfigurar o MFA no próximo acesso. Não desbloqueia sessões já abertas:
+ * a sessão atual dele continua exigindo o MFA antigo até expirar/relogar.
+ */
+export async function resetarMfa(input: { id: string }): Promise<SimpleResult> {
+  const guard = await requireRole(ROLES_ADMIN);
+  if (guard.error) return { ok: false, error: "Sem permissão" };
+  const session = guard.session;
+
+  const id = input.id?.trim();
+  if (!id) return { ok: false, error: "ID obrigatório" };
+
+  const target = await findUserInTenant(session.user.tenantId, id);
+  if (!target) return { ok: false, error: "Usuário não encontrado" };
+
+  try {
+    const count = await resetUserMfa(session.user.tenantId, id);
+    if (count === 0) return { ok: false, error: "MFA não foi resetado" };
+
+    const { ip, userAgent } = await getRequestMeta();
+    await logAudit({
+      tenantId: session.user.tenantId,
+      userId: session.user.id,
+      action: "user.mfa_reset",
+      entity: "User",
+      entityId: id,
+      meta: { name: target.name, email: target.email },
+      ip,
+      userAgent,
+    });
+
+    revalidatePath("/admin/usuarios");
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro ao resetar MFA";
     return { ok: false, error: message };
   }
 }

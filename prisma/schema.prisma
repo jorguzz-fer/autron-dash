@@ -52,6 +52,16 @@ model User {
   role               Role      @default(VIEWER)
   active             Boolean   @default(true)
   mustChangePassword Boolean   @default(false)
+  // ── MFA (TOTP) ──────────────────────────────────────────────────────────
+  // mfaEnabled = segundo fator configurado e confirmado pelo usuário.
+  // mfaSecret  = segredo TOTP (base32) cifrado em repouso (AES-256-GCM via
+  //              lib/mfaCrypto). Pode existir "pendente" (mfaEnabled=false)
+  //              entre gerar o QR e confirmar o primeiro código.
+  // MFA é obrigatório para todos: o middleware força /mfa/configurar enquanto
+  // mfaEnabled=false (mesmo padrão de mustChangePassword).
+  mfaEnabled         Boolean   @default(false)
+  mfaSecret          String?
+  mfaConfirmedAt     DateTime?
   lastLoginAt        DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -63,9 +73,25 @@ model User {
   prazosEngenhariaIND21 PrazoEngenhariaIND21[]
   conciliacoes          Conciliacao[]
   observacoesPV         ObservacaoPV[]
+  mfaBackupCodes        MfaBackupCode[]
 
   @@unique([tenantId, email])
   @@index([email])
+}
+
+// Códigos de recuperação do MFA (one-time). Guardamos apenas o hash bcrypt —
+// o código em claro é exibido uma única vez na configuração. usedAt marca
+// consumo (não removemos os usados, para auditoria).
+model MfaBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Session {

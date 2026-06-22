@@ -10,7 +10,7 @@ const loginSchema = z.object({
   password: z.string().min(8).max(200),
 });
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   session: {
     strategy: "jwt",
     maxAge: 8 * 60 * 60,
@@ -62,12 +62,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           tenantId: user.tenantId,
           tenantSlug: user.tenant.slug,
           mustChangePassword: user.mustChangePassword,
+          mfaEnabled: user.mfaEnabled,
         };
       },
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) {
         const u = user as {
           id: string;
@@ -75,12 +76,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           tenantId: string;
           tenantSlug: string;
           mustChangePassword: boolean;
+          mfaEnabled: boolean;
         };
         token.id = u.id;
         token.role = u.role;
         token.tenantId = u.tenantId;
         token.tenantSlug = u.tenantSlug;
         token.mustChangePassword = u.mustChangePassword;
+        token.mfaEnabled = u.mfaEnabled;
+        // Cada login novo começa NÃO verificado: o usuário precisa passar pelo
+        // segundo fator (ou configurá-lo) antes de acessar o app. Refresh de
+        // token (updateAge) preserva o valor já verificado.
+        token.mfaVerified = false;
+      }
+      // Atualização server-side via unstable_update (ex.: após confirmar o
+      // setup ou validar o código TOTP). Aceita o payload tanto em
+      // `session.user` quanto na raiz.
+      if (trigger === "update" && session) {
+        const data = (((session as Record<string, unknown>).user as Record<string, unknown>) ??
+          (session as Record<string, unknown>)) as Record<string, unknown>;
+        if (typeof data.mfaVerified === "boolean") token.mfaVerified = data.mfaVerified;
+        if (typeof data.mfaEnabled === "boolean") token.mfaEnabled = data.mfaEnabled;
+        if (typeof data.mustChangePassword === "boolean") {
+          token.mustChangePassword = data.mustChangePassword;
+        }
       }
       return token;
     },
@@ -90,6 +109,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.tenantId = token.tenantId as string;
       session.user.tenantSlug = token.tenantSlug as string;
       session.user.mustChangePassword = token.mustChangePassword as boolean;
+      session.user.mfaEnabled = token.mfaEnabled as boolean;
+      session.user.mfaVerified = token.mfaVerified as boolean;
       return session;
     },
   },

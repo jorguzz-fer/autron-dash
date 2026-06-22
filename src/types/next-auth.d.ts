@@ -11,6 +11,8 @@ declare module "next-auth" {
       tenantId: string;
       tenantSlug: string;
       mustChangePassword: boolean;
+      mfaEnabled: boolean;
+      mfaVerified: boolean;
     };
   }
 
@@ -20,6 +22,7 @@ declare module "next-auth" {
     tenantId: string;
     tenantSlug: string;
     mustChangePassword: boolean;
+    mfaEnabled: boolean;
   }
 }
 
@@ -30,5 +33,7 @@ declare module "next-auth/jwt" {
     tenantId: string;
     tenantSlug: string;
     mustChangePassword: boolean;
+    mfaEnabled: boolean;
+    mfaVerified: boolean;
   }
 }

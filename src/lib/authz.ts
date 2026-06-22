@@ -8,6 +8,13 @@ export async function requireAuth() {
   if (!session) {
     return { error: NextResponse.json({ error: "Não autenticado" }, { status: 401 }) };
   }
+  // Defense-in-depth: além do gate do middleware, nenhum recurso protegido é
+  // liberado para sessões que ainda não completaram a troca de senha ou o MFA
+  // (segundo fator obrigatório para todos). As próprias telas de /mudar-senha
+  // e /mfa usam `auth()` direto, então não passam por aqui.
+  if (session.user.mustChangePassword || !session.user.mfaEnabled || !session.user.mfaVerified) {
+    return { error: NextResponse.json({ error: "Verificação de segurança pendente" }, { status: 403 }) };
+  }
   return { session };
 }
 
