@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
-import { Eye, EyeOff, MoreVertical, Pencil, KeyRound, UserMinus, UserCheck } from "lucide-react";
+import { Eye, EyeOff, MoreVertical, Pencil, KeyRound, UserMinus, UserCheck, ShieldOff } from "lucide-react";
 import type { Role } from "@/lib/authz";
-import { atualizarUsuario, resetarSenha, setUsuarioAtivo } from "./actions";
+import { atualizarUsuario, resetarSenha, resetarMfa, setUsuarioAtivo } from "./actions";
 
 const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "VIEWER", label: "VIEWER" },
@@ -20,6 +20,8 @@ interface Props {
   email: string;
   role: Role;
   active: boolean;
+  /** Segundo fator configurado? Habilita a ação "Resetar MFA". */
+  mfaEnabled: boolean;
   /** É o próprio admin logado? Bloqueia desativação/rebaixamento. */
   isSelf: boolean;
 }
@@ -30,6 +32,7 @@ export default function UsuarioRowActions({
   email,
   role,
   active,
+  mfaEnabled,
   isSelf,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -73,6 +76,23 @@ export default function UsuarioRowActions({
         pwdRef.current?.close();
       }
     });
+  }
+
+  function onResetMfa() {
+    setError(null);
+    if (
+      !confirm(
+        `Resetar a verificação em duas etapas de ${name}? ` +
+          `Ele(a) precisará reconfigurar o app autenticador no próximo acesso.`,
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      const r = await resetarMfa({ id });
+      if (!r.ok) alert(r.error);
+    });
+    close();
   }
 
   function onToggleActive() {
@@ -131,6 +151,14 @@ export default function UsuarioRowActions({
               pwdRef.current?.showModal();
             }}
           />
+          {mfaEnabled && (
+            <MenuItem
+              icon={<ShieldOff className="size-3.5" />}
+              label="Resetar MFA"
+              onClick={onResetMfa}
+              tone="danger"
+            />
+          )}
           {!isSelf && (
             <MenuItem
               icon={active ? <UserMinus className="size-3.5" /> : <UserCheck className="size-3.5" />}

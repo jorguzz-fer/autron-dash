@@ -8,6 +8,7 @@ export interface UserRow {
   email: string;
   role: Role;
   active: boolean;
+  mfaEnabled: boolean;
   lastLoginAt: Date | null;
   createdAt: Date;
 }
@@ -18,6 +19,7 @@ const SELECT_USER_ROW = {
   email: true,
   role: true,
   active: true,
+  mfaEnabled: true,
   lastLoginAt: true,
   createdAt: true,
 } as const;
@@ -38,6 +40,7 @@ export async function listUsersByTenant(tenantId: string): Promise<UserRow[]> {
     email: r.email,
     role: r.role as Role,
     active: r.active,
+    mfaEnabled: r.mfaEnabled,
     lastLoginAt: r.lastLoginAt,
     createdAt: r.createdAt,
   }));
@@ -82,6 +85,7 @@ export async function createUserInTenant(args: {
     email: r.email,
     role: r.role as Role,
     active: r.active,
+    mfaEnabled: r.mfaEnabled,
     lastLoginAt: r.lastLoginAt,
     createdAt: r.createdAt,
   };

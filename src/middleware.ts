@@ -19,13 +19,34 @@ export default auth(function middleware(req) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  // Troca de senha obrigatória: redireciona para /mudar-senha antes de qualquer rota
-  if (
-    req.auth?.user?.mustChangePassword &&
-    !pathname.startsWith("/mudar-senha") &&
-    !pathname.startsWith("/api/auth")
-  ) {
-    return NextResponse.redirect(new URL("/mudar-senha", req.url));
+  const user = req.auth?.user;
+  if (user) {
+    const isAuthApi = pathname.startsWith("/api/auth");
+
+    // 1. Troca de senha obrigatória (sempre antes do MFA).
+    if (user.mustChangePassword && !pathname.startsWith("/mudar-senha") && !isAuthApi) {
+      return NextResponse.redirect(new URL("/mudar-senha", req.url));
+    }
+
+    // Passos de MFA só valem depois de a senha estar resolvida.
+    if (!user.mustChangePassword && !isAuthApi) {
+      // 2. MFA obrigatório para todos: enquanto não configurado, força o setup.
+      if (!user.mfaEnabled && !pathname.startsWith("/mfa/configurar")) {
+        return NextResponse.redirect(new URL("/mfa/configurar", req.url));
+      }
+      // 3. MFA configurado mas ainda não verificado nesta sessão → pede o código.
+      if (user.mfaEnabled && !user.mfaVerified && !pathname.startsWith("/mfa/verificar")) {
+        return NextResponse.redirect(new URL("/mfa/verificar", req.url));
+      }
+      // 4. Já passou pelo MFA → não deve voltar às telas de MFA.
+      if (
+        user.mfaEnabled &&
+        user.mfaVerified &&
+        (pathname.startsWith("/mfa/configurar") || pathname.startsWith("/mfa/verificar"))
+      ) {
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      }
+    }
   }
 
   return NextResponse.next();

@@ -92,8 +92,9 @@ Helpers em `src/lib/authz.ts`: `ROLES_ADMIN`, `ROLES_MANAGE`, `ROLES_WRITE`, `RO
 ## Segurança aplicada
 
 - Senha: bcrypt 12 rounds, mín. 10 chars + 3 classes (lower/upper/digit/symbol), blacklist de senhas comuns
+- MFA (TOTP): segundo fator **obrigatório para todos** — o middleware força `/mfa/configurar` no 1º acesso e `/mfa/verificar` a cada novo login (mesmo padrão de `mustChangePassword`). Segredo cifrado em repouso (AES-256-GCM), códigos de recuperação one-time (bcrypt), reset pelo admin em Usuários. Implementação zero-dependência: `lib/totp.ts` (RFC 6238), `lib/qr.ts` (QR→SVG)
 - Sessão: JWT 8h, atualização de validade a cada 1h
-- Rate limit: 20 logins/15min por IP, 10 logins/hora por email
+- Rate limit: 20 logins/15min por IP, 10 logins/hora por email; 10 tentativas/15min por usuário no MFA
 - Headers: HSTS preload, CSP restritiva, X-Frame DENY, Referrer strict-origin
 - Audit log: tabela `AuditLog` com `tenantId/userId/action/entity/entityId/meta/ip/userAgent`
 - LGPD: política em `/privacidade`, modelo `LGPDConsent` versionado, retenção definida (5 anos para fiscais)

@@ -20,6 +20,7 @@ interface UserRowData {
   email: string;
   role: Role;
   active: boolean;
+  mfaEnabled: boolean;
   lastLoginAt: Date | null;
   createdAt: Date;
 }
@@ -177,6 +178,17 @@ function getColumns(currentUserId: string): Column<UserRowData>[] {
         ),
     },
     {
+      key: "mfa",
+      header: "MFA",
+      sortKey: "mfaEnabled",
+      cell: (u) =>
+        u.mfaEnabled ? (
+          <StatusBadge tone="success">Ativo</StatusBadge>
+        ) : (
+          <StatusBadge tone="warning">Pendente</StatusBadge>
+        ),
+    },
+    {
       key: "lastLogin",
       header: "Último login",
       sortKey: "lastLoginAt",
@@ -206,6 +218,7 @@ function getColumns(currentUserId: string): Column<UserRowData>[] {
           email={u.email}
           role={u.role}
           active={u.active}
+          mfaEnabled={u.mfaEnabled}
           isSelf={u.id === currentUserId}
         />
       ),
