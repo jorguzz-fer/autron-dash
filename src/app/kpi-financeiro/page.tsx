@@ -1,0 +1,463 @@
+import AppShell from "@/components/Layout/AppShell";
+import KPICard from "@/components/UI/KPICard";
+import CardSection from "@/components/UI/CardSection";
+import DataTable, { type Column } from "@/components/UI/DataTable";
+import SegmentedControl from "@/components/UI/SegmentedControl";
+import UploadCard from "@/app/uploads/UploadCard";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { canSeeKpiFinanceiro } from "@/lib/kpiAccess";
+import { ROLES_WRITE, type Role } from "@/lib/authz";
+import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
+import { parseSort, sortRows } from "@/lib/sort";
+import { getAFaturar, getAReceber } from "@/lib/services/kpiFinanceiro";
+import {
+  AGING_BUCKETS,
+  sumAging,
+  type AFaturarBase,
+  type ClienteAFaturar,
+  type ClienteAReceber,
+} from "@/lib/domain/kpiFinanceiro";
+import { Wallet, AlertTriangle, CalendarClock, Users, FileText, Download, ClipboardList } from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
+
+export const metadata = { title: "KPI Financeiro — Autron Dash" };
+
+type View = "receber" | "faturar";
+
+interface SP {
+  view?: string;
+  base?: string;
+  sort?: string;
+  dir?: string;
+}
+
+export default async function KpiFinanceiroPage({
+  searchParams,
+}: {
+  searchParams: Promise<SP>;
+}) {
+  const session = await auth();
+  if (!session) redirect("/login");
+  if (!canSeeKpiFinanceiro(session.user)) redirect("/dashboard");
+
+  const tenantId = session.user.tenantId;
+  const role = session.user.role as Role;
+  const canUpload = ROLES_WRITE.includes(role) || role === "CONTROLADORIA";
+
+  const sp = await searchParams;
+  const view: View = sp.view === "faturar" ? "faturar" : "receber";
+  const base: AFaturarBase = sp.base === "entrega" ? "entrega" : "emissao";
+  const sortState = parseSort(sp.sort, sp.dir);
+  const hoje = new Date();
+
+  return (
+    <AppShell
+      title="KPI Financeiro"
+      subtitle="A receber (vencidos e a vencer) × a faturar — visão da Controladoria"
+    >
+      <div className="space-y-8">
+        <SegmentedControl
+          name="view"
+          value={view}
+          ariaLabel="Indicador"
+          options={[
+            { value: "receber", label: "A Receber (Vencidos e a Vencer)" },
+            { value: "faturar", label: "A Faturar (Pendente)" },
+          ]}
+        />
+
+        {view === "receber" ? (
+          <AReceberSection
+            tenantId={tenantId}
+            hoje={hoje}
+            sortState={sortState}
+            canUpload={canUpload}
+          />
+        ) : (
+          <AFaturarSection
+            tenantId={tenantId}
+            base={base}
+            hoje={hoje}
+            sortState={sortState}
+          />
+        )}
+      </div>
+    </AppShell>
+  );
+}
+
+// ─── A Receber ──────────────────────────────────────────────────────────────
+
+async function AReceberSection({
+  tenantId,
+  hoje,
+  sortState,
+  canUpload,
+}: {
+  tenantId: string;
+  hoje: Date;
+  sortState: ReturnType<typeof parseSort>;
+  canUpload: boolean;
+}) {
+  const { clientes, dataReferencia, qtdTitulos, hasData } = await getAReceber(tenantId, hoje);
+
+  const lastUpload = await prisma.dataUpload.findFirst({
+    where: { tenantId, dataset: "TITULO_RECEBER", status: "SUCCESS" },
+    orderBy: { startedAt: "desc" },
+    include: { user: { select: { name: true } } },
+  });
+
+  const totalVencido = clientes.reduce((a, c) => a + c.totalVencido, 0);
+  const totalAVencer = clientes.reduce((a, c) => a + c.totalAVencer, 0);
+  const total = totalVencido + totalAVencer;
+  const pctVencido = total > 0 ? (totalVencido / total) * 100 : 0;
+
+  const agingVencido = sumAging(clientes, (c) => c.agingVencido);
+  const agingAVencer = sumAging(clientes, (c) => c.agingAVencer);
+
+  const rows = sortState
+    ? (sortRows(clientes as unknown as Record<string, unknown>[], sortState) as unknown as ClienteAReceber[])
+    : clientes;
+
+  const uploadBlock = (
+    <SectionBlock title="Atualizar base — Títulos a Receber (FINR130)">
+      <p className="text-[12.5px]" style={{ color: "var(--fg-muted)" }}>
+        Suba o relatório <strong>Posição de Títulos a Receber</strong> (FINR130) exportado do
+        Protheus em <code>.xlsx</code>. Cada upload substitui a posição anterior.
+      </p>
+      <UploadCard
+        dataset="TITULO_RECEBER"
+        label="Títulos a Receber (FINR130 — Posição dos Títulos)"
+        disabled={!canUpload}
+        lastUpload={
+          lastUpload
+            ? {
+                filename: lastUpload.filename,
+                rowCount: lastUpload.rowCount,
+                finishedAt: lastUpload.finishedAt?.toISOString() ?? null,
+                userName: lastUpload.user.name,
+              }
+            : null
+        }
+      />
+    </SectionBlock>
+  );
+
+  if (!hasData) {
+    return (
+      <div className="space-y-8">
+        <div
+          className="rounded-xl border border-dashed px-6 py-10 text-center text-[13px]"
+          style={{ borderColor: "var(--border-soft)", color: "var(--fg-muted)" }}
+        >
+          Nenhum título a receber carregado ainda. Suba o relatório FINR130 abaixo para começar.
+        </div>
+        {uploadBlock}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <SectionBlock
+        title="A Receber — Posição de Títulos"
+        action={
+          <DownloadButton href="/kpi-financeiro/export/receber" label="Baixar por cliente (CSV)" />
+        }
+        hint={
+          dataReferencia
+            ? `Posição em ${fmtDate(dataReferencia)} · ${fmtNum(qtdTitulos)} títulos`
+            : `${fmtNum(qtdTitulos)} títulos`
+        }
+      >
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <KPICard label="Total a Receber" value={fmtCurrency(total, { decimals: 0 })} tone="brand" icon={<Wallet className="size-4" />} />
+          <KPICard label="Vencido" value={fmtCurrency(totalVencido, { decimals: 0 })} hint={`${fmtPct(pctVencido, 1)} do total`} tone={pctVencido >= 20 ? "danger" : "warning"} icon={<AlertTriangle className="size-4" />} />
+          <KPICard label="A Vencer" value={fmtCurrency(totalAVencer, { decimals: 0 })} tone="success" icon={<CalendarClock className="size-4" />} />
+          <KPICard label="% Vencido" value={fmtPct(pctVencido, 1)} tone={pctVencido >= 20 ? "danger" : pctVencido >= 10 ? "warning" : "success"} />
+          <KPICard label="Clientes" value={fmtNum(clientes.length)} tone="neutral" icon={<Users className="size-4" />} />
+          <KPICard label="Títulos" value={fmtNum(qtdTitulos)} tone="neutral" icon={<FileText className="size-4" />} />
+        </div>
+
+        <CardSection title="Aging" subtitle="Vencidos por dias de atraso · A vencer por dias até o vencimento">
+          <AgingMatrix
+            linhas={[
+              { label: "Vencido", aging: agingVencido, tone: "danger" },
+              { label: "A Vencer", aging: agingAVencer, tone: "success" },
+            ]}
+          />
+        </CardSection>
+
+        <CardSection title={`Por Cliente (${fmtNum(clientes.length)})`} subtitle="Filiais de mesmo nome somadas numa linha · clique nas colunas para ordenar">
+          <DataTable
+            columns={receberCols}
+            rows={rows}
+            rowKey={(c) => c.cliente}
+            emptyMessage="Sem títulos."
+          />
+        </CardSection>
+      </SectionBlock>
+
+      {uploadBlock}
+    </div>
+  );
+}
+
+const receberCols: Column<ClienteAReceber>[] = [
+  {
+    key: "cliente",
+    header: "Cliente",
+    sortKey: "cliente",
+    cell: (c) => (
+      <div className="min-w-0">
+        <div className="truncate text-[12.5px] font-medium" style={{ color: "var(--fg-strong)" }} title={c.cliente}>
+          {c.cliente}
+        </div>
+        <div className="truncate text-[11px]" style={{ color: "var(--fg-muted)" }}>
+          {c.qtdCadastros > 1 ? `${c.qtdCadastros} cadastros · ` : ""}
+          {c.codigos.join(", ")}
+        </div>
+      </div>
+    ),
+  },
+  { key: "qtdTitulos", header: "Títulos", sortKey: "qtdTitulos", align: "right", cell: (c) => <span className="numeric text-[12px]">{fmtNum(c.qtdTitulos)}</span> },
+  {
+    key: "vencido",
+    header: "Vencido",
+    sortKey: "totalVencido",
+    align: "right",
+    cell: (c) => (
+      <span className="numeric text-[12px] font-medium" style={{ color: c.totalVencido > 0 ? "#e11d48" : "var(--fg-muted)" }}>
+        {c.totalVencido > 0 ? fmtCurrency(c.totalVencido, { decimals: 0 }) : "—"}
+      </span>
+    ),
+  },
+  {
+    key: "aVencer",
+    header: "A Vencer",
+    sortKey: "totalAVencer",
+    align: "right",
+    cell: (c) => <span className="numeric text-[12px]">{c.totalAVencer > 0 ? fmtCurrency(c.totalAVencer, { decimals: 0 }) : "—"}</span>,
+  },
+  {
+    key: "total",
+    header: "Total",
+    sortKey: "total",
+    align: "right",
+    cell: (c) => <span className="numeric text-[12px] font-semibold" style={{ color: "var(--fg-strong)" }}>{fmtCurrency(c.total, { decimals: 0 })}</span>,
+  },
+  {
+    key: "maiorAtraso",
+    header: "Maior Atraso",
+    sortKey: "maiorAtraso",
+    align: "right",
+    cell: (c) => (
+      <span className="numeric text-[12px]" style={{ color: c.maiorAtraso > 90 ? "#e11d48" : c.maiorAtraso > 0 ? "#f59e0b" : "var(--fg-muted)" }}>
+        {c.maiorAtraso > 0 ? `${fmtNum(c.maiorAtraso)} d` : "—"}
+      </span>
+    ),
+  },
+];
+
+// ─── A Faturar ──────────────────────────────────────────────────────────────
+
+async function AFaturarSection({
+  tenantId,
+  base,
+  hoje,
+  sortState,
+}: {
+  tenantId: string;
+  base: AFaturarBase;
+  hoje: Date;
+  sortState: ReturnType<typeof parseSort>;
+}) {
+  const clientes = await getAFaturar(tenantId, base, hoje);
+
+  const total = clientes.reduce((a, c) => a + c.total, 0);
+  const semData = clientes.reduce((a, c) => a + c.semData, 0);
+  const qtdPedidos = clientes.reduce((a, c) => a + c.qtdPedidos, 0);
+  const qtdItens = clientes.reduce((a, c) => a + c.qtdItens, 0);
+  const aging = sumAging(clientes, (c) => c.aging);
+
+  const rows = sortState
+    ? (sortRows(clientes as unknown as Record<string, unknown>[], sortState) as unknown as ClienteAFaturar[])
+    : clientes;
+
+  return (
+    <SectionBlock
+      title="A Faturar — Carteira Pendente"
+      hint="Pedidos EM ABERTO (sem nota fiscal) na base de Pedidos do Dash"
+      action={
+        <div className="flex items-center gap-3">
+          <SegmentedControl
+            name="base"
+            value={base}
+            size="sm"
+            ariaLabel="Referência do aging"
+            options={[
+              { value: "emissao", label: "Por Emissão", hint: "Dias desde a emissão do pedido" },
+              { value: "entrega", label: "Por Entrega prevista", hint: "Dias vs. a entrega/faturamento previsto" },
+            ]}
+          />
+          <DownloadButton href={`/kpi-financeiro/export/faturar?base=${base}`} label="Baixar (CSV)" />
+        </div>
+      }
+    >
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <KPICard label="Total a Faturar" value={fmtCurrency(total, { decimals: 0 })} tone="brand" icon={<Wallet className="size-4" />} />
+        <KPICard label="Clientes" value={fmtNum(clientes.length)} tone="neutral" icon={<Users className="size-4" />} />
+        <KPICard label="Pedidos (PVs)" value={fmtNum(qtdPedidos)} tone="neutral" icon={<ClipboardList className="size-4" />} />
+        <KPICard label="Itens" value={fmtNum(qtdItens)} tone="neutral" icon={<FileText className="size-4" />} />
+        <KPICard label="Sem data" value={fmtCurrency(semData, { decimals: 0 })} hint={base === "emissao" ? "sem emissão" : "sem entrega prevista"} tone={semData > 0 ? "warning" : "neutral"} />
+      </div>
+
+      <CardSection title="Aging" subtitle={base === "emissao" ? "Por dias desde a emissão do pedido" : "Por dias em relação à entrega prevista"}>
+        <AgingMatrix linhas={[{ label: "A Faturar", aging, tone: "brand" }]} semData={semData} />
+      </CardSection>
+
+      <CardSection title={`Por Cliente (${fmtNum(clientes.length)})`} subtitle="Filiais de mesmo nome somadas numa linha · clique nas colunas para ordenar">
+        <DataTable columns={faturarCols} rows={rows} rowKey={(c) => c.cliente} emptyMessage="Nenhum pedido em aberto." />
+      </CardSection>
+    </SectionBlock>
+  );
+}
+
+const faturarCols: Column<ClienteAFaturar>[] = [
+  {
+    key: "cliente",
+    header: "Cliente",
+    sortKey: "cliente",
+    cell: (c) => (
+      <span className="block max-w-[260px] truncate text-[12.5px] font-medium" style={{ color: "var(--fg-strong)" }} title={c.cliente}>
+        {c.cliente}
+      </span>
+    ),
+  },
+  { key: "qtdPedidos", header: "PVs", sortKey: "qtdPedidos", align: "right", cell: (c) => <span className="numeric text-[12px]">{fmtNum(c.qtdPedidos)}</span> },
+  {
+    key: "total",
+    header: "Total a Faturar",
+    sortKey: "total",
+    align: "right",
+    cell: (c) => <span className="numeric text-[12px] font-semibold" style={{ color: "var(--fg-strong)" }}>{fmtCurrency(c.total, { decimals: 0 })}</span>,
+  },
+  ...AGING_BUCKETS.map(
+    (b): Column<ClienteAFaturar> => ({
+      key: `aging-${b}`,
+      header: `${b} d`,
+      align: "right",
+      cell: (c) => {
+        const v = c.aging[b];
+        return (
+          <span className="numeric text-[12px]" style={{ color: v > 0 ? (b === ">120" ? "#e11d48" : "var(--fg)") : "var(--fg-muted)" }}>
+            {v > 0 ? fmtCurrency(v, { decimals: 0 }) : "—"}
+          </span>
+        );
+      },
+    }),
+  ),
+];
+
+// ─── Auxiliares de UI ───────────────────────────────────────────────────────
+
+function AgingMatrix({
+  linhas,
+  semData,
+}: {
+  linhas: { label: string; aging: Record<(typeof AGING_BUCKETS)[number], number>; tone: "danger" | "success" | "brand" }[];
+  semData?: number;
+}) {
+  const toneColor = { danger: "#e11d48", success: "#10b981", brand: "var(--color-brand-500)" } as const;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr
+            className="text-[10.5px] uppercase tracking-wider"
+            style={{ color: "var(--fg-muted)", backgroundColor: "var(--surface-2)", borderBottom: "1px solid var(--border-soft)" }}
+          >
+            <th className="px-3 py-2.5 text-left font-semibold" style={{ minWidth: 120 }}>—</th>
+            {AGING_BUCKETS.map((b) => (
+              <th key={b} className="px-3 py-2.5 text-right font-semibold" style={{ minWidth: 110 }}>{b} dias</th>
+            ))}
+            <th className="px-3 py-2.5 text-right font-semibold" style={{ minWidth: 130 }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((l) => {
+            const tot = AGING_BUCKETS.reduce((a, b) => a + l.aging[b], 0);
+            return (
+              <tr key={l.label} style={{ borderTop: "1px solid var(--border-soft)" }}>
+                <td className="px-3 py-2 font-semibold" style={{ color: toneColor[l.tone] }}>{l.label}</td>
+                {AGING_BUCKETS.map((b) => (
+                  <td key={b} className="numeric px-3 py-2 text-right" style={{ color: l.aging[b] > 0 ? "var(--fg)" : "var(--fg-muted)" }}>
+                    {l.aging[b] > 0 ? fmtCurrency(l.aging[b], { decimals: 0 }) : "—"}
+                  </td>
+                ))}
+                <td className="numeric px-3 py-2 text-right font-semibold" style={{ color: "var(--fg-strong)" }}>{fmtCurrency(tot, { decimals: 0 })}</td>
+              </tr>
+            );
+          })}
+          {semData != null && semData > 0 && (
+            <tr style={{ borderTop: "1px solid var(--border-soft)" }}>
+              <td className="px-3 py-2 font-medium" style={{ color: "var(--fg-muted)" }}>Sem data</td>
+              <td className="numeric px-3 py-2 text-right" style={{ color: "var(--fg-muted)" }} colSpan={AGING_BUCKETS.length}>—</td>
+              <td className="numeric px-3 py-2 text-right font-semibold" style={{ color: "#f59e0b" }}>{fmtCurrency(semData, { decimals: 0 })}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DownloadButton({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className="ring-focus inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[var(--surface-2)]"
+      style={{ borderColor: "var(--border-strong)", color: "var(--fg)" }}
+    >
+      <Download className="size-3.5" /> {label}
+    </Link>
+  );
+}
+
+function SectionBlock({
+  title,
+  hint,
+  action,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="space-y-4 rounded-2xl px-6 py-5"
+      style={{
+        backgroundColor: "color-mix(in srgb, var(--color-brand-500) 4%, var(--canvas))",
+        border: "1px solid color-mix(in srgb, var(--color-brand-500) 14%, var(--border-soft))",
+      }}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="block h-6 w-1 shrink-0 rounded-full" style={{ backgroundColor: "var(--color-brand-500)" }} />
+          <div>
+            <h2 className="text-[19px] font-bold tracking-tight" style={{ color: "var(--fg-strong)" }}>{title}</h2>
+            {hint && <p className="text-[12px]" style={{ color: "var(--fg-muted)" }}>{hint}</p>}
+          </div>
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}

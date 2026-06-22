@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Dataset } from "@prisma/client";
-import { requireRole, ROLES_WRITE } from "@/lib/authz";
+import { requireRole, ROLES_WRITE, type Role } from "@/lib/authz";
 import { rateLimit } from "@/lib/rateLimit";
 import { processUpload } from "@/lib/uploads";
 import { getClientIp, getUserAgent, logAudit } from "@/lib/audit";
@@ -22,7 +22,12 @@ export async function POST(
     return NextResponse.json({ error: "Dataset inválido" }, { status: 400 });
   }
 
-  const guard = await requireRole(ROLES_WRITE);
+  // O relatório de Títulos a Receber (KPI Financeiro) é mantido pela
+  // Controladoria, que não tem papel de escrita global — liberamos CONTROLADORIA
+  // apenas para esse dataset.
+  const allowedRoles: Role[] =
+    dataset === "TITULO_RECEBER" ? [...ROLES_WRITE, "CONTROLADORIA"] : ROLES_WRITE;
+  const guard = await requireRole(allowedRoles);
   if (guard.error) return guard.error;
   const session = guard.session;
 
