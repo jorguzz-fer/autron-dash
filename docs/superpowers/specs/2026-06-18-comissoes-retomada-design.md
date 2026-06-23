@@ -127,11 +127,31 @@ pagar meses depois. O gate é pelo **mês de emissão** do pedido, não pela dat
 - Pago no último dia útil, junto ao salário. **Representante Autônomo: dia 15** (N1).
 - Efetivação só quando o **cliente paga** — antes disso é "programado p/ pagar" (N2).
 
+### 4.7 Validação com dados reais (2026-06-18)
+Conferido contra `Comissao-Analitco.xlsx` + `Comissao-Meta.xlsx` reais (do Drive):
+
+| Caso | Nosso motor | Protheus | Resultado |
+|---|---|---|---|
+| Adriano (000022) pagos 21/03–20/04 | R$ 314,69 | R$ 314,68 | ✅ bate (±1 centavo, arredondamento por linha) |
+| Adriano pagos 21/04–20/05 | R$ 262,62 | R$ 262,61 | ✅ bate |
+| Adriano previsão JAN | ≈ R$ 5.772,98 | R$ 5.772,98 | ✅ (previsão soma todas as linhas; EP deduplica parcela) |
+| Alexsiano (000029) JAN habilita | NÃO | NÃO | ✅ |
+| **Alexsiano FEV habilita** | **NÃO** (YTD 56,6%) | **SIM** | ⚠️ **diverge por design (regra YTD)** |
+
+**Ponto de atenção para o cliente:** com a regra YTD da Política, Alexsiano **não fica elegível
+em FEV** (atingimento acumulado 56,6% < 70%), enquanto o extrato Protheus (regra mensal antiga)
+mostra SIM. A previsão de FEV dele (R$ 3.027,04 no Protheus) é **R$ 0** no nosso sistema. Isso é
+o comportamento correto da política nova — mas precisa ser **comunicado** para não parecer erro.
+
+**Ajustes nos parsers para o formato real (feitos nesta validação):**
+- Metas: **reescrito para multi-aba** (1 aba por vendedor + aba `PARÂMETROS`; lê `CÓDIGO PROTHEUS`,
+  `META MES` × JAN..DEZ, ano do cabeçalho `MMM-AAAA`). Zero-padding do código a 6 dígitos.
+- Analítico: colunas reais `Data Emissão Pedido Venda` e `Classificação da Comissao` mapeadas.
+- `toDecimalStr` tolera `R$` e espaços (ex.: `R$ 13.425,81` → 13425.81); `/ /` → data nula.
+
 ---
 
 ## 5. Itens abertos / decisões (o que preciso de você)
-
-> Estes três pontos não estão fechados nos materiais. O resto está definido.
 
 ### N1 — Representante Autônomo
 Contrato recém-fechado (Márcio: "preciso bater só com o Leandro qual percentual vamos
