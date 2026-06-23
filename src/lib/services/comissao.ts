@@ -31,6 +31,23 @@ export async function getCargos(tenantId: string, ano?: number) {
   });
 }
 
+/**
+ * Códigos de vendedor que têm dados carregados (metas e/ou analítico) mas que
+ * ainda NÃO foram cadastrados em ComissaoVendedor. São os vendedores que o
+ * upload trouxe mas que não aparecem na apuração por falta de cadastro
+ * (cargo/%/gatilho). Usado para guiar o usuário na Visão Geral.
+ */
+export async function getCodigosSemCadastro(tenantId: string): Promise<string[]> {
+  const [vend, metas, lancs] = await Promise.all([
+    prisma.comissaoVendedor.findMany({ where: { tenantId }, select: { codigoProtheus: true } }),
+    prisma.comissaoMeta.findMany({ where: { tenantId }, select: { codVendedor: true }, distinct: ["codVendedor"] }),
+    prisma.comissaoLancamento.findMany({ where: { tenantId }, select: { codVendedor: true }, distinct: ["codVendedor"] }),
+  ]);
+  const cadastrados = new Set(vend.map((v) => v.codigoProtheus));
+  const comDados = new Set<string>([...metas.map((m) => m.codVendedor), ...lancs.map((l) => l.codVendedor)]);
+  return [...comDados].filter((c) => c && !cadastrados.has(c)).sort();
+}
+
 /** Subordinados diretos de um gestor (vendedores cujo supervisorCodigo == cod). */
 export async function getSubordinados(
   tenantId: string,

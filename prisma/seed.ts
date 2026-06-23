@@ -69,44 +69,36 @@ async function main() {
   }
   console.log(`✓ Cargos de comissão (${anoCargos}): ${cargos.length}`);
 
-  // ── Vendedores (planilha "Consultores de Vendas Autron v2") ─────────────────
+  // ── Vendedores (planilha de metas real + cargos da planilha de consultores) ──
   // Gated por env: SEED_VENDEDORES=true. Não roda no seed padrão para evitar
-  // injetar códigos-placeholder em produção.
+  // sobrescrever edições feitas pela UI a cada deploy.
   //
-  // ATENÇÃO: apenas Alexsiano (000029) tem código Protheus real conhecido. Os
-  // demais estão como "TBD-*" — SUBSTITUA pelos códigos reais antes de subir o
-  // analítico (a correspondência vendedor↔lançamento é feita pelo código).
+  // Códigos Protheus reais extraídos do extrato de metas 2026 (11 vendedores
+  // com metas carregadas). Rembrandt, Helton (internacional) e Representante
+  // Autônomo não têm metas neste período → cadastrar quando necessário.
   if (process.env.SEED_VENDEDORES === "true") {
-    type V = { codigo: string; nome: string; cargo: string; supervisor?: string; tipo?: string };
+    type V = { codigo: string; nome: string; cargo: string; supervisorCodigo?: string; tipo?: string; ativo?: boolean };
     const vendedores: V[] = [
-      { codigo: "000029", nome: "ALEXSIANO PORFIRIO DA SILVA", cargo: "CONSULTOR DE VENDAS I", supervisor: "WILLIAN CÉSAR SANTOS TOMAZ" },
-      { codigo: "TBD-BRUNO", nome: "BRUNO PEREIRA DA SILVA", cargo: "CONSULTOR DE VENDAS I", supervisor: "RAFAEL SILVA DE JESUS" },
-      { codigo: "TBD-CELIO", nome: "CELIO ONOFRE MARCONDES JUNIOR", cargo: "SUPERVISOR DE VENDAS" },
-      { codigo: "TBD-DEWET", nome: "DEWET VIRMOND TAQUES NETO", cargo: "CONSULTOR ESPECIALISTA DE VENDAS" },
-      { codigo: "TBD-JOAOVITOR", nome: "JOAO VITOR RIBEIRO DE SOUZA", cargo: "CONSULTOR DE VENDAS II", supervisor: "CELIO ONOFRE MARCONDES JUNIOR" },
-      { codigo: "TBD-LEANDRO", nome: "LEANDRO DA SILVA", cargo: "CONSULTOR DE VENDAS I", supervisor: "WILLIAN CÉSAR SANTOS TOMAZ" },
-      { codigo: "TBD-MICHEL", nome: "MICHEL DE AZEVEDO SAAD", cargo: "CONSULTOR ESPECIALISTA DE VENDAS" },
-      { codigo: "TBD-RAFAEL", nome: "RAFAEL SILVA DE JESUS", cargo: "CONSULTOR ESPECIALISTA DE VENDAS" },
-      // Planilha marca Rembrandt como "carteira", mas sem subordinados → individual.
-      { codigo: "TBD-REMBRANDT", nome: "REMBRANDT SOARES SANTOS", cargo: "CONSULTOR DE VENDAS INTERNAS" },
-      { codigo: "TBD-WILLIAN", nome: "WILLIAN CÉSAR SANTOS TOMAZ", cargo: "KEY ACCOUNT MANAGER SIDERURGIA" },
-      { codigo: "TBD-HELTON", nome: "HELTON CALMON ROSA", cargo: "VENDAS INTERNACIONAIS" },
-      { codigo: "TBD-REPRESENTANTE", nome: "REPRESENTANTE AUTÔNOMO", cargo: "REPRESENTANTE AUTÔNOMO", tipo: "REPRESENTANTE" },
+      { codigo: "000002", nome: "VENDAS INTERNAS (carteira)", cargo: "CONSULTOR DE VENDAS INTERNAS" },
+      { codigo: "000006", nome: "WILLIAN CÉSAR SANTOS TOMAZ", cargo: "KEY ACCOUNT MANAGER SIDERURGIA" },
+      { codigo: "000007", nome: "MICHEL DE AZEVEDO SAAD", cargo: "CONSULTOR ESPECIALISTA DE VENDAS" },
+      { codigo: "000018", nome: "DEWET VIRMOND TAQUES NETO", cargo: "CONSULTOR ESPECIALISTA DE VENDAS" },
+      { codigo: "000020", nome: "RAFAEL SILVA DE JESUS", cargo: "CONSULTOR ESPECIALISTA DE VENDAS" },
+      { codigo: "000022", nome: "ADRIANO CORREA DE MATOS", cargo: "CONSULTOR DE VENDAS I", ativo: false }, // ex-funcionário
+      { codigo: "000024", nome: "CELIO ONOFRE MARCONDES JUNIOR", cargo: "SUPERVISOR DE VENDAS" },
+      { codigo: "000025", nome: "JOÃO VITOR RIBEIRO DE SOUZA", cargo: "CONSULTOR DE VENDAS II", supervisorCodigo: "000024" },
+      { codigo: "000029", nome: "ALEXSIANO PORFIRIO DA SILVA", cargo: "CONSULTOR DE VENDAS I", supervisorCodigo: "000006" },
+      { codigo: "000032", nome: "LEANDRO DA SILVA", cargo: "CONSULTOR DE VENDAS I", supervisorCodigo: "000006" },
+      { codigo: "000033", nome: "BRUNO PEREIRA DA SILVA", cargo: "CONSULTOR DE VENDAS I", supervisorCodigo: "000020" },
     ];
-    const codigoPorNome = new Map(vendedores.map((v) => [v.nome, v.codigo]));
     for (const v of vendedores) {
-      const supervisorCodigo = v.supervisor ? codigoPorNome.get(v.supervisor) ?? null : null;
       await prisma.comissaoVendedor.upsert({
         where: { tenantId_codigoProtheus: { tenantId: tenant.id, codigoProtheus: v.codigo } },
-        update: { nome: v.nome, cargo: v.cargo, tipo: v.tipo ?? "CLT", supervisorCodigo, ativo: true },
-        create: { tenantId: tenant.id, codigoProtheus: v.codigo, nome: v.nome, cargo: v.cargo, tipo: v.tipo ?? "CLT", supervisorCodigo, ativo: true },
+        update: { nome: v.nome, cargo: v.cargo, tipo: v.tipo ?? "CLT", supervisorCodigo: v.supervisorCodigo ?? null, ativo: v.ativo ?? true },
+        create: { tenantId: tenant.id, codigoProtheus: v.codigo, nome: v.nome, cargo: v.cargo, tipo: v.tipo ?? "CLT", supervisorCodigo: v.supervisorCodigo ?? null, ativo: v.ativo ?? true },
       });
     }
-    const placeholders = vendedores.filter((v) => v.codigo.startsWith("TBD-")).length;
     console.log(`✓ Vendedores: ${vendedores.length} (carteiras: Willian→Alexsiano+Leandro · Célio→João Vitor · Rafael→Bruno)`);
-    if (placeholders > 0) {
-      console.warn(`⚠ ${placeholders} vendedores com código Protheus placeholder (TBD-*) — substitua pelos códigos reais antes de subir o analítico.`);
-    }
   }
 }
 

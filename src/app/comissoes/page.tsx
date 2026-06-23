@@ -2,7 +2,7 @@ import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getVendedores, getExtratoVendedor } from "@/lib/services/comissao";
+import { getVendedores, getExtratoVendedor, getCodigosSemCadastro } from "@/lib/services/comissao";
 import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import DataTable, { type Column } from "@/components/UI/DataTable";
@@ -36,6 +36,10 @@ export default async function ComissoesPage() {
   // Fetch all vendedores (active + inactive) — service returns ordered ativo desc, nome asc
   const vendedores = await getVendedores(tenantId);
   const ativos = vendedores.filter((v) => v.ativo);
+
+  // Códigos com dados carregados (metas/analítico) mas sem cadastro de vendedor —
+  // guia o usuário quando o upload trouxe dados mas a apuração está vazia.
+  const semCadastro = await getCodigosSemCadastro(tenantId);
 
   // Parallel extratos for all active vendors
   const extratos = await Promise.all(
@@ -214,6 +218,35 @@ export default async function ComissoesPage() {
       subtitle={`Visão Geral · ${ano} · ${qtdAtivos} vendedores ativos`}
     >
       <div className="space-y-8">
+        {/* ── Aviso: dados carregados sem cadastro de vendedor ── */}
+        {semCadastro.length > 0 && (
+          <div
+            className="rounded-xl border px-5 py-4"
+            style={{
+              backgroundColor: "color-mix(in srgb, #f59e0b 10%, var(--surface))",
+              borderColor: "color-mix(in srgb, #f59e0b 35%, var(--border-soft))",
+            }}
+          >
+            <p className="text-[13.5px] font-semibold" style={{ color: "var(--fg-strong)" }}>
+              {semCadastro.length} vendedor{semCadastro.length !== 1 ? "es" : ""} com dados carregados, mas sem cadastro
+            </p>
+            <p className="mt-1 text-[12.5px]" style={{ color: "var(--fg-muted)" }}>
+              O upload trouxe metas/analítico para os códigos abaixo, mas eles ainda não foram
+              cadastrados (cargo, %, gatilho). Enquanto não houver cadastro, não entram na apuração.
+            </p>
+            <p className="mt-2 font-mono text-[12px]" style={{ color: "var(--fg)" }}>
+              {semCadastro.join("  ·  ")}
+            </p>
+            <Link
+              href="/comissoes/vendedores"
+              className="mt-3 inline-block text-[12.5px] font-medium hover:underline"
+              style={{ color: "var(--color-brand-500)" }}
+            >
+              Cadastrar vendedores →
+            </Link>
+          </div>
+        )}
+
         {/* ── KPIs ── */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <KPICard
