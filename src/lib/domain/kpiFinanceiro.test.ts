@@ -3,11 +3,25 @@ import {
   agingBucket,
   diffDays,
   normalizeClienteKey,
+  grupoKey,
+  isProtesto,
   groupAReceber,
   groupAFaturar,
   type TituloReceberItem,
   type PedidoAFaturarItem,
 } from "./kpiFinanceiro";
+
+const titulo = (over: Partial<TituloReceberItem>): TituloReceberItem => ({
+  codigoCliente: null,
+  loja: "01",
+  nomeCliente: null,
+  saldoVencido: 0,
+  saldoAVencer: 0,
+  diasAtraso: 0,
+  vencimento: null,
+  emCartorio: false,
+  ...over,
+});
 
 describe("agingBucket", () => {
   it("classifica nas faixas do modelo manual", () => {
@@ -40,35 +54,74 @@ describe("normalizeClienteKey", () => {
   });
 });
 
+describe("grupoKey", () => {
+  it("usa a primeira palavra (espaço, hífen ou barra)", () => {
+    expect(grupoKey("GERDAU PINDA")).toBe("GERDAU");
+    expect(grupoKey("GERDAU-COSIGUA")).toBe("GERDAU");
+    expect(grupoKey("GERDAU-OURO BRANCO")).toBe("GERDAU");
+    expect(grupoKey("3M - SUMARE")).toBe("3M");
+    expect(grupoKey("VALLOUREC TUBOS")).toBe("VALLOUREC");
+    expect(grupoKey(null)).toBe("");
+  });
+});
+
+describe("isProtesto", () => {
+  it("detecta protesto/cartório no histórico (coluna P)", () => {
+    expect(isProtesto("EM PROTESTO")).toBe(true);
+    expect(isProtesto("título protestado")).toBe(true);
+    expect(isProtesto("ENVIADO P/ CARTÓRIO")).toBe(true);
+    expect(isProtesto("CARTORIO 2o OFICIO")).toBe(true);
+    expect(isProtesto("PREVISAO DE PAGTO 21/05")).toBe(false);
+    expect(isProtesto(null)).toBe(false);
+    expect(isProtesto("")).toBe(false);
+  });
+});
+
 describe("groupAReceber", () => {
   const hoje = new Date("2026-06-22");
 
-  it("funde filiais de mesmo nome (cadastros diferentes) numa linha", () => {
-    const titulos: TituloReceberItem[] = [
-      { codigoCliente: "C000130", loja: "01", nomeCliente: "ALUMAR", saldoVencido: 0, saldoAVencer: 100, diasAtraso: 0, vencimento: new Date("2026-07-04") },
-      { codigoCliente: "C000130", loja: "02", nomeCliente: "ALUMAR", saldoVencido: 50, saldoAVencer: 0, diasAtraso: 40, vencimento: new Date("2026-05-13") },
-      { codigoCliente: "C009999", loja: "01", nomeCliente: "Alumar", saldoVencido: 0, saldoAVencer: 25, diasAtraso: 0, vencimento: new Date("2026-08-01") },
+  it("funde unidades de mesmo grupo econômico (Gerdau) numa linha", () => {
+    const titulos = [
+      titulo({ codigoCliente: "C004423", nomeCliente: "GERDAU PINDA", saldoAVencer: 134828, vencimento: new Date("2026-07-20") }),
+      titulo({ codigoCliente: "C001170", nomeCliente: "GERDAU RECIFE", saldoVencido: 49453, diasAtraso: 20 }),
+      titulo({ codigoCliente: "C001167", loja: "02", nomeCliente: "GERDAU-COSIGUA", saldoVencido: 16504, diasAtraso: 50 }),
+      titulo({ codigoCliente: "C000018", nomeCliente: "GERDAU-OURO BRANCO", saldoVencido: 95761, diasAtraso: 95 }),
     ];
     const out = groupAReceber(titulos, hoje);
     expect(out).toHaveLength(1);
-    const a = out[0];
-    expect(a.cliente).toBe("ALUMAR");
-    expect(a.qtdTitulos).toBe(3);
-    expect(a.qtdCadastros).toBe(3); // C000130-01, C000130-02, C009999-01
-    expect(a.codigos).toEqual(["C000130", "C009999"]);
-    expect(a.totalVencido).toBe(50);
-    expect(a.totalAVencer).toBe(125);
-    expect(a.total).toBe(175);
-    expect(a.maiorAtraso).toBe(40);
-    expect(a.agingVencido["30-60"]).toBe(50);
-    expect(a.agingAVencer["0-29"]).toBe(100); // vence 04/07 (12 dias)
-    expect(a.agingAVencer["30-60"]).toBe(25); // vence 01/08 (40 dias)
+    const g = out[0];
+    expect(g.cliente).toBe("GERDAU");
+    expect(g.unidades).toHaveLength(4);
+    expect(g.qtdCadastros).toBe(4);
+    expect(g.totalVencido).toBe(49453 + 16504 + 95761);
+    expect(g.totalAVencer).toBe(134828);
+    expect(g.maiorAtraso).toBe(95);
+  });
+
+  it("separa títulos em cartório do total vencido (3o status)", () => {
+    const titulos = [
+      titulo({ codigoCliente: "C1", nomeCliente: "CLIENTE X", saldoVencido: 100, diasAtraso: 40 }),
+      titulo({ codigoCliente: "C1", nomeCliente: "CLIENTE X", saldoVencido: 200, diasAtraso: 200, emCartorio: true }),
+    ];
+    const [c] = groupAReceber(titulos, hoje);
+    expect(c.totalVencido).toBe(100);
+    expect(c.totalCartorio).toBe(200);
+    expect(c.total).toBe(300);
+    expect(c.agingVencido["30-60"]).toBe(100);
+    expect(c.agingCartorio[">120"]).toBe(200);
+    expect(c.maiorAtraso).toBe(200);
+  });
+
+  it("mantém nome completo quando o grupo tem 1 cadastro só", () => {
+    const [c] = groupAReceber([titulo({ codigoCliente: "C9", nomeCliente: "FIBRASA SUDESTE", saldoVencido: 10, diasAtraso: 5 })], hoje);
+    expect(c.cliente).toBe("FIBRASA SUDESTE");
+    expect(c.unidades).toEqual(["FIBRASA SUDESTE"]);
   });
 
   it("ordena por total desc", () => {
-    const titulos: TituloReceberItem[] = [
-      { codigoCliente: "C1", loja: "01", nomeCliente: "PEQUENO", saldoVencido: 0, saldoAVencer: 10, diasAtraso: 0, vencimento: hoje },
-      { codigoCliente: "C2", loja: "01", nomeCliente: "GRANDE", saldoVencido: 0, saldoAVencer: 1000, diasAtraso: 0, vencimento: hoje },
+    const titulos = [
+      titulo({ codigoCliente: "C1", nomeCliente: "PEQUENO", saldoAVencer: 10, vencimento: hoje }),
+      titulo({ codigoCliente: "C2", nomeCliente: "GRANDE", saldoAVencer: 1000, vencimento: hoje }),
     ];
     const out = groupAReceber(titulos, hoje);
     expect(out.map((c) => c.cliente)).toEqual(["GRANDE", "PEQUENO"]);
@@ -109,5 +162,13 @@ describe("groupAFaturar", () => {
     // entrega 01/07 (futuro) → 0; entrega 10/06 → 12 dias atraso; ambos 0-29
     expect(a.aging["0-29"]).toBe(150);
     expect(a.semData).toBe(25);
+  });
+
+  it("calcula prazo médio emissão → entrega prevista (ignora itens sem data)", () => {
+    const out = groupAFaturar(pedidos, "emissao", hoje);
+    const a = out[0];
+    // 01/06→01/07 = 30 dias; 01/03→10/06 = 101 dias; PV2 sem datas é ignorado
+    expect(a.qtdComPrazo).toBe(2);
+    expect(a.leadMedioDias).toBeCloseTo((30 + 101) / 2);
   });
 });

@@ -4,6 +4,7 @@ import { getEnrichedPedidos } from "./dashboard";
 import {
   groupAFaturar,
   groupAReceber,
+  isProtesto,
   type AFaturarBase,
   type ClienteAFaturar,
   type ClienteAReceber,
@@ -41,6 +42,7 @@ export async function getAReceber(
     saldoAVencer: num(t.saldoAVencer),
     diasAtraso: t.diasAtraso,
     vencimento: t.vencimento,
+    emCartorio: isProtesto(t.historico),
   }));
 
   const clientes = groupAReceber(items, hoje);
