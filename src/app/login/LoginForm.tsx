@@ -2,13 +2,10 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import PasswordInput from "@/components/UI/PasswordInput";
 
 export default function LoginForm({ passwordChanged = false }: { passwordChanged?: boolean }) {
-  const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -24,8 +21,9 @@ export default function LoginForm({ passwordChanged = false }: { passwordChanged
       setError("Credenciais inválidas, conta inativa ou limite de tentativas atingido.");
       return;
     }
-    router.push("/dashboard");
-    router.refresh();
+    // Navegação "hard": garante que o cookie de sessão recém-criado seja
+    // enviado ao middleware (que decide entre dashboard / MFA / troca de senha).
+    window.location.assign("/dashboard");
   }
 
   return (

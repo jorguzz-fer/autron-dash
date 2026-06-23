@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { ShieldCheck, AlertCircle, Copy, Check, Download, KeyRound } from "lucide-react";
 import { confirmarSetup } from "./actions";
 
@@ -14,7 +13,6 @@ export default function ConfigurarMfaForm({
   secretFormatted: string;
   otpauthUri: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
@@ -116,8 +114,9 @@ export default function ConfigurarMfaForm({
           type="button"
           disabled={!savedAck}
           onClick={() => {
-            router.push("/dashboard");
-            router.refresh();
+            // Navegação "hard" para garantir que o cookie de sessão atualizado
+            // (mfaEnabled/mfaVerified) seja enviado ao middleware.
+            window.location.assign("/dashboard");
           }}
           className="w-full rounded-lg py-2.5 text-[14px] font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           style={{ backgroundColor: "var(--color-brand-600)" }}

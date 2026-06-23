@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useTransition, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { ShieldCheck, AlertCircle } from "lucide-react";
 import { verificarCodigo } from "./actions";
 
 export default function VerificarMfaForm({ remainingBackup }: { remainingBackup: number }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [useBackup, setUseBackup] = useState(false);
@@ -23,8 +21,10 @@ export default function VerificarMfaForm({ remainingBackup }: { remainingBackup:
         setError(r.error);
         return;
       }
-      router.push("/dashboard");
-      router.refresh();
+      // Navegação "hard": garante que o cookie de sessão recém-atualizado
+      // (mfaVerified) seja enviado ao middleware na próxima requisição.
+      // Um router.push (soft) pode correr antes do cookie ser aplicado.
+      window.location.assign("/dashboard");
     });
   }
 
