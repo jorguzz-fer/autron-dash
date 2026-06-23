@@ -43,8 +43,10 @@ export function toInt(value: unknown): number | null {
 }
 
 export function toDecimalStr(value: unknown): string | null {
-  const s = toCleanString(value);
-  if (s === null) return null;
+  const raw = toCleanString(value);
+  if (raw === null) return null;
+  // Remove símbolo de moeda e espaços (inclusive NBSP) — ex.: "R$ 13.425,81"
+  const s = raw.replace(/[\s ]/g, "").replace(/^R\$/i, "");
   let cleaned = s;
   // Formato BR: "1.234,56" → "1234.56"
   if (/^-?\d{1,3}(\.\d{3})+,\d+$/.test(s)) {

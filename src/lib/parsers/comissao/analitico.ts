@@ -82,7 +82,7 @@ export async function parseAnaliticoComissao(buffer: Buffer): Promise<ParseResul
 
   // Map columns (tolerant to accent/case variations)
   const cNumeroPedido = findCol(idx, "Número do Pedido", "Numero do Pedido", "Numero Pedido", "No do Pedido");
-  const cDataEmissao = findCol(idx, "Data Emissão Pedido", "Data Emissao Pedido", "Data Emissão", "Data Emissao");
+  const cDataEmissao = findCol(idx, "Data Emissão Pedido Venda", "Data Emissao Pedido Venda", "Data Emissão Pedido", "Data Emissao Pedido", "Data Emissão", "Data Emissao");
   const cCliente = findCol(idx, "Nome do Cliente", "Cliente");
   const cProduto = findCol(idx, "Informe o Nome do produto", "Nome do produto", "Produto");
   const cQuantidade = findCol(idx, "Quantidade do Pedido", "Quantidade", "Qtd");
@@ -96,7 +96,7 @@ export async function parseAnaliticoComissao(buffer: Buffer): Promise<ParseResul
   const cCondicaoPagamento = findCol(idx, "Condicao de Pagamento", "Condição de Pagamento", "Condicao Pagamento");
   const cParcela = findCol(idx, "Parcela do Titulo", "Parcela do Título", "Parcela");
   const cPctRateio = findCol(idx, "% Rateio Pg", "% Rateio", "Pct Rateio");
-  const cClassificacao = findCol(idx, "Classificação", "Classificacao");
+  const cClassificacao = findCol(idx, "Classificação da Comissao", "Classificacao da Comissao", "Classificação da Comissão", "Classificação", "Classificacao");
 
   if (cNumeroPedido === null) {
     return {
