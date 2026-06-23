@@ -153,8 +153,6 @@ o comportamento correto da política nova — mas precisa ser **comunicado** par
 
 ## 5. Itens abertos / decisões (o que preciso de você)
 
-> Estes três pontos não estão fechados nos materiais. O resto está definido.
-
 ### N1 — Representante Autônomo
 Contrato recém-fechado (Márcio: "preciso bater só com o Leandro qual percentual vamos
 pagar — é só essa informação que falta"). Sem gatilho; pagamento dia 15.
