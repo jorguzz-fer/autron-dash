@@ -17,13 +17,21 @@ Fonte: relatório **FINR130 — Posição de Títulos a Receber** do Protheus
 (`.xlsx`), exportado pela Controladoria e subido na própria tela (botão de
 upload no rodapé da seção). Cada upload substitui a posição anterior.
 
-- Agrupado por **cliente**, somando filiais/cadastros de mesmo nome numa única
-  linha (a coluna mostra quantos cadastros/CNPJs foram somados).
-- **Vencido** × **A Vencer** com aging por faixa de dias
-  (`0-29 / 30-60 / 61-90 / 91-120 / >120`). Vencidos usam o *Dias Atraso* do
-  relatório; a vencer, os dias até o vencimento.
-- Botão **Baixar por cliente (CSV)** exporta uma linha por cliente com todos os
-  saldos e o aging.
+- Agrupado por **grupo econômico** (primeira palavra do nome): unidades como
+  *Gerdau Pinda / Gerdau-Cosigua / Gerdau-Ouro Branco* viram uma linha
+  **"Gerdau"**. Com um cadastro só, mostra o nome completo; com vários, o nome
+  do grupo e a contagem de cadastros.
+- Três status: **Vencido**, **Em Cartório** e **A Vencer**, com aging por faixa
+  de dias (`0-29 / 30-60 / 61-90 / 91-120 / >120`). Vencidos/cartório usam o
+  *Dias Atraso*; a vencer, os dias até o vencimento.
+- **Em Cartório** = títulos em protesto (detectados pelo texto da coluna
+  *Histórico* — coluna P — contendo "protesto"/"cartório"). Saem do total de
+  vencidos por estarem em tratativa separada junto ao cartório.
+- Layout: um **quadro de totais por status** + **matrizes cliente × período**
+  (uma para Vencidos, uma para A Vencer e, quando houver, uma para Em Cartório)
+  + um **resumo por cliente** ordenável.
+- Botão **Baixar por cliente (CSV)** exporta uma linha por cliente com saldos,
+  aging e os três status.
 
 ## A Faturar (Pendente)
 
@@ -38,7 +46,10 @@ Fonte: base de **Pedidos** (`entrada_pedido`) já carregada no Dash — pedidos
   - *Entrega prevista* — atraso vs. a data de faturamento prevista
     (`dtEntrega`); pedidos ainda no prazo caem na primeira faixa.
 - Pedidos sem a data de referência aparecem em **Sem data** (fora do aging).
-- Botão **Baixar (CSV)** exporta uma linha por cliente.
+- **Prazo médio emissão → previsão de faturamento**: média de dias entre a
+  emissão do pedido e a entrega prevista, com KPI da média geral e um ranking
+  (top 15) por cliente.
+- Botão **Baixar (CSV)** exporta uma linha por cliente (inclui o prazo médio).
 
 ## Notas / evolução
 

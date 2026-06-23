@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { canSeeKpiFinanceiro } from "@/lib/kpiAccess";
 import { csvCurrency, toCsv, type CsvRow } from "@/lib/csv";
@@ -10,7 +10,7 @@ import { AGING_BUCKETS } from "@/lib/domain/kpiFinanceiro";
  * CSV de "A Receber" agrupado por cliente (uma linha por cliente), com aging
  * de vencidos e a vencer. Acesso: ADMIN + Controladoria (Daiana).
  */
-export async function GET(_req: NextRequest) {
+export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!canSeeKpiFinanceiro(session.user)) {
@@ -22,26 +22,32 @@ export async function GET(_req: NextRequest) {
   const headers = [
     "Cliente",
     "Cadastros",
+    "Unidades",
     "Códigos",
     "Títulos",
     "Vencido",
+    "Em Cartório",
     "A Vencer",
     "Total",
     "Maior Atraso (dias)",
     ...AGING_BUCKETS.map((b) => `Vencido ${b}`),
+    ...AGING_BUCKETS.map((b) => `Cartório ${b}`),
     ...AGING_BUCKETS.map((b) => `A Vencer ${b}`),
   ];
 
   const rows: CsvRow[] = clientes.map((c) => [
     c.cliente,
     c.qtdCadastros,
+    c.unidades.join(" · "),
     c.codigos.join(" "),
     c.qtdTitulos,
     csvCurrency(c.totalVencido),
+    csvCurrency(c.totalCartorio),
     csvCurrency(c.totalAVencer),
     csvCurrency(c.total),
     c.maiorAtraso,
     ...AGING_BUCKETS.map((b) => csvCurrency(c.agingVencido[b])),
+    ...AGING_BUCKETS.map((b) => csvCurrency(c.agingCartorio[b])),
     ...AGING_BUCKETS.map((b) => csvCurrency(c.agingAVencer[b])),
   ]);
 
