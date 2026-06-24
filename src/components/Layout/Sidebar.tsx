@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Building2,
   CalendarClock,
   CheckCircle2,
   ClipboardList,
@@ -50,8 +51,9 @@ const NAV_PRIMARY: NavItem[] = [
 ];
 
 const NAV_TOOLS: NavItem[] = [
-  { label: "Upload de planilhas", href: "/uploads",  icon: Upload,   moduleKey: "UPLOADS" },
-  { label: "Chat IA",             href: "/chat-ia",  icon: Sparkles, moduleKey: "CHAT_IA" },
+  { label: "Upload de planilhas", href: "/uploads",        icon: Upload,    moduleKey: "UPLOADS" },
+  { label: "Enriquecimento CNPJ", href: "/enriquecimento", icon: Building2, moduleKey: "ENRIQUECIMENTO" },
+  { label: "Chat IA",             href: "/chat-ia",        icon: Sparkles,  moduleKey: "CHAT_IA" },
 ];
 
 const NAV_CONTROLADORIA: NavItem[] = [

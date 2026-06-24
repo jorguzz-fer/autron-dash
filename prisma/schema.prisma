@@ -40,6 +40,8 @@ model Tenant {
   comissaoMetas         ComissaoMeta[]
   observacoesPV         ObservacaoPV[]
   titulosReceber        TituloReceber[]
+  enrichmentBatches     EnrichmentBatch[]
+  enrichmentRecords     EnrichmentRecord[]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -77,6 +79,7 @@ model User {
   conciliacoes          Conciliacao[]
   observacoesPV         ObservacaoPV[]
   mfaBackupCodes        MfaBackupCode[]
+  enrichmentBatches     EnrichmentBatch[]
 
   @@unique([tenantId, email])
   @@index([email])
@@ -636,4 +639,114 @@ model TituloReceber {
   @@index([tenantId, nomeCliente])
   @@index([tenantId, vencimento])
   @@index([tenantId, codigoCliente])
+}
+
+// ── 12. Enriquecimento de Base por CNPJ ─────────────────────────────────────
+// Importa uma planilha de cadastros (nome + CNPJ) e enriquece cada CNPJ
+// consultando fontes externas (Receita Federal via BrasilAPI/ReceitaWS; provedores
+// pagos plugáveis na fase 2). Diferente dos outros datasets (snapshot "apaga e
+// recria"), aqui cada importação cria um BATCH próprio (append) e o trabalho
+// pesado roda em background, retomável a partir do estado no banco.
+
+enum EnrichmentStatus {
+  PENDING // importado, ainda não iniciado
+  RUNNING // runner processando
+  PAUSED  // reservado (pausa manual — fase futura)
+  DONE    // todos os registros processados
+  FAILED  // erro fatal no batch
+}
+
+enum EnrichmentRecordStatus {
+  PENDING // aguardando enriquecimento
+  DONE    // enriquecido com sucesso
+  ERROR   // falhou em todos os provedores (re-tentável)
+  SKIPPED // documento inválido / CPF (pessoa física) — nunca enviado a provedor
+}
+
+// Job pai: uma linha por planilha importada.
+model EnrichmentBatch {
+  id       String           @id @default(cuid())
+  tenantId String
+  userId   String
+  filename String
+  fileHash String // sha256 do buffer (dedupe/auditoria, como DataUpload)
+  status   EnrichmentStatus @default(PENDING)
+  total     Int @default(0)
+  processed Int @default(0) // DONE + ERROR + SKIPPED
+  succeeded Int @default(0)
+  failed    Int @default(0)
+  skipped   Int @default(0)
+  // Lease/heartbeat: permite detectar runner morto e re-assumir o batch (mutex sem Redis).
+  leaseOwner     String?
+  leaseExpiresAt DateTime?
+  lastError  String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  records EnrichmentRecord[]
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([status, leaseExpiresAt])
+}
+
+// Um registro por linha da planilha. Payload bruto + colunas normalizadas.
+model EnrichmentRecord {
+  id       String                 @id @default(cuid())
+  tenantId String
+  batchId  String
+  rowIndex Int // ordem original na planilha (sort/export estáveis)
+  // ── Entrada (da planilha) ──
+  origem           String? // aba de origem: "Clientes" | "Fornecedores"
+  inputCodigo      String? // código interno Protheus ("C010038") — link futuro com Pedido/Ploomes
+  inputLoja        String? // "01"
+  inputName        String? // Nome / Razão Social informado
+  inputNomeFantasia String?
+  cnpj             String // dígitos normalizados (14 = CNPJ, 11 = CPF)
+  tipoDoc          String? // "CNPJ" | "CPF" | "INVALIDO"
+  status   EnrichmentRecordStatus @default(PENDING)
+  source   String? // "brasilapi" | "receitaws" | "cache" | "<pago>"
+  attempts Int     @default(0)
+  errorMessage String?
+  // ── Colunas normalizadas (Camada 1 — RFB) ──
+  razaoSocial      String?
+  nomeFantasia     String?
+  situacao         String?
+  cnaePrincipal    String?
+  cnaeDescricao    String?
+  cnaesSecundarios Json? // [{ codigo, descricao }]
+  capitalSocial    Decimal? @db.Decimal(18, 2)
+  porte            String? // ME / EPP / DEMAIS
+  matrizFilial     String? // "MATRIZ" | "FILIAL"
+  email            String?
+  telefone1        String?
+  telefone2        String?
+  logradouro       String?
+  numero           String?
+  complemento      String?
+  bairro           String?
+  municipio        String?
+  uf               String?
+  cep              String?
+  socios           Json? // QSA: [{ nome, qualificacao }]
+  // ── Camada 1.5: inteligência SST derivada do CNAE (grátis, cálculo local) ──
+  grauRisco             Int? // NR-4 Quadro I (1–4)
+  cnaeSst               String?
+  sesmtProvavel         Boolean?
+  rhEstruturadoProvavel Boolean?
+  // ── Payload bruto do(s) provider(s) — re-mapear sem re-consultar ──
+  raw        Json?
+  enrichedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batch  EnrichmentBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, status])
+  @@index([batchId, rowIndex])
+  @@index([tenantId, cnpj]) // cache cross-batch, sempre tenant-scoped
 }
