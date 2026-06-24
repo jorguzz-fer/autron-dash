@@ -9,6 +9,7 @@ export interface UserRow {
   role: Role;
   active: boolean;
   mfaEnabled: boolean;
+  allowedModules: string[];
   lastLoginAt: Date | null;
   createdAt: Date;
 }
@@ -20,6 +21,7 @@ const SELECT_USER_ROW = {
   role: true,
   active: true,
   mfaEnabled: true,
+  allowedModules: true,
   lastLoginAt: true,
   createdAt: true,
 } as const;
@@ -41,6 +43,7 @@ export async function listUsersByTenant(tenantId: string): Promise<UserRow[]> {
     role: r.role as Role,
     active: r.active,
     mfaEnabled: r.mfaEnabled,
+    allowedModules: r.allowedModules,
     lastLoginAt: r.lastLoginAt,
     createdAt: r.createdAt,
   }));
@@ -86,6 +89,7 @@ export async function createUserInTenant(args: {
     role: r.role as Role,
     active: r.active,
     mfaEnabled: r.mfaEnabled,
+    allowedModules: r.allowedModules,
     lastLoginAt: r.lastLoginAt,
     createdAt: r.createdAt,
   };
@@ -130,4 +134,24 @@ export async function setPasswordHashInTenant(
 
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, 10);
+}
+
+export async function getUserAllowedModules(tenantId: string, userId: string): Promise<string[]> {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, tenantId },
+    select: { allowedModules: true },
+  });
+  return user?.allowedModules ?? [];
+}
+
+export async function setUserModuleAccess(
+  tenantId: string,
+  userId: string,
+  modules: string[],
+): Promise<number> {
+  const result = await prisma.user.updateMany({
+    where: { id: userId, tenantId },
+    data: { allowedModules: modules },
+  });
+  return result.count;
 }

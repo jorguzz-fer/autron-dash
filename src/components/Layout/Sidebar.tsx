@@ -17,6 +17,7 @@ import {
   Receipt,
   Scale,
   ScrollText,
+  ShieldCheck,
   Sparkles,
   Upload,
   Users,
@@ -25,54 +26,53 @@ import {
 } from "lucide-react";
 import Logo from "./Logo";
 import { useSidebar } from "./SidebarProvider";
-import { canSeeKpiFinanceiro } from "@/lib/kpiAccess";
+import { canAccessModule, type ModuleKey } from "@/lib/pageAccess";
 
 interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  moduleKey?: ModuleKey;
   badge?: string;
 }
 
 const NAV_PRIMARY: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Visão Geral", href: "/visao-geral", icon: BarChart3 },
-  { label: "Entrada de Pedidos", href: "/entrada-pedidos", icon: ClipboardList },
-  { label: "Análise de Contratos", href: "/analise-contratos", icon: FileSignature },
-  { label: "Prontidão", href: "/prontidao", icon: CheckCircle2 },
-  { label: "Previsão Entrega", href: "/previsao-entrega", icon: CalendarClock },
-  { label: "Estoque & SC/OP", href: "/estoque", icon: Package },
-  { label: "Faturamento", href: "/faturamento", icon: Receipt },
-  { label: "Previsão Faturamento", href: "/previsao-faturamento", icon: LineChart },
-  { label: "Comparativo Ploomes", href: "/comparativo-ploomes", icon: GitCompareArrows },
+  { label: "Dashboard",            href: "/dashboard",            icon: LayoutDashboard,  moduleKey: "DASHBOARD" },
+  { label: "Visão Geral",          href: "/visao-geral",          icon: BarChart3,         moduleKey: "VISAO_GERAL" },
+  { label: "Entrada de Pedidos",   href: "/entrada-pedidos",      icon: ClipboardList,     moduleKey: "ENTRADA_PEDIDOS" },
+  { label: "Análise de Contratos", href: "/analise-contratos",    icon: FileSignature,     moduleKey: "ANALISE_CONTRATOS" },
+  { label: "Prontidão",            href: "/prontidao",            icon: CheckCircle2,      moduleKey: "PRONTIDAO" },
+  { label: "Previsão Entrega",     href: "/previsao-entrega",     icon: CalendarClock,     moduleKey: "PREVISAO_ENTREGA" },
+  { label: "Estoque & SC/OP",      href: "/estoque",              icon: Package,           moduleKey: "ESTOQUE" },
+  { label: "Faturamento",          href: "/faturamento",          icon: Receipt,           moduleKey: "FATURAMENTO" },
+  { label: "Previsão Faturamento", href: "/previsao-faturamento", icon: LineChart,         moduleKey: "PREVISAO_FATURAMENTO" },
+  { label: "Comparativo Ploomes",  href: "/comparativo-ploomes",  icon: GitCompareArrows,  moduleKey: "COMPARATIVO_PLOOMES" },
 ];
 
 const NAV_TOOLS: NavItem[] = [
-  { label: "Upload de planilhas", href: "/uploads", icon: Upload },
-  { label: "Chat IA", href: "/chat-ia", icon: Sparkles },
+  { label: "Upload de planilhas", href: "/uploads",  icon: Upload,   moduleKey: "UPLOADS" },
+  { label: "Chat IA",             href: "/chat-ia",  icon: Sparkles, moduleKey: "CHAT_IA" },
 ];
 
-// Restrito à role CONTROLADORIA (e ADMIN como suporte).
 const NAV_CONTROLADORIA: NavItem[] = [
-  { label: "Conciliação Fin × Cont", href: "/conciliacao", icon: Scale },
+  { label: "Conciliação Fin × Cont", href: "/conciliacao",   icon: Scale,  moduleKey: "CONCILIACAO" },
 ];
 
-// Restrito a ADMIN e à Controladoria (Daiana) — ver lib/kpiAccess.
 const NAV_KPI_FINANCEIRO: NavItem[] = [
-  { label: "KPI Financeiro", href: "/kpi-financeiro", icon: Wallet },
+  { label: "KPI Financeiro", href: "/kpi-financeiro", icon: Wallet, moduleKey: "KPI_FINANCEIRO" },
 ];
 
-// Restrito às roles ADMIN, DIRETOR e CONTROLADORIA.
 const NAV_COMISSOES: NavItem[] = [
-  { label: "Visão Geral", href: "/comissoes", icon: Percent },
-  { label: "Extrato", href: "/comissoes/extrato", icon: ScrollText },
-  { label: "Vendedores", href: "/comissoes/vendedores", icon: Users },
-  { label: "Upload", href: "/comissoes/upload", icon: Upload },
+  { label: "Visão Geral", href: "/comissoes",           icon: Percent,    moduleKey: "COMISSOES" },
+  { label: "Extrato",     href: "/comissoes/extrato",   icon: ScrollText, moduleKey: "COMISSOES" },
+  { label: "Vendedores",  href: "/comissoes/vendedores", icon: Users,     moduleKey: "COMISSOES" },
+  { label: "Upload",      href: "/comissoes/upload",    icon: Upload,     moduleKey: "COMISSOES" },
 ];
 
 const NAV_ADMIN: NavItem[] = [
-  { label: "Usuários", href: "/admin/usuarios", icon: Users },
-  { label: "Logs", href: "/admin/logs", icon: ScrollText },
+  { label: "Usuários",    href: "/admin/usuarios",   icon: Users },
+  { label: "Permissões",  href: "/admin/permissoes", icon: ShieldCheck },
+  { label: "Logs",        href: "/admin/logs",       icon: ScrollText },
 ];
 
 interface SidebarProps {
@@ -81,6 +81,7 @@ interface SidebarProps {
     email: string;
     role: string;
     tenantSlug: string;
+    allowedModules: string[];
   };
   /** Server Action de sign-out (passada como prop a partir do AppShell). */
   onSignOut: () => Promise<void>;
@@ -90,17 +91,26 @@ interface SidebarProps {
 
 export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: SidebarProps) {
   const isAdmin = user.role === "ADMIN";
-  const isControladoria = user.role === "ADMIN" || user.role === "CONTROLADORIA";
-  const isKpiFinanceiro = canSeeKpiFinanceiro(user);
-  // Comissões: visível apenas para Fernando durante o período de configuração inicial.
-  // Remover ou ampliar esta restrição quando o módulo estiver validado com dados reais.
-  const isComissoes = user.email === "fer.jorge@gmail.com";
   const { collapsed } = useSidebar();
 
-  // Filtra itens de "Ferramentas" — esconde Chat IA quando não está habilitado.
-  const navToolsVisible = NAV_TOOLS.filter(
-    (item) => item.href !== "/chat-ia" || chatIaEnabled,
+  function moduleVisible(key: ModuleKey): boolean {
+    return canAccessModule(user, key);
+  }
+
+  const navPrimaryVisible = NAV_PRIMARY.filter(
+    (item) => !item.moduleKey || moduleVisible(item.moduleKey),
   );
+
+  const navToolsVisible = NAV_TOOLS.filter((item) => {
+    if (!item.moduleKey || !moduleVisible(item.moduleKey)) return false;
+    if (item.moduleKey === "CHAT_IA" && !chatIaEnabled) return false;
+    return true;
+  });
+
+  const showControladoria = moduleVisible("CONCILIACAO");
+  const showKpiFinanceiro = moduleVisible("KPI_FINANCEIRO");
+  const showComissoes = moduleVisible("COMISSOES");
+
   // Quando collapsed: sidebar fica completamente oculta (transição suave de largura).
   // Em telas menores que lg, segue oculta também (responsivo).
   return (
@@ -123,21 +133,29 @@ export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: Side
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <SectionLabel>Operações</SectionLabel>
-        <ul className="space-y-0.5">
-          {NAV_PRIMARY.map((item) => (
-            <NavLink key={item.href} item={item} />
-          ))}
-        </ul>
+        {navPrimaryVisible.length > 0 && (
+          <>
+            <SectionLabel>Operações</SectionLabel>
+            <ul className="space-y-0.5">
+              {navPrimaryVisible.map((item) => (
+                <NavLink key={item.href} item={item} />
+              ))}
+            </ul>
+          </>
+        )}
 
-        <SectionLabel className="mt-6">Ferramentas</SectionLabel>
-        <ul className="space-y-0.5">
-          {navToolsVisible.map((item) => (
-            <NavLink key={item.href} item={item} />
-          ))}
-        </ul>
+        {navToolsVisible.length > 0 && (
+          <>
+            <SectionLabel className="mt-6">Ferramentas</SectionLabel>
+            <ul className="space-y-0.5">
+              {navToolsVisible.map((item) => (
+                <NavLink key={item.href} item={item} />
+              ))}
+            </ul>
+          </>
+        )}
 
-        {isControladoria && (
+        {showControladoria && (
           <>
             <SectionLabel className="mt-6">Controladoria</SectionLabel>
             <ul className="space-y-0.5">
@@ -148,7 +166,7 @@ export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: Side
           </>
         )}
 
-        {isKpiFinanceiro && (
+        {showKpiFinanceiro && (
           <>
             <SectionLabel className="mt-6">Financeiro</SectionLabel>
             <ul className="space-y-0.5">
@@ -159,7 +177,7 @@ export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: Side
           </>
         )}
 
-        {isComissoes && (
+        {showComissoes && (
           <>
             <SectionLabel className="mt-6">Comissões</SectionLabel>
             <ul className="space-y-0.5">

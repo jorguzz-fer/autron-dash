@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import SidebarProvider from "./SidebarProvider";
 import TopBar from "./TopBar";
 import { signOutAction } from "@/app/actions";
+import { getUserAllowedModules } from "@/lib/services/users";
 
 interface AppShellProps {
   title: string;
@@ -27,6 +28,8 @@ export default async function AppShell({ title, subtitle, actions, children }: A
   // (avita que o user clique e veja "ainda não disponível").
   const chatIaEnabled = !!process.env.IA_SSO_SECRET && !!process.env.IA_CHAT_URL;
 
+  const allowedModules = await getUserAllowedModules(session.user.tenantId, session.user.id);
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen">
@@ -36,6 +39,7 @@ export default async function AppShell({ title, subtitle, actions, children }: A
             email: session.user.email ?? "",
             role: session.user.role,
             tenantSlug: session.user.tenantSlug,
+            allowedModules,
           }}
           onSignOut={signOutAction}
           chatIaEnabled={chatIaEnabled}
