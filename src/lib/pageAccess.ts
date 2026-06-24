@@ -18,6 +18,7 @@ export type ModuleKey =
   | "PREVISAO_FATURAMENTO"
   | "COMPARATIVO_PLOOMES"
   | "UPLOADS"
+  | "ENRIQUECIMENTO"
   | "CHAT_IA"
   | "CONCILIACAO"
   | "KPI_FINANCEIRO"
@@ -42,6 +43,7 @@ export const MODULES: ModuleInfo[] = [
   { key: "PREVISAO_FATURAMENTO", label: "Previsão Faturamento",   href: "/previsao-faturamento", section: "Operações" },
   { key: "COMPARATIVO_PLOOMES",  label: "Comparativo Ploomes",    href: "/comparativo-ploomes",  section: "Operações" },
   { key: "UPLOADS",              label: "Upload de planilhas",    href: "/uploads",              section: "Ferramentas" },
+  { key: "ENRIQUECIMENTO",       label: "Enriquecimento CNPJ",    href: "/enriquecimento",       section: "Ferramentas" },
   { key: "CHAT_IA",              label: "Chat IA",                href: "/chat-ia",              section: "Ferramentas" },
   { key: "CONCILIACAO",          label: "Conciliação Fin × Cont", href: "/conciliacao",          section: "Controladoria" },
   { key: "KPI_FINANCEIRO",       label: "KPI Financeiro",         href: "/kpi-financeiro",       section: "Financeiro" },
@@ -60,22 +62,22 @@ const ROLE_DEFAULT_MODULES: Record<string, ModuleKey[]> = {
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
     "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES",
-    "UPLOADS", "CHAT_IA", "CONCILIACAO", "KPI_FINANCEIRO", "COMISSOES",
+    "UPLOADS", "ENRIQUECIMENTO", "CHAT_IA", "CONCILIACAO", "KPI_FINANCEIRO", "COMISSOES",
   ],
   DIRETOR: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "ENRIQUECIMENTO",
   ],
   GERENTE: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS", "ENRIQUECIMENTO",
   ],
   OPERADOR: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS", "ENRIQUECIMENTO",
   ],
   VIEWER: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
