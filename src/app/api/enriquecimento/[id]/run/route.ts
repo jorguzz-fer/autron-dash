@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole, ROLES_WRITE } from "@/lib/authz";
+import { requireModule } from "@/lib/moduleAccess";
 import { rateLimit } from "@/lib/rateLimit";
 import { getClientIp, getUserAgent, logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
@@ -11,7 +11,7 @@ import { kickBatch, retryFailed } from "@/lib/services/cnpj/runner";
  * background (fire-and-forget); a resposta volta imediatamente.
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const guard = await requireRole(ROLES_WRITE);
+  const guard = await requireModule("ENRIQUECIMENTO");
   if (guard.error) return guard.error;
   const session = guard.session;
   const { id } = await ctx.params;
