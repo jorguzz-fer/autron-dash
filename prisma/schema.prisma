@@ -64,6 +64,8 @@ model User {
   mfaSecret          String?
   mfaConfirmedAt     DateTime?
   lastLoginAt        DateTime?
+  // Whitelist explícita de módulos visíveis. Vazio = padrão do perfil (role).
+  allowedModules     String[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
