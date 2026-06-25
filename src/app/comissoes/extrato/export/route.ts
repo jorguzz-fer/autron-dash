@@ -2,9 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { getExtratoVendedor } from "@/lib/services/comissao";
 import { csvCurrency, toCsv, type CsvRow } from "@/lib/csv";
-import { type Role } from "@/lib/authz";
-
-const ALLOWED_ROLES: Role[] = ["ADMIN", "DIRETOR", "CONTROLADORIA"];
+import { getUserAccess } from "@/lib/services/perfis";
 
 const MESES_LABEL = [
   "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
@@ -25,8 +23,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const role = session.user.role as Role;
-  if (!ALLOWED_ROLES.includes(role)) {
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_COMISSOES")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

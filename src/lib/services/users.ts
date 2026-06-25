@@ -10,6 +10,8 @@ export interface UserRow {
   active: boolean;
   mfaEnabled: boolean;
   allowedModules: string[];
+  perfilId: string | null;
+  perfilLabel: string | null;
   lastLoginAt: Date | null;
   createdAt: Date;
 }
@@ -22,6 +24,8 @@ const SELECT_USER_ROW = {
   active: true,
   mfaEnabled: true,
   allowedModules: true,
+  perfilId: true,
+  perfil: { select: { label: true } },
   lastLoginAt: true,
   createdAt: true,
 } as const;
@@ -44,6 +48,8 @@ export async function listUsersByTenant(tenantId: string): Promise<UserRow[]> {
     active: r.active,
     mfaEnabled: r.mfaEnabled,
     allowedModules: r.allowedModules,
+    perfilId: r.perfilId,
+    perfilLabel: r.perfil?.label ?? null,
     lastLoginAt: r.lastLoginAt,
     createdAt: r.createdAt,
   }));
@@ -68,6 +74,7 @@ export async function createUserInTenant(args: {
   name: string;
   email: string;
   role: Role;
+  perfilId?: string | null;
   passwordHash: string;
 }): Promise<UserRow> {
   const r = await prisma.user.create({
@@ -76,6 +83,7 @@ export async function createUserInTenant(args: {
       name: args.name,
       email: args.email.toLowerCase(),
       role: args.role,
+      perfilId: args.perfilId ?? null,
       passwordHash: args.passwordHash,
       active: true,
       mustChangePassword: true, // força troca na primeira entrada
@@ -90,6 +98,8 @@ export async function createUserInTenant(args: {
     active: r.active,
     mfaEnabled: r.mfaEnabled,
     allowedModules: r.allowedModules,
+    perfilId: r.perfilId,
+    perfilLabel: r.perfil?.label ?? null,
     lastLoginAt: r.lastLoginAt,
     createdAt: r.createdAt,
   };
@@ -102,7 +112,7 @@ export async function createUserInTenant(args: {
 export async function updateUserInTenant(
   tenantId: string,
   id: string,
-  data: { name?: string; email?: string; role?: Role; active?: boolean },
+  data: { name?: string; email?: string; role?: Role; active?: boolean; perfilId?: string | null },
 ): Promise<number> {
   const result = await prisma.user.updateMany({
     where: { id, tenantId },

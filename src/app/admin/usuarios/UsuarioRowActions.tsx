@@ -2,27 +2,23 @@
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { Eye, EyeOff, MoreVertical, Pencil, KeyRound, UserMinus, UserCheck, ShieldOff } from "lucide-react";
-import type { Role } from "@/lib/authz";
 import { atualizarUsuario, resetarSenha, resetarMfa, setUsuarioAtivo } from "./actions";
 
-const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: "VIEWER", label: "VIEWER" },
-  { value: "OPERADOR", label: "OPERADOR" },
-  { value: "GERENTE", label: "SUPERVISÃO" },
-  { value: "DIRETOR", label: "GESTÃO" },
-  { value: "CONTROLADORIA", label: "CONTROLADORIA" },
-  { value: "ADMIN", label: "ADMIN" },
-];
+interface PerfilOption {
+  id: string;
+  label: string;
+}
 
 interface Props {
   id: string;
   name: string;
   email: string;
-  role: Role;
+  perfilId: string | null;
+  perfis: PerfilOption[];
   active: boolean;
   /** Segundo fator configurado? Habilita a ação "Resetar MFA". */
   mfaEnabled: boolean;
-  /** É o próprio admin logado? Bloqueia desativação/rebaixamento. */
+  /** É o próprio admin logado? Bloqueia desativação/troca de perfil. */
   isSelf: boolean;
 }
 
@@ -30,7 +26,8 @@ export default function UsuarioRowActions({
   id,
   name,
   email,
-  role,
+  perfilId,
+  perfis,
   active,
   mfaEnabled,
   isSelf,
@@ -54,7 +51,7 @@ export default function UsuarioRowActions({
       id,
       name: String(fd.get("name") ?? "").trim(),
       email: String(fd.get("email") ?? "").trim(),
-      role: String(fd.get("role") ?? role),
+      perfilId: String(fd.get("perfilId") ?? perfilId ?? ""),
     };
     startTransition(async () => {
       const r = await atualizarUsuario(input);
@@ -211,16 +208,19 @@ export default function UsuarioRowActions({
             <label className="block">
               <span className={LABEL_CLASS} style={LABEL_STYLE}>Perfil</span>
               <select
-                name="role"
+                name="perfilId"
                 required
-                defaultValue={role}
+                defaultValue={perfilId ?? ""}
                 disabled={isSelf}
                 className={INPUT_CLASS}
                 style={INPUT_STYLE}
               >
-                {ROLE_OPTIONS.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
+                <option value="" disabled>
+                  Selecione um perfil…
+                </option>
+                {perfis.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
                   </option>
                 ))}
               </select>

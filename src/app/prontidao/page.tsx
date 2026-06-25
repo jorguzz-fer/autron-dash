@@ -15,7 +15,7 @@ import PrazoEngCell from "@/components/UI/PrazoEngCell";
 import ObservacaoCell from "@/components/UI/ObservacaoCell";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
-import { ROLES_MANAGE, type Role } from "@/lib/authz";
+import { getUserAccess } from "@/lib/services/perfis";
 import {
   applyProntidaoFilters,
   classifAtend,
@@ -123,8 +123,8 @@ export default async function ProntidaoPage({
   const sortState = parseSort(sp.sort, sp.dir);
   const sortStateErg = parseSort(sp.eSort, sp.eDir);
 
-  const userRole = session.user.role as Role;
-  const canEditPrazoEng = ROLES_MANAGE.includes(userRole);
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  const canEditPrazoEng = access.capabilities.includes("EDIT_PRONTIDAO");
   // Observações: liberadas para qualquer usuário logado (a página já exige sessão).
   const canEditObs = true;
 

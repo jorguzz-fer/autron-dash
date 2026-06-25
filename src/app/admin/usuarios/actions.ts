@@ -4,8 +4,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
-  requireRole,
-  ROLES_ADMIN,
+  requireCapability,
   type Role,
 } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -18,6 +17,7 @@ import {
   setPasswordHashInTenant,
   updateUserInTenant,
 } from "@/lib/services/users";
+import { findPerfilInTenant } from "@/lib/services/perfis";
 import { resetUserMfa } from "@/lib/services/mfa";
 
 type OkEmpty = { ok: true };
@@ -26,18 +26,9 @@ type Err = { ok: false; error: string };
 type Result<T> = Ok<T> | Err;
 type SimpleResult = OkEmpty | Err;
 
-const ROLE_VALUES = [
-  "ADMIN",
-  "DIRETOR",
-  "GERENTE",
-  "OPERADOR",
-  "VIEWER",
-  "CONTROLADORIA",
-] as const;
-
 const emailSchema = z.string().email("E-mail inválido").max(200).transform((s) => s.toLowerCase());
-const roleSchema = z.enum(ROLE_VALUES);
 const nameSchema = z.string().trim().min(2, "Nome muito curto").max(120);
+const perfilIdSchema = z.string().min(1, "Perfil obrigatório");
 
 async function getRequestMeta() {
   const hdr = await headers();
@@ -51,17 +42,17 @@ async function getRequestMeta() {
 const criarUsuarioSchema = z.object({
   name: nameSchema,
   email: emailSchema,
-  role: roleSchema,
+  perfilId: perfilIdSchema,
   password: z.string(),
 });
 
 export async function criarUsuario(input: {
   name: string;
   email: string;
-  role: string;
+  perfilId: string;
   password: string;
 }): Promise<Result<{ id: string }>> {
-  const guard = await requireRole(ROLES_ADMIN);
+  const guard = await requireCapability("MANAGE_USERS");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 
@@ -69,10 +60,17 @@ export async function criarUsuario(input: {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
   }
-  const { name, email, role, password } = parsed.data;
+  const { name, email, perfilId, password } = parsed.data;
 
   const pwCheck = validatePassword(password);
   if (!pwCheck.ok) return { ok: false, error: pwCheck.error ?? "Senha inválida" };
+
+  // Perfil precisa existir no tenant. role = nível de segurança base do perfil.
+  const perfil = await findPerfilInTenant(session.user.tenantId, perfilId);
+  if (!perfil || !perfil.ativo) {
+    return { ok: false, error: "Perfil inválido ou inativo" };
+  }
+  const role = perfil.baseRole as Role;
 
   // Não pode existir outro usuário com mesmo email no tenant
   const existing = await findUserByEmailInTenant(session.user.tenantId, email);
@@ -87,6 +85,7 @@ export async function criarUsuario(input: {
       name,
       email,
       role,
+      perfilId: perfil.id,
       passwordHash,
     });
 
@@ -97,7 +96,7 @@ export async function criarUsuario(input: {
       action: "user.create",
       entity: "User",
       entityId: created.id,
-      meta: { name, email, role },
+      meta: { name, email, perfil: perfil.label, role },
       ip,
       userAgent,
     });
@@ -116,16 +115,16 @@ const atualizarUsuarioSchema = z.object({
   id: z.string().min(1),
   name: nameSchema,
   email: emailSchema,
-  role: roleSchema,
+  perfilId: perfilIdSchema,
 });
 
 export async function atualizarUsuario(input: {
   id: string;
   name: string;
   email: string;
-  role: string;
+  perfilId: string;
 }): Promise<SimpleResult> {
-  const guard = await requireRole(ROLES_ADMIN);
+  const guard = await requireCapability("MANAGE_USERS");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 
@@ -133,14 +132,24 @@ export async function atualizarUsuario(input: {
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
   }
-  const { id, name, email, role } = parsed.data;
+  const { id, name, email, perfilId } = parsed.data;
 
   const target = await findUserInTenant(session.user.tenantId, id);
   if (!target) return { ok: false, error: "Usuário não encontrado" };
 
-  // Proteção: não permite rebaixar a si mesmo (evita lock-out de ADMIN)
-  if (target.id === session.user.id && role !== "ADMIN") {
-    return { ok: false, error: "Você não pode remover seu próprio papel ADMIN" };
+  const perfil = await findPerfilInTenant(session.user.tenantId, perfilId);
+  if (!perfil || !perfil.ativo) {
+    return { ok: false, error: "Perfil inválido ou inativo" };
+  }
+  const role = perfil.baseRole as Role;
+
+  // Proteção anti-lockout: não permite tirar de si mesmo a permissão de
+  // administrar usuários (evita ficar sem nenhum admin no tenant).
+  if (target.id === session.user.id && !perfil.capabilities.includes("MANAGE_USERS")) {
+    return {
+      ok: false,
+      error: "Você não pode se atribuir um perfil sem a permissão de administrar usuários.",
+    };
   }
 
   // Se mudou email, validar unicidade no tenant
@@ -155,7 +164,8 @@ export async function atualizarUsuario(input: {
     const count = await updateUserInTenant(session.user.tenantId, id, {
       name,
       email,
-      role: role as Role,
+      role,
+      perfilId: perfil.id,
     });
     if (count === 0) return { ok: false, error: "Usuário não atualizado" };
 
@@ -168,7 +178,7 @@ export async function atualizarUsuario(input: {
       entityId: id,
       meta: {
         before: { name: target.name, email: target.email, role: target.role },
-        after: { name, email, role },
+        after: { name, email, role, perfil: perfil.label },
       },
       ip,
       userAgent,
@@ -188,7 +198,7 @@ export async function setUsuarioAtivo(input: {
   id: string;
   active: boolean;
 }): Promise<SimpleResult> {
-  const guard = await requireRole(ROLES_ADMIN);
+  const guard = await requireCapability("MANAGE_USERS");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 
@@ -234,7 +244,7 @@ export async function resetarSenha(input: {
   id: string;
   password: string;
 }): Promise<SimpleResult> {
-  const guard = await requireRole(ROLES_ADMIN);
+  const guard = await requireCapability("MANAGE_USERS");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 
@@ -280,7 +290,7 @@ export async function resetarSenha(input: {
  * a sessão atual dele continua exigindo o MFA antigo até expirar/relogar.
  */
 export async function resetarMfa(input: { id: string }): Promise<SimpleResult> {
-  const guard = await requireRole(ROLES_ADMIN);
+  const guard = await requireCapability("MANAGE_USERS");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 

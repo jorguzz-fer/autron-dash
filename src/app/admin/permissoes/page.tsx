@@ -1,8 +1,9 @@
 import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { ROLES_ADMIN, type Role } from "@/lib/authz";
+import { type Role } from "@/lib/authz";
 import { listUsersByTenant, type UserRow } from "@/lib/services/users";
+import { getUserAccess } from "@/lib/services/perfis";
 import { getDefaultModules, getEffectiveModules } from "@/lib/pageAccess";
 import CardSection from "@/components/UI/CardSection";
 import StatusBadge from "@/components/UI/StatusBadge";
@@ -33,15 +34,14 @@ export default async function PermissoesPage() {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const userRole = session.user.role as Role;
-  const isAdmin = ROLES_ADMIN.includes(userRole);
-
-  if (!isAdmin) {
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("MANAGE_USERS")) {
     return (
       <AppShell title="Permissões" subtitle="Controle de acesso por módulo">
         <CardSection title="Acesso restrito">
           <p className="text-[13.5px]" style={{ color: "var(--fg-muted)" }}>
-            Apenas usuários com perfil <strong>ADMIN</strong> podem gerenciar permissões.
+            Você não tem a permissão <strong>Administrar usuários</strong>,
+            necessária para gerenciar permissões.
           </p>
         </CardSection>
       </AppShell>

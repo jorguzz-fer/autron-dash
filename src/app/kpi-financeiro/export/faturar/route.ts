@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
-import { canSeeKpiFinanceiro } from "@/lib/kpiAccess";
+import { getUserAccess } from "@/lib/services/perfis";
 import { csvCurrency, toCsv, type CsvRow } from "@/lib/csv";
 import { getAFaturar } from "@/lib/services/kpiFinanceiro";
 import { AGING_BUCKETS, type AFaturarBase } from "@/lib/domain/kpiFinanceiro";
@@ -8,12 +8,13 @@ import { AGING_BUCKETS, type AFaturarBase } from "@/lib/domain/kpiFinanceiro";
 /**
  * GET /kpi-financeiro/export/faturar?base=emissao|entrega
  * CSV de "A Faturar" (carteira EM ABERTO) agrupado por cliente, com aging.
- * Acesso: ADMIN + Controladoria (Daiana).
+ * Acesso: capacidade ACCESS_KPI_FINANCEIRO.
  */
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!canSeeKpiFinanceiro(session.user)) {
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_KPI_FINANCEIRO")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

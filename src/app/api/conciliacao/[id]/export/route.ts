@@ -1,13 +1,13 @@
 import { auth } from "@/lib/auth";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { ROLES_CONTROLADORIA, type Role } from "@/lib/authz";
+import { getUserAccess } from "@/lib/services/perfis";
 import { gerarXlsxConciliacao } from "@/lib/services/conciliacao-export";
 import { NextResponse } from "next/server";
 
 /**
  * Download do .xlsx da conciliação.
  *
- * Restrito a ADMIN ou CONTROLADORIA. Multi-tenant garantido em
+ * Restrito à capacidade ACCESS_CONCILIACAO. Multi-tenant garantido em
  * gerarXlsxConciliacao (filtra por tenantId). Audit log gravado.
  */
 export async function GET(
@@ -18,8 +18,8 @@ export async function GET(
   if (!session) {
     return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   }
-  const role = session.user.role as Role;
-  if (!ROLES_CONTROLADORIA.includes(role)) {
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_CONCILIACAO")) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   }
 

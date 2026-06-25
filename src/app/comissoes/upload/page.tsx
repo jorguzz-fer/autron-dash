@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Dataset } from "@prisma/client";
 import { DATASET_LABELS } from "@/lib/parsers";
+import { getUserAccess } from "@/lib/services/perfis";
 import UploadCard from "@/app/uploads/UploadCard";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import StatusBadge from "@/components/UI/StatusBadge";
@@ -13,8 +14,6 @@ import { parseSort, sortRows } from "@/lib/sort";
 export const metadata = { title: "Upload — Comissões | Autron Dash" };
 
 const COMISSAO_DATASETS: Dataset[] = ["COMISSAO_ANALITICO", "COMISSAO_META"];
-
-const ROLES_WRITE = new Set(["ADMIN", "DIRETOR", "CONTROLADORIA"]);
 
 interface SP {
   sort?: string;
@@ -43,7 +42,8 @@ export default async function ComissoesUploadPage({
   const sp = await searchParams;
   const sortState = parseSort(sp.sort, sp.dir);
 
-  const canUpload = ROLES_WRITE.has(session.user.role);
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  const canUpload = access.capabilities.includes("ACCESS_COMISSOES");
 
   const uploads = await prisma.dataUpload.findMany({
     where: {
@@ -93,8 +93,8 @@ export default async function ComissoesUploadPage({
               borderColor: "color-mix(in srgb, #f59e0b 30%, transparent)",
             }}
           >
-            Seu papel ({session.user.role}) não tem permissão para upload. Apenas ADMIN,
-            DIRETOR e CONTROLADORIA podem enviar planilhas.
+            Seu perfil não tem a permissão <strong>Comissões</strong>, necessária
+            para enviar estas planilhas. Solicite o acesso ao administrador.
           </div>
         )}
 

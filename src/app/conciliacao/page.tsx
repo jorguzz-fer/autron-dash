@@ -3,7 +3,7 @@ import CardSection from "@/components/UI/CardSection";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import StatusBadge from "@/components/UI/StatusBadge";
 import { auth } from "@/lib/auth";
-import { ROLES_CONTROLADORIA, type Role } from "@/lib/authz";
+import { getUserAccess } from "@/lib/services/perfis";
 import { fmtCurrency, fmtDate, fmtNum } from "@/lib/format";
 import { parseSort, sortRows } from "@/lib/sort";
 import { listarConciliacoesPorTenant } from "@/lib/services/conciliacao";
@@ -42,8 +42,8 @@ export default async function ConciliacaoListPage({
   const session = await auth();
   if (!session) redirect("/login");
 
-  const role = session.user.role as Role;
-  if (!ROLES_CONTROLADORIA.includes(role)) redirect("/dashboard");
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_CONCILIACAO")) redirect("/dashboard");
 
   const sp = await searchParams;
   const raw = await listarConciliacoesPorTenant(session.user.tenantId);

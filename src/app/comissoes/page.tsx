@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getVendedores, getExtratoVendedor, getCodigosSemCadastro } from "@/lib/services/comissao";
+import { getUserAccess } from "@/lib/services/perfis";
 import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import DataTable, { type Column } from "@/components/UI/DataTable";
@@ -10,8 +11,6 @@ import { fmtCurrency, fmtPct, fmtNum } from "@/lib/format";
 import { Users, TrendingUp, CheckCircle2 } from "lucide-react";
 
 export const metadata = { title: "Comissões — Visão Geral · Autron Dash" };
-
-const ALLOWED_ROLES = ["ADMIN", "DIRETOR", "CONTROLADORIA"];
 
 interface VendorRow {
   codigo: string;
@@ -28,7 +27,8 @@ interface VendorRow {
 export default async function ComissoesPage() {
   const session = await auth();
   if (!session) redirect("/login");
-  if (!ALLOWED_ROLES.includes(session.user.role ?? "")) redirect("/dashboard");
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_COMISSOES")) redirect("/dashboard");
 
   const tenantId = session.user.tenantId;
   const ano = new Date().getFullYear();

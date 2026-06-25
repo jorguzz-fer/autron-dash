@@ -4,16 +4,12 @@ import { useRef, useState, useTransition, type FormEvent } from "react";
 import { Eye, EyeOff, UserPlus } from "lucide-react";
 import { criarUsuario } from "./actions";
 
-const ROLE_OPTIONS = [
-  { value: "VIEWER", label: "VIEWER — somente leitura" },
-  { value: "OPERADOR", label: "OPERADOR — operações do dia-a-dia" },
-  { value: "GERENTE", label: "SUPERVISÃO — mutações + relatórios" },
-  { value: "DIRETOR", label: "GESTÃO — gestão executiva" },
-  { value: "CONTROLADORIA", label: "CONTROLADORIA — financeiro/fiscal" },
-  { value: "ADMIN", label: "ADMIN — gestão de usuários" },
-] as const;
+export interface PerfilOption {
+  id: string;
+  label: string;
+}
 
-export default function UsuarioCriarBtn() {
+export default function UsuarioCriarBtn({ perfis }: { perfis: PerfilOption[] }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +25,7 @@ export default function UsuarioCriarBtn() {
     const input = {
       name: String(fd.get("name") ?? "").trim(),
       email: String(fd.get("email") ?? "").trim(),
-      role: String(fd.get("role") ?? "VIEWER"),
+      perfilId: String(fd.get("perfilId") ?? ""),
       password: String(fd.get("password") ?? ""),
     };
 
@@ -115,17 +111,20 @@ export default function UsuarioCriarBtn() {
               />
             </Field>
 
-            <Field label="Perfil *">
+            <Field label="Perfil *" hint="define módulos e permissões do usuário">
               <select
-                name="role"
+                name="perfilId"
                 required
-                defaultValue="VIEWER"
+                defaultValue=""
                 className={INPUT_CLASS}
                 style={INPUT_STYLE}
               >
-                {ROLE_OPTIONS.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
+                <option value="" disabled>
+                  Selecione um perfil…
+                </option>
+                {perfis.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
                   </option>
                 ))}
               </select>

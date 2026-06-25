@@ -2,7 +2,7 @@ import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getVendedores, getCargos } from "@/lib/services/comissao";
-import { type Role } from "@/lib/authz";
+import { getUserAccess } from "@/lib/services/perfis";
 import CardSection from "@/components/UI/CardSection";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import StatusBadge from "@/components/UI/StatusBadge";
@@ -11,8 +11,6 @@ import { CargoCriarBtn, CargoEditarBtn } from "./CargoBtns";
 import { Users, Briefcase } from "lucide-react";
 
 export const metadata = { title: "Vendedores & Cargos — Comissões" };
-
-const ALLOWED_ROLES: Role[] = ["ADMIN", "DIRETOR", "CONTROLADORIA"];
 
 type VendedorRow = Awaited<ReturnType<typeof getVendedores>>[number];
 type CargoRow = Awaited<ReturnType<typeof getCargos>>[number];
@@ -232,14 +230,14 @@ export default async function VendedoresPage() {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const userRole = session.user.role as Role;
-  if (!ALLOWED_ROLES.includes(userRole)) {
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_COMISSOES")) {
     return (
       <AppShell title="Vendedores & Cargos" subtitle="Cadastro de comissões">
         <CardSection title="Acesso restrito">
           <p className="text-[13.5px]" style={{ color: "var(--fg-muted)" }}>
-            Esta página é restrita a <strong>ADMIN</strong>, <strong>DIRETOR</strong> e{" "}
-            <strong>CONTROLADORIA</strong>. Solicite o acesso ao administrador.
+            Esta página exige a permissão <strong>Comissões</strong>. Solicite o
+            acesso ao administrador.
           </p>
         </CardSection>
       </AppShell>

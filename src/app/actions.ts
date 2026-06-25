@@ -1,7 +1,7 @@
 "use server";
 
 import { signOut } from "@/lib/auth";
-import { requireRole, ROLES_READ } from "@/lib/authz";
+import { requireAuth } from "@/lib/authz";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
 import { logAudit } from "@/lib/audit";
 import { headers } from "next/headers";
@@ -41,9 +41,10 @@ export interface ReportsSummary {
 export async function runReports(): Promise<
   { ok: true; summary: ReportsSummary } | { ok: false; error: string }
 > {
-  const guard = await requireRole(ROLES_READ);
+  // Relatório de leitura: disponível a qualquer usuário autenticado.
+  const guard = await requireAuth();
   if (guard.error) return { ok: false, error: "Não autorizado" };
-  const session = guard.session;
+  const session = guard.session!;
 
   const start = Date.now();
 

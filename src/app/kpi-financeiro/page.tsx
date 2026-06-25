@@ -7,8 +7,7 @@ import HBarRanking from "@/components/UI/HBarRanking";
 import UploadCard from "@/app/uploads/UploadCard";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { canSeeKpiFinanceiro } from "@/lib/kpiAccess";
-import { ROLES_WRITE, type Role } from "@/lib/authz";
+import { getUserAccess } from "@/lib/services/perfis";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseSort, sortRows } from "@/lib/sort";
 import { getAFaturar, getAReceber } from "@/lib/services/kpiFinanceiro";
@@ -42,11 +41,12 @@ export default async function KpiFinanceiroPage({
 }) {
   const session = await auth();
   if (!session) redirect("/login");
-  if (!canSeeKpiFinanceiro(session.user)) redirect("/dashboard");
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_KPI_FINANCEIRO")) redirect("/dashboard");
 
   const tenantId = session.user.tenantId;
-  const role = session.user.role as Role;
-  const canUpload = ROLES_WRITE.includes(role) || role === "CONTROLADORIA";
+  // Quem vê o KPI Financeiro também pode enviar a planilha (mesma capacidade).
+  const canUpload = access.capabilities.includes("ACCESS_KPI_FINANCEIRO");
 
   const sp = await searchParams;
   const view: View = sp.view === "faturar" ? "faturar" : "receber";

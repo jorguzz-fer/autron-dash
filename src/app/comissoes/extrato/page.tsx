@@ -2,16 +2,14 @@ import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getVendedores, getExtratoVendedor } from "@/lib/services/comissao";
+import { getUserAccess } from "@/lib/services/perfis";
 import { fmtCurrency } from "@/lib/format";
-import { type Role } from "@/lib/authz";
 import CardSection from "@/components/UI/CardSection";
 import FilterSelect from "@/components/UI/FilterSelect";
 import PrintButton from "@/components/UI/PrintButton";
 import { FileDown } from "lucide-react";
 
 export const metadata = { title: "Extrato por Vendedor — Comissões" };
-
-const ALLOWED_ROLES: Role[] = ["ADMIN", "DIRETOR", "CONTROLADORIA"];
 
 const MESES = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
 
@@ -27,8 +25,8 @@ export default async function ExtratoPage({
 }) {
   const session = await auth();
   if (!session) redirect("/login");
-  const role = session.user.role as Role;
-  if (!ALLOWED_ROLES.includes(role)) redirect("/");
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_COMISSOES")) redirect("/");
   const tenantId = session.user.tenantId;
 
   const sp = await searchParams;
