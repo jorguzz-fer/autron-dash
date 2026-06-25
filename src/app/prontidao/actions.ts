@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { requireRole, requireAuth, ROLES_MANAGE } from "@/lib/authz";
+import { requireCapability, requireAuth } from "@/lib/authz";
 import { prisma } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { criarPrazoEng } from "@/lib/services/prazoEngenhariaIND21";
@@ -24,7 +24,7 @@ export type RegistrarPrazoResult =
  * Registra um novo prazo de engenharia para um PV da unidade IND21 (Ergomec).
  * Sempre INSERT — preserva histórico completo.
  *
- * Permissão: ADMIN, DIRETOR ou GERENTE (ROLES_MANAGE).
+ * Permissão: capacidade EDIT_PRONTIDAO.
  *
  * Validações cross-tenant:
  *  - Verifica que existe ao menos um Pedido com (tenantId, numPedido,
@@ -34,7 +34,7 @@ export type RegistrarPrazoResult =
 export async function registrarPrazoEngenharia(
   input: RegistrarPrazoInput,
 ): Promise<RegistrarPrazoResult> {
-  const guard = await requireRole(ROLES_MANAGE);
+  const guard = await requireCapability("EDIT_PRONTIDAO");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 

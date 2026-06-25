@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { requireRole, ROLES_ADMIN } from "@/lib/authz";
+import { requireCapability } from "@/lib/authz";
 import { findUserInTenant, setUserModuleAccess } from "@/lib/services/users";
 import { MODULES, type ModuleKey } from "@/lib/pageAccess";
 import { logAudit } from "@/lib/audit";
@@ -15,7 +15,7 @@ export async function salvarPermissoes(input: {
   userId: string;
   modules: string[];
 }): Promise<SimpleResult> {
-  const guard = await requireRole(ROLES_ADMIN);
+  const guard = await requireCapability("MANAGE_USERS");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 

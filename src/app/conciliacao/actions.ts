@@ -1,9 +1,9 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { ROLES_CONTROLADORIA, type Role } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
+import { getUserAccess } from "@/lib/services/perfis";
 import {
   criarConciliacao,
   excluirConciliacao,
@@ -36,9 +36,9 @@ export async function criarConciliacaoAction(formData: FormData): Promise<CriarC
   const session = await auth();
   if (!session) return { ok: false, error: "Não autenticado." };
 
-  const role = session.user.role as Role;
-  if (!ROLES_CONTROLADORIA.includes(role)) {
-    return { ok: false, error: "Sem permissão. Apenas Controladoria/Admin pode criar conciliações." };
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_CONCILIACAO")) {
+    return { ok: false, error: "Sem permissão para criar conciliações." };
   }
 
   const contaContabil = String(formData.get("contaContabil") ?? "").trim();
@@ -113,8 +113,8 @@ export async function salvarObservacoesAction(
 ): Promise<{ ok: true } | Err> {
   const session = await auth();
   if (!session) return { ok: false, error: "Não autenticado." };
-  const role = session.user.role as Role;
-  if (!ROLES_CONTROLADORIA.includes(role)) return { ok: false, error: "Sem permissão." };
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_CONCILIACAO")) return { ok: false, error: "Sem permissão." };
 
   // Garantia multi-tenant: confirma que a conciliação pertence ao tenant ANTES de update.
   const existing = await prisma.conciliacao.findFirst({
@@ -146,8 +146,8 @@ export async function salvarObservacoesAction(
 export async function excluirConciliacaoAction(id: string): Promise<{ ok: true } | Err> {
   const session = await auth();
   if (!session) return { ok: false, error: "Não autenticado." };
-  const role = session.user.role as Role;
-  if (!ROLES_CONTROLADORIA.includes(role)) return { ok: false, error: "Sem permissão." };
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_CONCILIACAO")) return { ok: false, error: "Sem permissão." };
 
   const removed = await excluirConciliacao(id, session.user.tenantId);
   if (!removed) return { ok: false, error: "Conciliação não encontrada." };

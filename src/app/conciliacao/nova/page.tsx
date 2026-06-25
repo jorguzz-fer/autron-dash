@@ -1,7 +1,7 @@
 import AppShell from "@/components/Layout/AppShell";
 import CardSection from "@/components/UI/CardSection";
 import { auth } from "@/lib/auth";
-import { ROLES_CONTROLADORIA, type Role } from "@/lib/authz";
+import { getUserAccess } from "@/lib/services/perfis";
 import { redirect } from "next/navigation";
 import NovaConciliacaoForm from "./NovaConciliacaoForm";
 
@@ -21,8 +21,8 @@ export default async function NovaConciliacaoPage() {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const role = session.user.role as Role;
-  if (!ROLES_CONTROLADORIA.includes(role)) redirect("/dashboard");
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("ACCESS_CONCILIACAO")) redirect("/dashboard");
 
   return (
     <AppShell

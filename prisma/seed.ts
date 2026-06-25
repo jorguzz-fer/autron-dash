@@ -26,6 +26,59 @@ async function main() {
   });
   console.log(`✓ Tenant: ${tenant.slug} (${tenant.id})`);
 
+  // ── Perfis de sistema (RBAC dinâmico) ──────────────────────────────────────
+  // Espelha lib/pageAccess + lib/capabilities. Idempotente (upsert por nome).
+  const OPS_MODULES = [
+    "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
+    "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES",
+  ];
+  const perfisSistema = [
+    {
+      nome: "ADMIN", label: "Administrador", descricao: "Acesso total ao sistema",
+      baseRole: Role.ADMIN,
+      modules: [...OPS_MODULES, "UPLOADS", "CHAT_IA", "CONCILIACAO", "KPI_FINANCEIRO", "COMISSOES"],
+      capabilities: ["MANAGE_USERS", "UPLOAD_DATA", "EDIT_PRONTIDAO", "ACCESS_CONCILIACAO", "ACCESS_KPI_FINANCEIRO", "ACCESS_COMISSOES"],
+    },
+    {
+      nome: "DIRETOR", label: "Gestão", descricao: "Visão executiva e comissões",
+      baseRole: Role.DIRETOR, modules: OPS_MODULES,
+      capabilities: ["UPLOAD_DATA", "EDIT_PRONTIDAO", "ACCESS_COMISSOES"],
+    },
+    {
+      nome: "GERENTE", label: "Supervisão", descricao: "Operação com envio de planilhas",
+      baseRole: Role.GERENTE, modules: [...OPS_MODULES, "UPLOADS"],
+      capabilities: ["UPLOAD_DATA", "EDIT_PRONTIDAO"],
+    },
+    {
+      nome: "OPERADOR", label: "Operador", descricao: "Entrada de dados e uploads",
+      baseRole: Role.OPERADOR, modules: [...OPS_MODULES, "UPLOADS"],
+      capabilities: ["UPLOAD_DATA"],
+    },
+    {
+      nome: "VIEWER", label: "Visualizador", descricao: "Somente leitura",
+      baseRole: Role.VIEWER, modules: OPS_MODULES, capabilities: [],
+    },
+    {
+      nome: "CONTROLADORIA", label: "Controladoria", descricao: "Conciliação, KPI financeiro e comissões",
+      baseRole: Role.CONTROLADORIA,
+      modules: ["DASHBOARD", "VISAO_GERAL", "CONCILIACAO", "KPI_FINANCEIRO"],
+      capabilities: ["ACCESS_CONCILIACAO", "ACCESS_KPI_FINANCEIRO", "ACCESS_COMISSOES"],
+    },
+  ];
+  for (const p of perfisSistema) {
+    await prisma.perfil.upsert({
+      where: { tenantId_nome: { tenantId: tenant.id, nome: p.nome } },
+      update: { label: p.label, descricao: p.descricao, baseRole: p.baseRole, modules: p.modules, capabilities: p.capabilities, isSystem: true, ativo: true },
+      create: { tenantId: tenant.id, isSystem: true, ativo: true, ...p },
+    });
+  }
+  const perfilAdmin = await prisma.perfil.findUnique({
+    where: { tenantId_nome: { tenantId: tenant.id, nome: "ADMIN" } },
+    select: { id: true },
+  });
+  console.log(`✓ Perfis de sistema: ${perfisSistema.length}`);
+
   const passwordHash = await bcrypt.hash(adminPassword, 12);
 
   const admin = await prisma.user.upsert({
@@ -33,6 +86,7 @@ async function main() {
     update: {
       name: adminName,
       role: Role.ADMIN,
+      perfilId: perfilAdmin?.id,
       active: true,
     },
     create: {
@@ -40,6 +94,7 @@ async function main() {
       email: adminEmail,
       name: adminName,
       role: Role.ADMIN,
+      perfilId: perfilAdmin?.id,
       active: true,
       passwordHash,
     },

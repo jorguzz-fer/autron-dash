@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Dataset } from "@prisma/client";
-import { requireRole, ROLES_WRITE, type Role } from "@/lib/authz";
+import { requireAnyCapability } from "@/lib/authz";
+import type { Capability } from "@/lib/capabilities";
 import { rateLimit } from "@/lib/rateLimit";
 import { processUpload } from "@/lib/uploads";
 import { getClientIp, getUserAgent, logAudit } from "@/lib/audit";
@@ -8,6 +9,19 @@ import { DATASET_ACCEPTS, PARSERS } from "@/lib/parsers";
 
 const MAX_UPLOAD_BYTES = (Number(process.env.MAX_UPLOAD_SIZE_MB ?? 20)) * 1024 * 1024;
 const VALID_DATASETS = new Set(Object.keys(PARSERS) as Dataset[]);
+
+// Capacidades aceitas por dataset (basta ter UMA delas). Preserva o
+// comportamento anterior baseado em roles:
+//  - datasets operacionais → quem pode enviar planilhas (UPLOAD_DATA)
+//  - Títulos a Receber (KPI) → UPLOAD_DATA ou ACCESS_KPI_FINANCEIRO (Controladoria)
+//  - planilhas de comissão → ACCESS_COMISSOES (ADMIN/Gestão/Controladoria)
+function uploadCapabilitiesFor(dataset: Dataset): Capability[] {
+  if (dataset === "TITULO_RECEBER") return ["UPLOAD_DATA", "ACCESS_KPI_FINANCEIRO"];
+  if (dataset === "COMISSAO_ANALITICO" || dataset === "COMISSAO_META") {
+    return ["ACCESS_COMISSOES"];
+  }
+  return ["UPLOAD_DATA"];
+}
 
 export const maxDuration = 120;
 
@@ -22,12 +36,7 @@ export async function POST(
     return NextResponse.json({ error: "Dataset inválido" }, { status: 400 });
   }
 
-  // O relatório de Títulos a Receber (KPI Financeiro) é mantido pela
-  // Controladoria, que não tem papel de escrita global — liberamos CONTROLADORIA
-  // apenas para esse dataset.
-  const allowedRoles: Role[] =
-    dataset === "TITULO_RECEBER" ? [...ROLES_WRITE, "CONTROLADORIA"] : ROLES_WRITE;
-  const guard = await requireRole(allowedRoles);
+  const guard = await requireAnyCapability(uploadCapabilitiesFor(dataset));
   if (guard.error) return guard.error;
   const session = guard.session;
 

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { listAuditLogs, listAuditActions } from "@/lib/services/auditLogs";
 import { listUsersByTenant } from "@/lib/services/users";
-import { ROLES_ADMIN, type Role } from "@/lib/authz";
+import { getUserAccess } from "@/lib/services/perfis";
 import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import DataTable, { type Column } from "@/components/UI/DataTable";
@@ -44,14 +44,14 @@ export default async function LogsPage({
   const session = await auth();
   if (!session) redirect("/login");
 
-  const userRole = session.user.role as Role;
-  if (!ROLES_ADMIN.includes(userRole)) {
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("MANAGE_USERS")) {
     return (
       <AppShell title="Logs" subtitle="Auditoria de atividades do tenant">
         <CardSection title="Acesso restrito">
           <p className="text-[13.5px]" style={{ color: "var(--fg-muted)" }}>
-            Apenas usuários com perfil <strong>ADMIN</strong> podem consultar
-            os logs de auditoria. Solicite o acesso ao administrador do seu tenant.
+            Você não tem a permissão <strong>Administrar usuários</strong>,
+            necessária para consultar os logs de auditoria.
           </p>
         </CardSection>
       </AppShell>

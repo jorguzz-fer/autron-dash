@@ -18,6 +18,7 @@ import {
   Scale,
   ScrollText,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Upload,
   Users,
@@ -26,7 +27,7 @@ import {
 } from "lucide-react";
 import Logo from "./Logo";
 import { useSidebar } from "./SidebarProvider";
-import { canAccessModule, type ModuleKey } from "@/lib/pageAccess";
+import { type ModuleKey } from "@/lib/pageAccess";
 
 interface NavItem {
   label: string;
@@ -71,7 +72,8 @@ const NAV_COMISSOES: NavItem[] = [
 
 const NAV_ADMIN: NavItem[] = [
   { label: "Usuários",    href: "/admin/usuarios",   icon: Users },
-  { label: "Permissões",  href: "/admin/permissoes", icon: ShieldCheck },
+  { label: "Perfis",      href: "/admin/perfis",     icon: ShieldCheck },
+  { label: "Permissões",  href: "/admin/permissoes", icon: SlidersHorizontal },
   { label: "Logs",        href: "/admin/logs",       icon: ScrollText },
 ];
 
@@ -81,7 +83,10 @@ interface SidebarProps {
     email: string;
     role: string;
     tenantSlug: string;
-    allowedModules: string[];
+    /** Módulos efetivos (já resolvidos do perfil/override no AppShell). */
+    modules: string[];
+    /** Capacidades efetivas do usuário. */
+    capabilities: string[];
   };
   /** Server Action de sign-out (passada como prop a partir do AppShell). */
   onSignOut: () => Promise<void>;
@@ -90,11 +95,12 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: SidebarProps) {
-  const isAdmin = user.role === "ADMIN";
+  const canManageUsers = user.capabilities.includes("MANAGE_USERS");
   const { collapsed } = useSidebar();
 
+  const moduleSet = new Set(user.modules);
   function moduleVisible(key: ModuleKey): boolean {
-    return canAccessModule(user, key);
+    return moduleSet.has(key);
   }
 
   const navPrimaryVisible = NAV_PRIMARY.filter(
@@ -188,7 +194,7 @@ export default function Sidebar({ user, onSignOut, chatIaEnabled = false }: Side
           </>
         )}
 
-        {isAdmin && (
+        {canManageUsers && (
           <>
             <SectionLabel className="mt-6">Administração</SectionLabel>
             <ul className="space-y-0.5">

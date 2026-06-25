@@ -4,7 +4,7 @@ import Sidebar from "./Sidebar";
 import SidebarProvider from "./SidebarProvider";
 import TopBar from "./TopBar";
 import { signOutAction } from "@/app/actions";
-import { getUserAllowedModules } from "@/lib/services/users";
+import { getUserAccess } from "@/lib/services/perfis";
 
 interface AppShellProps {
   title: string;
@@ -28,7 +28,7 @@ export default async function AppShell({ title, subtitle, actions, children }: A
   // (avita que o user clique e veja "ainda não disponível").
   const chatIaEnabled = !!process.env.IA_SSO_SECRET && !!process.env.IA_CHAT_URL;
 
-  const allowedModules = await getUserAllowedModules(session.user.tenantId, session.user.id);
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
 
   return (
     <SidebarProvider>
@@ -39,7 +39,8 @@ export default async function AppShell({ title, subtitle, actions, children }: A
             email: session.user.email ?? "",
             role: session.user.role,
             tenantSlug: session.user.tenantSlug,
-            allowedModules,
+            modules: access.modules,
+            capabilities: access.capabilities,
           }}
           onSignOut={signOutAction}
           chatIaEnabled={chatIaEnabled}

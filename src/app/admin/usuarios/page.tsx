@@ -2,7 +2,8 @@ import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { listUsersByTenant } from "@/lib/services/users";
-import { ROLES_ADMIN, type Role } from "@/lib/authz";
+import { getUserAccess, listPerfisAtivos } from "@/lib/services/perfis";
+import { type Role } from "@/lib/authz";
 import KPICard from "@/components/UI/KPICard";
 import CardSection from "@/components/UI/CardSection";
 import DataTable, { type Column } from "@/components/UI/DataTable";
@@ -21,6 +22,8 @@ interface UserRowData {
   role: Role;
   active: boolean;
   mfaEnabled: boolean;
+  perfilId: string | null;
+  perfilLabel: string | null;
   lastLoginAt: Date | null;
   createdAt: Date;
 }
@@ -29,24 +32,25 @@ export default async function UsuariosPage() {
   const session = await auth();
   if (!session) redirect("/login");
 
-  // Apenas ADMIN tem acesso. Quem não é, vê página de "acesso negado" suave.
-  const userRole = session.user.role as Role;
-  const isAdmin = ROLES_ADMIN.includes(userRole);
-
-  if (!isAdmin) {
+  // Requer a capacidade de administrar usuários. Quem não tem vê "acesso negado".
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  if (!access.capabilities.includes("MANAGE_USERS")) {
     return (
       <AppShell title="Usuários" subtitle="Gestão de acessos do tenant">
         <CardSection title="Acesso restrito">
           <p className="text-[13.5px]" style={{ color: "var(--fg-muted)" }}>
-            Apenas usuários com perfil <strong>ADMIN</strong> podem gerenciar
-            outros usuários. Solicite o acesso ao administrador do seu tenant.
+            Você não tem a permissão <strong>Administrar usuários</strong>.
+            Solicite o acesso ao administrador do seu tenant.
           </p>
         </CardSection>
       </AppShell>
     );
   }
 
-  const users = await listUsersByTenant(session.user.tenantId);
+  const [users, perfis] = await Promise.all([
+    listUsersByTenant(session.user.tenantId),
+    listPerfisAtivos(session.user.tenantId),
+  ]);
 
   const ativos = users.filter((u) => u.active).length;
   const inativos = users.length - ativos;
@@ -92,10 +96,10 @@ export default async function UsuariosPage() {
         <CardSection
           title="Lista de usuários"
           subtitle={`${fmtNum(users.length)} ${users.length === 1 ? "usuário" : "usuários"} · ativos primeiro`}
-          actions={<UsuarioCriarBtn />}
+          actions={<UsuarioCriarBtn perfis={perfis} />}
         >
           <DataTable
-            columns={getColumns(session.user.id)}
+            columns={getColumns(session.user.id, perfis)}
             rows={users as UserRowData[]}
             rowKey={(u) => u.id}
             emptyMessage="Nenhum usuário cadastrado neste tenant."
@@ -132,7 +136,13 @@ const ROLE_LABEL: Record<Role, string> = {
   CONTROLADORIA: "CONTROLADORIA",
 };
 
-function getColumns(currentUserId: string): Column<UserRowData>[] {
+interface PerfilOption {
+  id: string;
+  label: string;
+  baseRole: Role;
+}
+
+function getColumns(currentUserId: string, perfis: PerfilOption[]): Column<UserRowData>[] {
   return [
     {
       key: "name",
@@ -163,8 +173,12 @@ function getColumns(currentUserId: string): Column<UserRowData>[] {
     {
       key: "role",
       header: "Perfil",
-      sortKey: "role",
-      cell: (u) => <StatusBadge tone={ROLE_TONE[u.role]}>{ROLE_LABEL[u.role]}</StatusBadge>,
+      sortKey: "perfilLabel",
+      cell: (u) => (
+        <StatusBadge tone={ROLE_TONE[u.role]}>
+          {u.perfilLabel ?? ROLE_LABEL[u.role]}
+        </StatusBadge>
+      ),
     },
     {
       key: "active",
@@ -216,7 +230,8 @@ function getColumns(currentUserId: string): Column<UserRowData>[] {
           id={u.id}
           name={u.name}
           email={u.email}
-          role={u.role}
+          perfilId={u.perfilId}
+          perfis={perfis}
           active={u.active}
           mfaEnabled={u.mfaEnabled}
           isSelf={u.id === currentUserId}

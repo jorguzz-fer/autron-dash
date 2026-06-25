@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Dataset } from "@prisma/client";
 import { DATASET_LABELS } from "@/lib/parsers";
+import { getUserAccess } from "@/lib/services/perfis";
 import UploadCard from "./UploadCard";
 import GenerateReportsBanner from "@/components/UI/GenerateReportsBanner";
 import DataTable, { type Column } from "@/components/UI/DataTable";
@@ -22,8 +23,6 @@ const DATASET_ORDER: Dataset[] = [
   "META",
   "PLOOMES",
 ];
-
-const ROLES_WRITE = new Set(["ADMIN", "DIRETOR", "GERENTE", "OPERADOR"]);
 
 interface SP {
   sort?: string;
@@ -52,7 +51,8 @@ export default async function UploadsPage({
   const sp = await searchParams;
   const sortState = parseSort(sp.sort, sp.dir);
 
-  const canUpload = ROLES_WRITE.has(session.user.role);
+  const access = await getUserAccess(session.user.tenantId, session.user.id);
+  const canUpload = access.capabilities.includes("UPLOAD_DATA");
 
   const uploads = await prisma.dataUpload.findMany({
     where: { tenantId: session.user.tenantId },
@@ -98,8 +98,8 @@ export default async function UploadsPage({
               borderColor: "color-mix(in srgb, #f59e0b 30%, transparent)",
             }}
           >
-            Seu papel ({session.user.role}) é somente leitura. Apenas ADMIN, DIRETOR,
-            GERENTE e OPERADOR podem fazer upload.
+            Seu perfil não tem a permissão <strong>Enviar planilhas</strong>.
+            Solicite o acesso ao administrador.
           </div>
         )}
 

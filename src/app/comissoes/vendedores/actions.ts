@@ -3,15 +3,13 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireRole, type Role } from "@/lib/authz";
+import { requireCapability } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { prisma } from "@/lib/db";
 
 type OkEmpty = { ok: true };
 type Err = { ok: false; error: string };
 type SimpleResult = OkEmpty | Err;
-
-const ALLOWED_ROLES: Role[] = ["ADMIN", "DIRETOR", "CONTROLADORIA"];
 
 const TIPO_VALUES = ["CLT", "PJ", "REPRESENTANTE"] as const;
 const BASE_VALUES = ["INDIVIDUAL", "COLETIVO", "CARTEIRA"] as const;
@@ -67,7 +65,7 @@ type VendedorInput = {
 };
 
 export async function criarVendedor(input: VendedorInput): Promise<SimpleResult> {
-  const guard = await requireRole(ALLOWED_ROLES);
+  const guard = await requireCapability("ACCESS_COMISSOES");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 
@@ -137,7 +135,7 @@ export async function atualizarVendedor(
   id: string,
   input: VendedorInput,
 ): Promise<SimpleResult> {
-  const guard = await requireRole(ALLOWED_ROLES);
+  const guard = await requireCapability("ACCESS_COMISSOES");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 
@@ -240,7 +238,7 @@ export async function criarCargo(input: {
   gatilhoPct: number;
   base: string;
 }): Promise<SimpleResult> {
-  const guard = await requireRole(ALLOWED_ROLES);
+  const guard = await requireCapability("ACCESS_COMISSOES");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 
@@ -300,7 +298,7 @@ export async function atualizarCargo(
     base: string;
   },
 ): Promise<SimpleResult> {
-  const guard = await requireRole(ALLOWED_ROLES);
+  const guard = await requireCapability("ACCESS_COMISSOES");
   if (guard.error) return { ok: false, error: "Sem permissão" };
   const session = guard.session;
 

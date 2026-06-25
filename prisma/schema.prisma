@@ -24,6 +24,7 @@ model Tenant {
 
   users                 User[]
   auditLogs             AuditLog[]
+  perfis                Perfil[]
   pedidos               Pedido[]
   followUps             FollowUp[]
   estoques              Estoque[]
@@ -64,12 +65,17 @@ model User {
   mfaSecret          String?
   mfaConfirmedAt     DateTime?
   lastLoginAt        DateTime?
-  // Whitelist explícita de módulos visíveis. Vazio = padrão do perfil (role).
+  // Whitelist explícita de módulos visíveis (override por usuário). Vazio = usa
+  // os módulos do perfil. Mantido como camada fina sobre o Perfil.
   allowedModules     String[]
+  // Perfil dinâmico do usuário (fonte de módulos + capacidades). NULL = cai no
+  // padrão do role legado. role continua como identidade de segurança (JWT/seed).
+  perfilId           String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  perfil                Perfil?                @relation(fields: [perfilId], references: [id], onDelete: SetNull)
   sessions              Session[]
   auditLogs             AuditLog[]
   dataUploads           DataUpload[]
@@ -80,6 +86,41 @@ model User {
 
   @@unique([tenantId, email])
   @@index([email])
+  @@index([perfilId])
+}
+
+// ─── Perfis (RBAC dinâmico) ──────────────────────────────────────────────────
+// Um Perfil generaliza o antigo enum Role: além de definir QUAIS módulos o
+// usuário enxerga (modules), define O QUE ele pode FAZER (capabilities — ações
+// como enviar planilhas, gerir usuários, acessar conciliação, etc.).
+//
+// Os 6 perfis legados (ADMIN, DIRETOR, GERENTE, OPERADOR, VIEWER, CONTROLADORIA)
+// são semeados como perfis de sistema (isSystem=true) — editáveis em módulos e
+// capacidades, mas não removíveis. ADMINs podem criar perfis customizados.
+//
+// baseRole mantém a identidade de segurança legada (vai pro JWT/sessão via
+// User.role) — necessário porque o enum Role ainda é referenciado por código
+// legado e pelo seed. Ao atribuir um perfil a um usuário, User.role espelha
+// baseRole. As decisões de autorização de fato usam capabilities (lib/authz).
+model Perfil {
+  id           String   @id @default(cuid())
+  tenantId     String
+  nome         String // chave por tenant (ex.: "ADMIN", "FINANCEIRO_JR")
+  label        String // rótulo de exibição (ex.: "Financeiro Jr")
+  descricao    String?
+  isSystem     Boolean  @default(false)
+  baseRole     Role     @default(VIEWER)
+  modules      String[]
+  capabilities String[]
+  ativo        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@unique([tenantId, nome])
+  @@index([tenantId])
 }
 
 // Códigos de recuperação do MFA (one-time). Guardamos apenas o hash bcrypt —
