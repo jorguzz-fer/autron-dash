@@ -15,8 +15,8 @@ import {
 import { runReports, type ReportsSummary } from "@/app/actions";
 
 interface DatasetState {
-  loaded: number; // 0..5
-  total: number; // 5
+  loaded: number; // datasets core carregados (0..total)
+  total: number; // nº de datasets core exigidos (DATASET_ORDER)
 }
 
 interface Props {

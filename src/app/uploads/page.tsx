@@ -55,7 +55,10 @@ export default async function UploadsPage({
   const canUpload = access.capabilities.includes("UPLOAD_DATA");
 
   const uploads = await prisma.dataUpload.findMany({
-    where: { tenantId: session.user.tenantId },
+    where: {
+      tenantId: session.user.tenantId,
+      dataset: { in: DATASET_ORDER },
+    },
     orderBy: { startedAt: "desc" },
     take: 30,
     include: { user: { select: { name: true, email: true } } },
