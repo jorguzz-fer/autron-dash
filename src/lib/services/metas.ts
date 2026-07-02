@@ -16,9 +16,18 @@ function toNum(d: Prisma.Decimal | number): number {
   return Number(d);
 }
 
-export async function getMetas(tenantId: string, ano?: number): Promise<MetaPoint[]> {
+export async function getMetas(
+  tenantId: string,
+  ano?: number,
+  filtro?: { categoria?: MetaCategoria; unidade?: Unidade },
+): Promise<MetaPoint[]> {
   const rows = await prisma.meta.findMany({
-    where: { tenantId, ...(ano ? { ano } : {}) },
+    where: {
+      tenantId,
+      ...(ano ? { ano } : {}),
+      ...(filtro?.categoria ? { categoria: filtro.categoria } : {}),
+      ...(filtro?.unidade ? { unidade: filtro.unidade } : {}),
+    },
     orderBy: [{ ano: "asc" }, { mes: "asc" }, { unidade: "asc" }],
   });
   return rows.map((r) => ({

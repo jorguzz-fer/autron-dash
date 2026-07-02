@@ -83,6 +83,122 @@ export async function getFaturamentos(f: FaturamentoFilters): Promise<Faturament
   }));
 }
 
+/**
+ * Faturamento líquido somado por mês "YYYY-MM", agregado NO BANCO.
+ * Substitui o findMany completo + loop JS que a página fazia (37MB de
+ * dados por request). Paridade com monthKey(): to_char lê o timestamp
+ * naive como gravado — igual a getFullYear/getMonth com TZ=UTC (prod).
+ */
+export async function getFaturamentoLiquidoByMes(tenantId: string): Promise<Map<string, number>> {
+  const rows = await prisma.$queryRaw<{ mes: string; total: number }[]>`
+    SELECT to_char("emissao", 'YYYY-MM') AS mes,
+           COALESCE(SUM("faturamentoLiquido"), 0)::float8 AS total
+    FROM "Faturamento"
+    WHERE "tenantId" = ${tenantId} AND "emissao" IS NOT NULL
+    GROUP BY 1
+  `;
+  return new Map(rows.map((r) => [r.mes, r.total]));
+}
+
+export interface FaturamentoResumo {
+  totalBruto: number;
+  totalLiquido: number;
+  /** Média simples de margemLiquidaPct das linhas com margem (paridade com o cálculo JS). */
+  margemMediaPct: number;
+  /** COUNT(DISTINCT numDocto) — NFs únicas. */
+  nfsUnicas: number;
+  /** Total de linhas do período (usado pela paginação do Detalhe). */
+  linhas: number;
+}
+
+/** KPIs do Detalhamento agregados no banco — antes exigiam todas as linhas em memória. */
+export async function getFaturamentoResumo(f: FaturamentoFilters): Promise<FaturamentoResumo> {
+  const [row] = await prisma.$queryRaw<
+    { bruto: number; liquido: number; margem: number | null; nfs: number; linhas: number }[]
+  >`
+    SELECT COALESCE(SUM("faturamentoBruto"), 0)::float8   AS bruto,
+           COALESCE(SUM("faturamentoLiquido"), 0)::float8 AS liquido,
+           AVG("margemLiquidaPct")::float8                AS margem,
+           COUNT(DISTINCT "numDocto")::int                AS nfs,
+           COUNT(*)::int                                  AS linhas
+    FROM "Faturamento"
+    WHERE "tenantId" = ${f.tenantId}
+      AND (${f.dataInicio ?? null}::timestamp IS NULL OR "emissao" >= ${f.dataInicio ?? null})
+      AND (${f.dataFim ?? null}::timestamp IS NULL OR "emissao" <= ${f.dataFim ?? null})
+  `;
+  return {
+    totalBruto: row?.bruto ?? 0,
+    totalLiquido: row?.liquido ?? 0,
+    margemMediaPct: row?.margem ?? 0,
+    nfsUnicas: row?.nfs ?? 0,
+    linhas: row?.linhas ?? 0,
+  };
+}
+
+// ── Detalhe paginado (sort + skip/take no banco) ───────────────────
+
+/** Colunas ordenáveis da tabela Detalhe; true = nullable (usa nulls:last como o sortRows fazia). */
+const SORTABLE_FIELDS: Record<string, boolean> = {
+  emissao: true,
+  numDocto: false,
+  noPedido: true,
+  produto: false,
+  quantidade: false,
+  razaoSocial: true,
+  nomeFantasia: true,
+  uf: true,
+  faturamentoBruto: true,
+  faturamentoLiquido: true,
+  margemLiquidaR: true,
+  margemLiquidaPct: true,
+  nomeVendedor: true,
+  tipoNegocio: true,
+};
+
+export interface FaturamentoPageParams extends FaturamentoFilters {
+  sortKey?: string;
+  sortDir?: "asc" | "desc";
+  page: number;
+  pageSize: number;
+}
+
+/** Página do Detalhe das Notas — ORDER BY + LIMIT/OFFSET no banco (nunca a tabela inteira). */
+export async function getFaturamentosPage(p: FaturamentoPageParams): Promise<FaturamentoRow[]> {
+  const where = buildWhere(p);
+
+  const dir = p.sortDir ?? "desc";
+  const key = p.sortKey && p.sortKey in SORTABLE_FIELDS ? p.sortKey : "emissao";
+  const primary = SORTABLE_FIELDS[key]
+    ? { [key]: { sort: dir, nulls: "last" } }
+    : { [key]: dir };
+
+  const rows = await prisma.faturamento.findMany({
+    where,
+    // id como desempate → paginação estável mesmo com emissões repetidas
+    orderBy: [primary as Prisma.FaturamentoOrderByWithRelationInput, { id: "asc" }],
+    skip: (p.page - 1) * p.pageSize,
+    take: p.pageSize,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    emissao: r.emissao,
+    numDocto: r.numDocto,
+    produto: r.produto,
+    descricaoProduto: r.descricaoProduto,
+    quantidade: r.quantidade,
+    noPedido: r.noPedido,
+    faturamentoBruto: toNum(r.faturamentoBruto),
+    faturamentoLiquido: toNum(r.faturamentoLiquido),
+    margemLiquidaR: toNum(r.margemLiquidaR),
+    margemLiquidaPct: toNum(r.margemLiquidaPct),
+    nomeVendedor: r.nomeVendedor,
+    razaoSocial: r.razaoSocial,
+    nomeFantasia: r.nomeFantasia,
+    uf: r.uf,
+    tipoNegocio: r.tipoNegocio,
+  }));
+}
+
 // ── TOP N Faturamentos (ranking por dimensão) ──────────────────────
 
 export const TOP_FATURAMENTO_DIMS = ["cliente", "nota", "produto", "vendedor"] as const;

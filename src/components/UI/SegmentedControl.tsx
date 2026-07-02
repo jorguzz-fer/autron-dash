@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -35,13 +36,16 @@ export default function SegmentedControl({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
   function setValue(v: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (v) params.set(name, v);
     else params.delete(name);
     const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    startTransition(() => {
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    });
   }
 
   const padY = size === "sm" ? "py-1" : "py-1.5";
@@ -51,10 +55,13 @@ export default function SegmentedControl({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
+      aria-busy={isPending}
       className="inline-flex items-stretch gap-0.5 rounded-lg border p-0.5"
       style={{
         borderColor: "var(--border-strong)",
         backgroundColor: "var(--surface-2)",
+        opacity: isPending ? 0.6 : 1,
+        pointerEvents: isPending ? "none" : undefined,
       }}
     >
       {options.map((opt) => {

@@ -2,8 +2,10 @@ import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import {
-  getFaturamentos,
   getFaturamentoDateBounds,
+  getFaturamentoLiquidoByMes,
+  getFaturamentoResumo,
+  getFaturamentosPage,
   getTopFaturamentos,
   TOP_FATURAMENTO_DIMS,
   type FaturamentoRow,
@@ -22,9 +24,10 @@ import AcumuladoYoYChart from "@/components/UI/AcumuladoYoYChart";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import HBarRanking from "@/components/UI/HBarRanking";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
+import Pagination from "@/components/UI/Pagination";
 import SegmentedControl from "@/components/UI/SegmentedControl";
-import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey } from "@/lib/format";
-import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
+import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
+import { parseDateInput, parseSort } from "@/lib/sort";
 import {
   Target,
   TrendingUp,
@@ -55,11 +58,16 @@ interface SP {
   to?: string;
   sort?: string;
   dir?: string;
+  /** Página da tabela Detalhe das Notas (1-based). */
+  page?: string;
   // TOP 20 Faturamentos — filtro de período e dimensão próprios do card
   topFrom?: string;
   topTo?: string;
   topDim?: string;
 }
+
+/** Linhas por página da tabela Detalhe das Notas. */
+const DETALHE_PAGE_SIZE = 100;
 
 export default async function FaturamentoPage({
   searchParams,
@@ -94,11 +102,6 @@ export default async function FaturamentoPage({
   const mesFechado = mesAtual === 1 ? 12 : mesAtual - 1;
   const anoMesFechado = mesAtual === 1 ? anoAnterior : anoAtual;
 
-  // PARIDADE STREAMLIT (app.py:2079-2089): o filtro De/Até é COSMÉTICO
-  // para os cards. No Streamlit `df_fat_f` (filtrado) é código morto —
-  // os cards Resultado/Q1/Q2/Quadro/YoY usam SEMPRE `df_fat` completo.
-  //   fatsAll  → dados completos (cards/quadro/YoY) — não filtra por data
-  //   fats     → filtrado por data — só a tabela de Detalhamento usa
   // ── TOP 20 Faturamentos: filtro de período/dimensão próprios do card ──
   const topDim: TopFaturamentoDim = TOP_FATURAMENTO_DIMS.includes(sp.topDim as TopFaturamentoDim)
     ? (sp.topDim as TopFaturamentoDim)
@@ -106,21 +109,39 @@ export default async function FaturamentoPage({
   const topDataInicio = parseDateInput(sp.topFrom);
   const topDataFim = parseDateInput(sp.topTo, true);
 
-  const [fatsAll, fats, metas, enriched, topFats] = await Promise.all([
-    getFaturamentos({ tenantId }),
-    getFaturamentos({ tenantId, dataInicio, dataFim }),
-    getMetas(tenantId, anoAtual),
+  // Página da tabela Detalhe (1-based; clampada após sabermos o total)
+  const pageParam = Math.max(1, Number(sp.page) || 1);
+
+  // PARIDADE STREAMLIT (app.py:2079-2089): o filtro De/Até é COSMÉTICO
+  // para os cards. No Streamlit `df_fat_f` (filtrado) é código morto —
+  // os cards Resultado/Q1/Q2/Quadro/YoY usam SEMPRE os dados completos.
+  //
+  // PERFORMANCE: tudo agregado NO BANCO — nada de findMany da tabela
+  // inteira (era 2× full scan + 37MB de HTML → TTFB 6s + 503 no Traefik).
+  //   fatLiqByMes → soma mensal completa (cards/quadro/YoY)
+  //   resumo      → KPIs do Detalhamento no período filtrado
+  //   topVendRank → Top 10 vendedores no período filtrado
+  const [fatLiqByMes, resumo, metas, enriched, topFats, topVendRank] = await Promise.all([
+    getFaturamentoLiquidoByMes(tenantId),
+    getFaturamentoResumo({ tenantId, dataInicio, dataFim }),
+    getMetas(tenantId, anoAtual, { categoria: "RECEITA", unidade: "GRUPO" }),
     getEnrichedPedidos({ tenantId }),
     getTopFaturamentos({ tenantId, dataInicio: topDataInicio, dataFim: topDataFim, dim: topDim }),
+    getTopFaturamentos({ tenantId, dataInicio, dataFim, dim: "vendedor", limit: 10 }),
   ]);
 
-  // ── Faturamento líquido por mês "YYYY-MM" (dados COMPLETOS) ───
-  const fatLiqByMes = new Map<string, number>();
-  for (const r of fatsAll) {
-    if (!r.emissao) continue;
-    const k = monthKey(r.emissao);
-    fatLiqByMes.set(k, (fatLiqByMes.get(k) ?? 0) + (r.faturamentoLiquido ?? 0));
-  }
+  // Página do Detalhe: precisa do total (resumo.linhas) para clampar antes de buscar.
+  const pageCount = Math.max(1, Math.ceil(resumo.linhas / DETALHE_PAGE_SIZE));
+  const pageNum = Math.min(pageParam, pageCount);
+  const fatDetalhe = await getFaturamentosPage({
+    tenantId,
+    dataInicio,
+    dataFim,
+    sortKey: sortState?.key,
+    sortDir: sortState?.dir,
+    page: pageNum,
+    pageSize: DETALHE_PAGE_SIZE,
+  });
 
   // ── Meta RECEITA GRUPO por mês (1-12) ─────────────────────────
   const metaReceita = new Map<number, number>();
@@ -354,43 +375,21 @@ export default async function FaturamentoPage({
   const labelMesAtual = `${MES_LABELS[mesAtual - 1].toUpperCase()}/${String(anoAtual).slice(2)}`;
 
   // ── Detalhamento (paridade com Streamlit tab5: app.py:1494-1581) ─────
-  // Trabalha em cima de TODAS as notas (sem filtro de período).
-  const fatBrutoTotal = fats.reduce((a, r) => a + (r.faturamentoBruto ?? 0), 0);
-  const fatLiquidoTotal = fats.reduce((a, r) => a + (r.faturamentoLiquido ?? 0), 0);
+  // KPIs agregados no banco (getFaturamentoResumo) — mesmos cálculos de antes:
+  // somas, média simples de margem (.mean() do pandas) e COUNT(DISTINCT NF).
+  const fatBrutoTotal = resumo.totalBruto;
+  const fatLiquidoTotal = resumo.totalLiquido;
+  const margemMediaPct = resumo.margemMediaPct;
+  const nfsUnicas = resumo.nfsUnicas;
 
-  // Margem média simples (não ponderada), igual ao .mean() do pandas (app.py:1496).
-  const margensPct = fats.map((r) => r.margemLiquidaPct).filter((v): v is number => v != null);
-  const margemMediaPct =
-    margensPct.length > 0 ? margensPct.reduce((a, v) => a + v, 0) / margensPct.length : 0;
+  // Top 10 vendedores por faturamento líquido (app.py:1526-1540) — groupBy no banco.
+  const topVendedores = topVendRank.map((t) => ({
+    label: t.label,
+    value: t.value,
+    display: fmtCurrency(t.value, { decimals: 0 }),
+  }));
 
-  // Contagem de NFs únicas (app.py:1497).
-  const nfsUnicas = new Set(fats.map((r) => r.numDocto)).size;
-
-  // Top 10 vendedores por faturamento líquido (app.py:1526-1540).
-  const liqByVendedor = new Map<string, number>();
-  for (const r of fats) {
-    const v = r.nomeVendedor ?? "—";
-    liqByVendedor.set(v, (liqByVendedor.get(v) ?? 0) + (r.faturamentoLiquido ?? 0));
-  }
-  const topVendedores = Array.from(liqByVendedor.entries())
-    .map(([label, value]) => ({
-      label,
-      value,
-      display: fmtCurrency(value, { decimals: 0 }),
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10);
-
-  // Detalhe ordenado por emissão desc por default (app.py:1579), com override URL-driven.
-  const fatDetalheDefault = [...fats].sort(
-    (a, b) => (b.emissao?.getTime() ?? 0) - (a.emissao?.getTime() ?? 0),
-  );
-  const fatDetalhe = sortState
-    ? (sortRows(
-        fatDetalheDefault as unknown as Record<string, unknown>[],
-        sortState,
-      ) as unknown as FaturamentoRow[])
-    : fatDetalheDefault;
+  // fatDetalhe já vem do banco ordenado (ORDER BY) e paginado (LIMIT/OFFSET).
 
   // ── Forecast de Receita Líquida — Acumulado (Meta × Realizado) ──
   // Realizado mensal = "Total Líquido" do quadro: fat. líquido emitido +
@@ -1059,13 +1058,21 @@ export default async function FaturamentoPage({
           {/* Tabela de detalhe */}
           <CardSection
             title="Detalhe das Notas"
-            subtitle={`${fmtNum(fatDetalhe.length)} notas · ordenadas por emissão desc`}
+            subtitle={`${fmtNum(resumo.linhas)} notas · ${
+              sortState ? "ordenação personalizada" : "ordenadas por emissão desc"
+            } · ${fmtNum(DETALHE_PAGE_SIZE)} por página`}
           >
             <DataTable
               columns={faturamentoCols}
               rows={fatDetalhe}
               rowKey={(r) => r.id}
               emptyMessage="Nenhuma nota fiscal carregada."
+            />
+            <Pagination
+              page={pageNum}
+              pageCount={pageCount}
+              pathname="/faturamento"
+              searchParams={{ ...sp }}
             />
           </CardSection>
         </SectionBlock>
