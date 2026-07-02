@@ -13,6 +13,13 @@ interface Props {
   toValue?: string;
   /** Rótulo principal (ex: "Emissão", "Faturamento"). */
   label?: string;
+  /**
+   * Só aplica o filtro quando AMBOS (De e Até) estão preenchidos — ou quando
+   * ambos são limpos. Evita disparar com só a data inicial escolhida. Usado
+   * no card TOP 20 (que começa sem datas); o filtro principal não usa (já
+   * vem pré-preenchido com os dois bounds).
+   */
+  requireBoth?: boolean;
 }
 
 /** Espera após a última mudança antes de navegar — evita um fetch por segmento digitado. */
@@ -35,6 +42,7 @@ export default function DateRangeFilter({
   fromValue,
   toValue,
   label = "Período",
+  requireBoth = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -67,6 +75,11 @@ export default function DateRangeFilter({
     mutate(params);
     const qs = params.toString();
     const url = qs ? `${pathname}?${qs}` : pathname;
+    // Guarda a posição de scroll: quando a nav RSC cai em 503, o Next recarrega
+    // a página inteira (perde o scroll). O <ScrollRestore> restaura no load.
+    try {
+      sessionStorage.setItem(`scroll:${pathname}`, String(window.scrollY));
+    } catch {}
     startTransition(() => {
       // scroll: false — sem isso o Next rola pro topo a cada navegação,
       // "chutando" o usuário pra fora do card enquanto ele ainda está
@@ -99,6 +112,13 @@ export default function DateRangeFilter({
   function scheduleNavigate(nextFrom: string, nextTo: string) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
+      // requireBoth: só navega com os dois preenchidos, ou com os dois vazios
+      // (limpar). Um campo só → aguarda o outro, sem disparar.
+      if (requireBoth) {
+        const bothFilled = !!nextFrom && !!nextTo;
+        const bothEmpty = !nextFrom && !nextTo;
+        if (!bothFilled && !bothEmpty) return;
+      }
       navigate((params) => {
         if (nextFrom) params.set(fromParam, nextFrom);
         else params.delete(fromParam);

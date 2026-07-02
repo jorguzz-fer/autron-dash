@@ -25,6 +25,7 @@ import DataTable, { type Column } from "@/components/UI/DataTable";
 import HBarRanking from "@/components/UI/HBarRanking";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import Pagination from "@/components/UI/Pagination";
+import ScrollRestore from "@/components/UI/ScrollRestore";
 import SegmentedControl from "@/components/UI/SegmentedControl";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct } from "@/lib/format";
 import { parseDateInput, parseSort } from "@/lib/sort";
@@ -403,6 +404,7 @@ export default async function FaturamentoPage({
 
   return (
     <AppShell title="Faturamento" subtitle="Meta × Realizado · Carteira · Comparativo Anual">
+      <ScrollRestore />
       <div className="space-y-10">
 
         {/* ── Filtro de data Emissão NF ── */}
@@ -990,6 +992,7 @@ export default async function FaturamentoPage({
                 toParam="topTo"
                 fromValue={sp.topFrom}
                 toValue={sp.topTo}
+                requireBoth
               />
               <HBarRanking
                 items={topFats.map((t) => ({

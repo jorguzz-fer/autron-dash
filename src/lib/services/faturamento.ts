@@ -281,13 +281,32 @@ export interface TopFaturamentoItem {
   pct: number;
 }
 
+export type TopFaturamentoFilters = FaturamentoFilters & {
+  dim: TopFaturamentoDim;
+  limit?: number;
+};
+
 /**
  * Ranking TOP N por faturamento líquido, agregado NO BANCO (groupBy + _sum),
  * sem carregar linhas em memória. Importante para "nota": a mesma NF aparece
  * em várias linhas (filiais/lotes/remessas) — o groupBy por numDocto soma tudo.
+ *
+ * CACHE: retorno é JSON-safe ({label, value, pct}). Cacheado por combinação
+ * de (tenant, dim, período, limit) — trocar Clientes/Notas/Produtos/Vendedores
+ * ou o período do card passa a servir do cache, sem bater no banco (some a
+ * principal fonte de 503 durante picos de I/O do Postgres). Invalida no
+ * upload de FATURAMENTO.
  */
 export async function getTopFaturamentos(
-  f: FaturamentoFilters & { dim: TopFaturamentoDim; limit?: number },
+  f: TopFaturamentoFilters,
+): Promise<TopFaturamentoItem[]> {
+  return unstable_cache(computeTopFaturamentos, ["top-faturamentos"], {
+    tags: [dataTag(f.tenantId, "FATURAMENTO")],
+  })(f);
+}
+
+async function computeTopFaturamentos(
+  f: TopFaturamentoFilters,
 ): Promise<TopFaturamentoItem[]> {
   const where = buildWhere(f);
   const take = f.limit ?? 20;

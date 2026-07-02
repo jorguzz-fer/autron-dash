@@ -54,6 +54,11 @@ export default function SegmentedControl({
     else params.delete(name);
     const qs = params.toString();
     const url = qs ? `${pathname}?${qs}` : pathname;
+    // Guarda o scroll — se a nav RSC cair em 503, o Next recarrega a página
+    // inteira; o <ScrollRestore> devolve a posição no load.
+    try {
+      sessionStorage.setItem(`scroll:${pathname}`, String(window.scrollY));
+    } catch {}
     startTransition(() => {
       router.push(url, { scroll: false });
     });
