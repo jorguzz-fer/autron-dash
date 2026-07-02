@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import {
   getFaturamentos,
   getFaturamentoDateBounds,
+  getTopFaturamentos,
+  TOP_FATURAMENTO_DIMS,
   type FaturamentoRow,
+  type TopFaturamentoDim,
 } from "@/lib/services/faturamento";
 import { getMetas } from "@/lib/services/metas";
 import { getEnrichedPedidos } from "@/lib/services/dashboard";
@@ -19,6 +22,7 @@ import AcumuladoYoYChart from "@/components/UI/AcumuladoYoYChart";
 import DataTable, { type Column } from "@/components/UI/DataTable";
 import HBarRanking from "@/components/UI/HBarRanking";
 import DateRangeFilter from "@/components/UI/DateRangeFilter";
+import SegmentedControl from "@/components/UI/SegmentedControl";
 import { fmtCurrency, fmtDate, fmtNum, fmtPct, monthKey } from "@/lib/format";
 import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import {
@@ -39,11 +43,22 @@ const MES_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set
 const Q1_MONTHS = [1, 2, 3];
 const Q2_MONTHS = [4, 5, 6];
 
+const TOP_DIM_LABELS: Record<TopFaturamentoDim, string> = {
+  cliente: "Clientes",
+  nota: "Notas Fiscais",
+  produto: "Produtos",
+  vendedor: "Vendedores",
+};
+
 interface SP {
   from?: string;
   to?: string;
   sort?: string;
   dir?: string;
+  // TOP 20 Faturamentos — filtro de período e dimensão próprios do card
+  topFrom?: string;
+  topTo?: string;
+  topDim?: string;
 }
 
 export default async function FaturamentoPage({
@@ -84,11 +99,19 @@ export default async function FaturamentoPage({
   // os cards Resultado/Q1/Q2/Quadro/YoY usam SEMPRE `df_fat` completo.
   //   fatsAll  → dados completos (cards/quadro/YoY) — não filtra por data
   //   fats     → filtrado por data — só a tabela de Detalhamento usa
-  const [fatsAll, fats, metas, enriched] = await Promise.all([
+  // ── TOP 20 Faturamentos: filtro de período/dimensão próprios do card ──
+  const topDim: TopFaturamentoDim = TOP_FATURAMENTO_DIMS.includes(sp.topDim as TopFaturamentoDim)
+    ? (sp.topDim as TopFaturamentoDim)
+    : "cliente";
+  const topDataInicio = parseDateInput(sp.topFrom);
+  const topDataFim = parseDateInput(sp.topTo, true);
+
+  const [fatsAll, fats, metas, enriched, topFats] = await Promise.all([
     getFaturamentos({ tenantId }),
     getFaturamentos({ tenantId, dataInicio, dataFim }),
     getMetas(tenantId, anoAtual),
     getEnrichedPedidos({ tenantId }),
+    getTopFaturamentos({ tenantId, dataInicio: topDataInicio, dataFim: topDataFim, dim: topDim }),
   ]);
 
   // ── Faturamento líquido por mês "YYYY-MM" (dados COMPLETOS) ───
@@ -943,6 +966,50 @@ export default async function FaturamentoPage({
                   ))}
                 </tbody>
               </table>
+            </div>
+          </CardSection>
+        </SectionBlock>
+
+        {/* ── TOP 20 Faturamentos (ranking por dimensão, filtro próprio) ── */}
+        <SectionBlock title="TOP 20 Faturamentos">
+          <CardSection
+            title={`Top 20 — ${TOP_DIM_LABELS[topDim]}`}
+            subtitle={
+              sp.topFrom || sp.topTo
+                ? "Por faturamento líquido · período do filtro abaixo"
+                : "Por faturamento líquido · todo o período"
+            }
+            actions={
+              <SegmentedControl
+                name="topDim"
+                value={topDim}
+                ariaLabel="Dimensão do ranking"
+                size="sm"
+                options={[
+                  { value: "cliente", label: "Clientes" },
+                  { value: "nota", label: "Notas" },
+                  { value: "produto", label: "Produtos" },
+                  { value: "vendedor", label: "Vendedores" },
+                ]}
+              />
+            }
+          >
+            <div className="space-y-5">
+              <DateRangeFilter
+                label="Emissão NF"
+                fromParam="topFrom"
+                toParam="topTo"
+                fromValue={sp.topFrom}
+                toValue={sp.topTo}
+              />
+              <HBarRanking
+                items={topFats.map((t) => ({
+                  label: t.label,
+                  value: t.value,
+                  display: `${fmtCurrency(t.value, { decimals: 0 })} · ${fmtPct(t.pct, 1)}`,
+                }))}
+                tone="brand"
+              />
             </div>
           </CardSection>
         </SectionBlock>
