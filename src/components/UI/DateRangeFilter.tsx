@@ -53,16 +53,32 @@ export default function DateRangeFilter({
     mutate(params);
     const qs = params.toString();
     startTransition(() => {
-      router.push(qs ? `${pathname}?${qs}` : pathname);
+      // scroll: false — sem isso o Next rola pro topo a cada navegação,
+      // "chutando" o usuário pra fora do card enquanto ele ainda está
+      // escolhendo o range (card TOP 20 fica no meio da página).
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     });
   }
 
-  function setParamDebounced(name: string, value: string) {
+  /**
+   * Agenda UMA navegação com o par (from, to) mais recente dos dois campos.
+   *
+   * Importante: um único timer compartilhado, sempre reagendado com os
+   * valores atuais de AMBOS os campos — não um timer por campo. Antes,
+   * mudar "De" e em seguida "Até" (dentro do debounce) cancelava o timer
+   * do "De" e agendava um novo que só continha "Até", perdendo a mudança
+   * de "De" silenciosamente. Isso fazia parecer que o filtro só reagia à
+   * primeira data escolhida (e disparava sozinho, cedo demais, quando o
+   * usuário só tocava um campo e parava).
+   */
+  function scheduleNavigate(nextFrom: string, nextTo: string) {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       navigate((params) => {
-        if (value) params.set(name, value);
-        else params.delete(name);
+        if (nextFrom) params.set(fromParam, nextFrom);
+        else params.delete(fromParam);
+        if (nextTo) params.set(toParam, nextTo);
+        else params.delete(toParam);
       });
     }, DEBOUNCE_MS);
   }
@@ -94,7 +110,7 @@ export default function DateRangeFilter({
           value={localFrom}
           onChange={(e) => {
             setLocalFrom(e.target.value);
-            setParamDebounced(fromParam, e.target.value);
+            scheduleNavigate(e.target.value, localTo);
           }}
           className="ring-focus rounded-lg border bg-[var(--surface)] px-3 py-2 text-[13px] outline-none transition focus:border-[var(--color-brand-500)]"
           style={{
@@ -116,7 +132,7 @@ export default function DateRangeFilter({
           value={localTo}
           onChange={(e) => {
             setLocalTo(e.target.value);
-            setParamDebounced(toParam, e.target.value);
+            scheduleNavigate(localFrom, e.target.value);
           }}
           className="ring-focus rounded-lg border bg-[var(--surface)] px-3 py-2 text-[13px] outline-none transition focus:border-[var(--color-brand-500)]"
           style={{

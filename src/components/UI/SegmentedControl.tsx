@@ -44,7 +44,7 @@ export default function SegmentedControl({
     else params.delete(name);
     const qs = params.toString();
     startTransition(() => {
-      router.push(qs ? `${pathname}?${qs}` : pathname);
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     });
   }
 
