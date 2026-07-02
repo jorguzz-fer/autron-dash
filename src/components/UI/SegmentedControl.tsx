@@ -1,8 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+
+/** Se a navegação não completar nesse tempo, força reload (recupera de 503/RSC preso). */
+const NAV_TIMEOUT_MS = 8000;
 
 export interface SegmentOption {
   value: string;
@@ -37,15 +40,31 @@ export default function SegmentedControl({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A URL mudou → navegação concluiu → cancela o watchdog.
+  useEffect(() => {
+    if (watchdog.current) clearTimeout(watchdog.current);
+  }, [searchParams]);
+  useEffect(() => () => { if (watchdog.current) clearTimeout(watchdog.current); }, []);
 
   function setValue(v: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (v) params.set(name, v);
     else params.delete(name);
     const qs = params.toString();
+    const url = qs ? `${pathname}?${qs}` : pathname;
     startTransition(() => {
-      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      router.push(url, { scroll: false });
     });
+    // Rede de segurança: navegação RSC presa em 503 deixaria isPending=true
+    // e o controle desabilitado para sempre. Após NAV_TIMEOUT_MS sem a URL
+    // mudar, força reload (reexecuta e cai numa janela saudável).
+    if (watchdog.current) clearTimeout(watchdog.current);
+    watchdog.current = setTimeout(() => {
+      const current = window.location.pathname + window.location.search;
+      if (current !== url) window.location.href = url;
+    }, NAV_TIMEOUT_MS);
   }
 
   const padY = size === "sm" ? "py-1" : "py-1.5";

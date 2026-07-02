@@ -18,6 +18,9 @@ interface Props {
 /** Espera após a última mudança antes de navegar — evita um fetch por segmento digitado. */
 const DEBOUNCE_MS = 500;
 
+/** Se a navegação não completar nesse tempo, força reload (recupera de 503/RSC preso). */
+const NAV_TIMEOUT_MS = 8000;
+
 /**
  * Filtro de range de datas — input nativo type="date", URL-driven.
  * Server Component da página lê os params e ordena/filtra antes de render.
@@ -42,22 +45,44 @@ export default function DateRangeFilter({
   const [localFrom, setLocalFrom] = useState(fromValue ?? "");
   const [localTo, setLocalTo] = useState(toValue ?? "");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const watchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Server re-render (ou botão Limpar) atualizou os valores → re-sincroniza.
   useEffect(() => setLocalFrom(fromValue ?? ""), [fromValue]);
   useEffect(() => setLocalTo(toValue ?? ""), [toValue]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  // A URL mudou de fato → navegação concluiu → cancela o watchdog.
+  useEffect(() => {
+    if (watchdog.current) clearTimeout(watchdog.current);
+  }, [searchParams]);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+      if (watchdog.current) clearTimeout(watchdog.current);
+    },
+    [],
+  );
 
   function navigate(mutate: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(searchParams.toString());
     mutate(params);
     const qs = params.toString();
+    const url = qs ? `${pathname}?${qs}` : pathname;
     startTransition(() => {
       // scroll: false — sem isso o Next rola pro topo a cada navegação,
       // "chutando" o usuário pra fora do card enquanto ele ainda está
       // escolhendo o range (card TOP 20 fica no meio da página).
-      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      router.push(url, { scroll: false });
     });
+    // Rede de segurança: se a navegação RSC não completar (ex.: 503 durante
+    // um pico de I/O do banco), o useTransition fica preso com isPending=true
+    // e o "Atualizando…" nunca some. Após NAV_TIMEOUT_MS sem a URL ter mudado,
+    // força um reload real — que reexecuta a requisição e normalmente cai numa
+    // janela saudável. O efeito acima cancela este timer quando a nav conclui.
+    if (watchdog.current) clearTimeout(watchdog.current);
+    watchdog.current = setTimeout(() => {
+      const current = window.location.pathname + window.location.search;
+      if (current !== url) window.location.href = url;
+    }, NAV_TIMEOUT_MS);
   }
 
   /**
