@@ -1,6 +1,8 @@
 import { Dataset, Prisma } from "@prisma/client";
 import crypto from "node:crypto";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/db";
+import { dataTag } from "@/lib/cache";
 import { logAudit } from "@/lib/audit";
 import { PARSERS } from "@/lib/parsers";
 import type { PedidoRow } from "@/lib/parsers/pedido";
@@ -91,6 +93,15 @@ export async function processUpload(input: ProcessUploadInput): Promise<ProcessU
     const finished = await prisma.dataUpload.findUniqueOrThrow({
       where: { id: upload.id },
     });
+
+    // Invalida o Data Cache do dataset recém-substituído (leituras cacheadas
+    // por dataTag). Nunca deixa uma falha de revalidação derrubar o upload —
+    // o dado já foi gravado; no pior caso o cache expira no próximo deploy.
+    try {
+      revalidateTag(dataTag(tenantId, dataset));
+    } catch (e) {
+      console.error("revalidateTag falhou após upload", { dataset, error: e });
+    }
 
     await logAudit({
       tenantId,

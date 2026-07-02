@@ -2,6 +2,7 @@ import AppShell from "@/components/Layout/AppShell";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import {
+  getCarteiraFaturamento,
   getFaturamentoDateBounds,
   getFaturamentoLiquidoByMes,
   getFaturamentoResumo,
@@ -12,7 +13,6 @@ import {
   type TopFaturamentoDim,
 } from "@/lib/services/faturamento";
 import { getMetas } from "@/lib/services/metas";
-import { getEnrichedPedidos } from "@/lib/services/dashboard";
 // Paridade com Streamlit: a aba Faturamento inclui pedidos cancelados na carteira
 // (Status_Pedido é apenas EM_ABERTO vs FINALIZADO — sem distinguir CAN).
 // Por isso NÃO usamos filterByStatus aqui (que excluiria cancelados); a Prontidão sim.
@@ -121,11 +121,11 @@ export default async function FaturamentoPage({
   //   fatLiqByMes → soma mensal completa (cards/quadro/YoY)
   //   resumo      → KPIs do Detalhamento no período filtrado
   //   topVendRank → Top 10 vendedores no período filtrado
-  const [fatLiqByMes, resumo, metas, enriched, topFats, topVendRank] = await Promise.all([
+  const [fatLiqByMes, resumo, metas, carteira, topFats, topVendRank] = await Promise.all([
     getFaturamentoLiquidoByMes(tenantId),
     getFaturamentoResumo({ tenantId, dataInicio, dataFim }),
     getMetas(tenantId, anoAtual, { categoria: "RECEITA", unidade: "GRUPO" }),
-    getEnrichedPedidos({ tenantId }),
+    getCarteiraFaturamento(tenantId),
     getTopFaturamentos({ tenantId, dataInicio: topDataInicio, dataFim: topDataFim, dim: topDim }),
     getTopFaturamentos({ tenantId, dataInicio, dataFim, dim: "vendedor", limit: 10 }),
   ]);
@@ -151,25 +151,15 @@ export default async function FaturamentoPage({
     }
   }
 
-  // ── Carteira EM ABERTO por mês (paridade Streamlit app.py:2095-2100) ──
-  //   abertos_all = df[df['Status_Pedido'] == 'EM ABERTO']
-  //   a_faturar_mes = abertos_all[abertos_all['Mes_Entrega'] != 'Sem data'].groupby('Mes_Entrega')
-  // Regras:
-  //   - statusPedido === "EM ABERTO" (INCLUI cancelados, igual ao Streamlit)
-  //   - usa SÓ dtEntrega (campo "Entrega" do entrada_pedido) — sem fallback
-  //   - pedidos sem dtEntrega ("Sem data") são EXCLUÍDOS do agrupamento por mês
-  //     (mas aparecem nos totais agregados de Total de Carteira mais abaixo)
-  const emAberto = enriched.filter((p) => p.statusPedido === "EM ABERTO");
-  const carteiraByMes = new Map<string, number>();
-  for (const p of emAberto) {
-    if (!p.dtEntrega) continue;
-    const k = `${p.dtEntrega.getFullYear()}-${String(p.dtEntrega.getMonth() + 1).padStart(2, "0")}`;
-    carteiraByMes.set(k, (carteiraByMes.get(k) ?? 0) + (p.vlrTotal ?? 0));
-  }
-  const carteiraBrutoTotal = emAberto.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
+  // ── Carteira EM ABERTO (rollup cacheado: getCarteiraFaturamento) ──────
+  // A lógica de agrupamento (EM ABERTO, groupBy dtEntrega, totais) vive no
+  // serviço, cacheada por dataset. Aqui só reconstruímos o Map e derivamos
+  // o líquido (-17%).
+  const carteiraByMes = new Map(Object.entries(carteira.byMes));
+  const carteiraBrutoTotal = carteira.brutoTotal;
   const carteiraLiqTotal = carteiraBrutoTotal * FATOR_LIQUIDO;
-  const carteiraLinhas = emAberto.length;
-  const carteiraPVs = new Set(emAberto.map((p) => p.numPedido)).size;
+  const carteiraLinhas = carteira.linhas;
+  const carteiraPVs = carteira.pvs;
 
   // ── Helpers ────────────────────────────────────────────────────
   function mesKey(ano: number, m: number) {

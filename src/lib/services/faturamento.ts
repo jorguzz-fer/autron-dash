@@ -1,5 +1,8 @@
 import { Prisma } from "@prisma/client";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
+import { dataTag } from "@/lib/cache";
+import { getEnrichedPedidos } from "@/lib/services/dashboard";
 
 export interface FaturamentoFilters {
   tenantId: string;
@@ -88,16 +91,82 @@ export async function getFaturamentos(f: FaturamentoFilters): Promise<Faturament
  * Substitui o findMany completo + loop JS que a página fazia (37MB de
  * dados por request). Paridade com monthKey(): to_char lê o timestamp
  * naive como gravado — igual a getFullYear/getMonth com TZ=UTC (prod).
+ *
+ * CACHE: dado só muda no upload de FATURAMENTO. O cache guarda as entradas
+ * [mês, valor] (JSON-safe); o Map é reconstruído fora da fronteira do cache
+ * (Map não sobrevive à serialização do unstable_cache).
  */
 export async function getFaturamentoLiquidoByMes(tenantId: string): Promise<Map<string, number>> {
-  const rows = await prisma.$queryRaw<{ mes: string; total: number }[]>`
-    SELECT to_char("emissao", 'YYYY-MM') AS mes,
-           COALESCE(SUM("faturamentoLiquido"), 0)::float8 AS total
-    FROM "Faturamento"
-    WHERE "tenantId" = ${tenantId} AND "emissao" IS NOT NULL
-    GROUP BY 1
-  `;
-  return new Map(rows.map((r) => [r.mes, r.total]));
+  const entries = await unstable_cache(
+    async (tid: string): Promise<[string, number][]> => {
+      const rows = await prisma.$queryRaw<{ mes: string; total: number }[]>`
+        SELECT to_char("emissao", 'YYYY-MM') AS mes,
+               COALESCE(SUM("faturamentoLiquido"), 0)::float8 AS total
+        FROM "Faturamento"
+        WHERE "tenantId" = ${tid} AND "emissao" IS NOT NULL
+        GROUP BY 1
+      `;
+      return rows.map((r) => [r.mes, r.total]);
+    },
+    ["fat-liq-by-mes"],
+    { tags: [dataTag(tenantId, "FATURAMENTO")] },
+  )(tenantId);
+  return new Map(entries);
+}
+
+// ── Carteira (para os cards de Faturamento) ────────────────────────
+
+export interface CarteiraFaturamento {
+  /** Bruto da carteira EM ABERTO por mês "YYYY-MM" (chave = dtEntrega). */
+  byMes: Record<string, number>;
+  brutoTotal: number;
+  linhas: number;
+  /** PVs (numPedido) distintos. */
+  pvs: number;
+}
+
+/**
+ * Rollup da carteira EM ABERTO consumido pelos cards de Faturamento.
+ *
+ * Faz o enrich pesado (getEnrichedPedidos: 5 findMany + join em JS) apenas
+ * no cache miss e devolve só o resumo — JSON-safe, sem Date cruzando a
+ * fronteira do cache. Substitui o getEnrichedPedidos direto na página.
+ *
+ * Regras (paridade Streamlit app.py:2095-2100), idênticas ao que a página
+ * calculava antes:
+ *   - statusPedido === "EM ABERTO" (INCLUI cancelados)
+ *   - agrupa por dtEntrega; pedidos sem dtEntrega saem do byMes mas contam
+ *     nos totais (brutoTotal/linhas/pvs)
+ *
+ * CACHE: depende de todos os datasets que o enrich lê → invalidado quando
+ * qualquer um deles é re-enviado.
+ */
+export async function getCarteiraFaturamento(tenantId: string): Promise<CarteiraFaturamento> {
+  return unstable_cache(
+    async (tid: string): Promise<CarteiraFaturamento> => {
+      const enriched = await getEnrichedPedidos({ tenantId: tid });
+      const emAberto = enriched.filter((p) => p.statusPedido === "EM ABERTO");
+      const byMes: Record<string, number> = {};
+      for (const p of emAberto) {
+        if (!p.dtEntrega) continue;
+        const k = `${p.dtEntrega.getFullYear()}-${String(p.dtEntrega.getMonth() + 1).padStart(2, "0")}`;
+        byMes[k] = (byMes[k] ?? 0) + (p.vlrTotal ?? 0);
+      }
+      const brutoTotal = emAberto.reduce((a, p) => a + (p.vlrTotal ?? 0), 0);
+      const pvs = new Set(emAberto.map((p) => p.numPedido)).size;
+      return { byMes, brutoTotal, linhas: emAberto.length, pvs };
+    },
+    ["carteira-faturamento"],
+    {
+      tags: [
+        dataTag(tenantId, "PEDIDO"),
+        dataTag(tenantId, "FOLLOWUP"),
+        dataTag(tenantId, "ESTOQUE"),
+        dataTag(tenantId, "CLASSIFICACAO"),
+        dataTag(tenantId, "PLOOMES"),
+      ],
+    },
+  )(tenantId);
 }
 
 export interface FaturamentoResumo {
