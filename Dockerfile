@@ -38,29 +38,34 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
+# Ownership definido direto no COPY (--chown) — evita um `chown -R /app`
+# recursivo no final, que percorre TODO o node_modules/.next e, sob a pressão
+# de I/O da VPS, era morto por falta de recurso (exit 255) travando o deploy.
+# Padrão oficial do Next standalone. nextjs precisa ser dono de .next para
+# poder escrever .next/cache em runtime (Data Cache do unstable_cache).
+
 # Standalone output
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # Prisma Client WASM e binários — necessário em runtime (sem o CLI)
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 
 # bcryptjs — usado pelo seed-admin.js no terminal Coolify
-COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
 
 # Migrations (consumidas pelo run-migrations.js)
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Scripts utilitários (migration runner + seed)
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 
 # Entrypoint roda migration customizada antes de subir o servidor
-COPY entrypoint.sh ./entrypoint.sh
+COPY --chown=nextjs:nodejs entrypoint.sh ./entrypoint.sh
 
-RUN chown -R nextjs:nodejs /app && \
-    chmod +x /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 USER nextjs
 
