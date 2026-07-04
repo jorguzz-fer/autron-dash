@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireRole, ROLES_READ } from "@/lib/authz";
+import { requireModule } from "@/lib/moduleAccess";
 import { getClientIp, logAudit } from "@/lib/audit";
 import { gerarXlsxEnriquecimento } from "@/lib/services/cnpj/export";
 
 /** Download do .xlsx com os registros enriquecidos do batch. */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const guard = await requireRole(ROLES_READ);
+  const guard = await requireModule("ENRIQUECIMENTO");
   if (guard.error) return guard.error;
   const { id } = await ctx.params;
   const tenantId = guard.session.user.tenantId;

@@ -15,7 +15,6 @@ import BatchProgress from "./BatchProgress";
 
 export const metadata = { title: "Enriquecimento CNPJ — Autron Dash" };
 
-const ROLES_WRITE = new Set(["ADMIN", "DIRETOR", "GERENTE", "OPERADOR"]);
 const MAX_ROWS = 500;
 
 interface SP {
@@ -34,13 +33,20 @@ export default async function EnriquecimentoPage({
   if (!session) redirect("/login");
 
   const allowed = await getUserAllowedModules(session.user.tenantId, session.user.id);
-  if (!canAccessModule({ role: session.user.role, allowedModules: allowed }, "ENRIQUECIMENTO")) {
+  if (
+    !canAccessModule(
+      { role: session.user.role, allowedModules: allowed, email: session.user.email },
+      "ENRIQUECIMENTO",
+    )
+  ) {
     redirect("/dashboard");
   }
 
   const sp = await searchParams;
   const tenantId = session.user.tenantId;
-  const canWrite = ROLES_WRITE.has(session.user.role);
+  // Módulo restrito a ADMIN + e-mails liberados (ver pageAccess). Quem passou no
+  // guard acima tem acesso total ao enriquecimento, incluindo importar/rodar.
+  const canWrite = true;
   const sortState = parseSort(sp.sort, sp.dir);
 
   const batches = await prisma.enrichmentBatch.findMany({

@@ -67,17 +67,17 @@ const ROLE_DEFAULT_MODULES: Record<string, ModuleKey[]> = {
   DIRETOR: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "ENRIQUECIMENTO",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES",
   ],
   GERENTE: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS", "ENRIQUECIMENTO",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS",
   ],
   OPERADOR: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS", "ENRIQUECIMENTO",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS",
   ],
   VIEWER: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
@@ -93,16 +93,30 @@ export function getDefaultModules(role: string): ModuleKey[] {
   return (ROLE_DEFAULT_MODULES[role] ?? ["DASHBOARD"]) as ModuleKey[];
 }
 
-export function getEffectiveModules(user: { role: string; allowedModules: string[] }): ModuleKey[] {
-  if (user.allowedModules.length > 0) {
-    return user.allowedModules as ModuleKey[];
+// Enriquecimento é um módulo restrito: por perfil, só ADMIN o vê (via
+// ROLE_DEFAULT_MODULES). Além disso, liberamos para e-mails específicos abaixo —
+// independentemente do perfil ou da whitelist (allowedModules) do usuário.
+const ENRIQUECIMENTO_ALLOWED_EMAILS = new Set(["spereira@autron.com.br"]);
+
+export type ModuleAccessUser = {
+  role: string;
+  allowedModules: string[];
+  email?: string | null;
+};
+
+export function getEffectiveModules(user: ModuleAccessUser): ModuleKey[] {
+  const base: ModuleKey[] =
+    user.allowedModules.length > 0
+      ? (user.allowedModules as ModuleKey[])
+      : getDefaultModules(user.role);
+
+  const email = user.email?.trim().toLowerCase();
+  if (email && ENRIQUECIMENTO_ALLOWED_EMAILS.has(email) && !base.includes("ENRIQUECIMENTO")) {
+    return [...base, "ENRIQUECIMENTO"];
   }
-  return getDefaultModules(user.role);
+  return base;
 }
 
-export function canAccessModule(
-  user: { role: string; allowedModules: string[] },
-  moduleKey: ModuleKey,
-): boolean {
+export function canAccessModule(user: ModuleAccessUser, moduleKey: ModuleKey): boolean {
   return getEffectiveModules(user).includes(moduleKey);
 }

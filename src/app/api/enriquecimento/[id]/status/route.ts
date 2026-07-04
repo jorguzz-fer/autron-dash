@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireRole, ROLES_READ } from "@/lib/authz";
+import { requireModule } from "@/lib/moduleAccess";
 import { prisma } from "@/lib/db";
 
 /** Poll leve do progresso de um batch (contadores + status). */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const guard = await requireRole(ROLES_READ);
+  const guard = await requireModule("ENRIQUECIMENTO");
   if (guard.error) return guard.error;
   const { id } = await ctx.params;
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole, ROLES_WRITE } from "@/lib/authz";
+import { requireModule } from "@/lib/moduleAccess";
 import { rateLimit } from "@/lib/rateLimit";
 import { getClientIp, getUserAgent, logAudit } from "@/lib/audit";
 import { importClientesCnpj } from "@/lib/services/cnpj/import";
@@ -9,7 +9,7 @@ const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_SIZE_MB ?? 20) * 1024 * 1
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
-  const guard = await requireRole(ROLES_WRITE);
+  const guard = await requireModule("ENRIQUECIMENTO");
   if (guard.error) return guard.error;
   const session = guard.session;
 
