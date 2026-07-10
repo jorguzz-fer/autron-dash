@@ -778,6 +778,9 @@ model EnrichmentRecord {
   cnaeSst               String?
   sesmtProvavel         Boolean?
   rhEstruturadoProvavel Boolean?
+  // ── Inscrições Estaduais (ReceitaWS CCC) — opcional, habilitado por env ──
+  inscricoesEstaduais Json?    // [{ uf, ie, tipoIe, situacaoIe, regimeIcms, ... }]
+  ieResumo            String?  // resumo textual (habilitadas primeiro) p/ tabela/export
   // ── Payload bruto do(s) provider(s) — re-mapear sem re-consultar ──
   raw        Json?
   enrichedAt DateTime?

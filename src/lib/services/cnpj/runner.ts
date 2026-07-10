@@ -4,10 +4,12 @@ import { prisma } from "@/lib/db";
 import { derivarSst } from "@/lib/domain/sst";
 import { getProviderChain } from "./providers";
 import { ProviderError, type CnpjData, type CnpjProvider } from "./providers/types";
+import { getIeFetcher, resumoIe } from "./providers/receitaws-ccc";
 
 const LEASE_MS = 60_000; // validade do lease (renovado a cada chunk)
 const CHUNK = 50; // registros PENDING por iteração
 const FETCH_TIMEOUT_MS = 15_000;
+const IE_TIMEOUT_MS = Number(process.env.CNPJ_IE_TIMEOUT_MS ?? 30_000);
 const MAX_ATTEMPTS = Number(process.env.CNPJ_ENRICH_MAX_ATTEMPTS ?? 3);
 
 // Identidade deste processo/execução (parte do mutex via lease).
@@ -18,7 +20,7 @@ const nextAllowedAt = new Map<string, number>();
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function throttle(provider: CnpjProvider): Promise<void> {
+async function throttle(provider: { name: string; minIntervalMs: number }): Promise<void> {
   const now = Date.now();
   const next = nextAllowedAt.get(provider.name) ?? 0;
   if (next > now) await sleep(next - now);
@@ -128,6 +130,8 @@ async function tryCache(
     cnaeSst: hit.cnaeSst,
     sesmtProvavel: hit.sesmtProvavel,
     rhEstruturadoProvavel: hit.rhEstruturadoProvavel,
+    inscricoesEstaduais: (hit.inscricoesEstaduais ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+    ieResumo: hit.ieResumo,
     raw: (hit.raw ?? Prisma.JsonNull) as Prisma.InputJsonValue,
   };
 }
@@ -185,6 +189,8 @@ export async function runBatch(batchId: string, tenantId: string): Promise<void>
   if (claim.count === 0) return; // outro runner detém o lease, ou batch já concluído
 
   const chain = getProviderChain();
+  const ieFetcher = getIeFetcher(); // null = IE desabilitada (env)
+  let ieDisabled = false; // desliga IE no restante do run após 402/403 (conta)
 
   try {
     for (;;) {
@@ -204,6 +210,20 @@ export async function runBatch(batchId: string, tenantId: string): Promise<void>
           } else {
             const { data: cnpjData, source } = await fetchFromChain(rec.cnpj, chain);
             data = buildEnrichedData(cnpjData, source);
+            // Enriquecimento opcional de Inscrições Estaduais (ReceitaWS CCC).
+            // Falha de IE NÃO reprova o registro (Camada 1 já teve sucesso).
+            if (ieFetcher && !ieDisabled) {
+              try {
+                await throttle(ieFetcher);
+                const regs = await ieFetcher.fetch(rec.cnpj, AbortSignal.timeout(IE_TIMEOUT_MS));
+                data.inscricoesEstaduais = regs as unknown as Prisma.InputJsonValue;
+                data.ieResumo = resumoIe(regs);
+              } catch (ieErr) {
+                if (ieErr instanceof ProviderError && (ieErr.status === 402 || ieErr.status === 403)) {
+                  ieDisabled = true; // sem crédito/token inválido: para de tentar IE
+                }
+              }
+            }
           }
           await prisma.enrichmentRecord.update({ where: { id: rec.id }, data });
         } catch (err) {
