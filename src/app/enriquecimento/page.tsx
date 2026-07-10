@@ -83,6 +83,7 @@ export default async function EnriquecimentoPage({
     situacao: r.situacao ?? "",
     local: [r.municipio, r.uf].filter(Boolean).join(" / "),
     grauRisco: r.grauRisco,
+    ie: r.ieResumo ?? "",
     email: r.email ?? "",
     telefone: r.telefone1 ?? "",
     status: r.status,
@@ -199,6 +200,7 @@ interface RecRow {
   situacao: string;
   local: string;
   grauRisco: number | null;
+  ie: string;
   email: string;
   telefone: string;
   status: "PENDING" | "DONE" | "ERROR" | "SKIPPED";
@@ -316,6 +318,7 @@ const recCols: Column<RecRow>[] = [
   { key: "situacao", header: "Situação", sortKey: "situacao", cell: (r) => <span className="text-[12px]" style={{ color: "var(--fg)" }}>{r.situacao}</span> },
   { key: "local", header: "Município/UF", sortKey: "local", cell: (r) => <span className="text-[12px]" style={{ color: "var(--fg)" }}>{r.local}</span> },
   { key: "grau", header: "Grau Risco", sortKey: "grauRisco", align: "right", cell: (r) => <span className="numeric" style={{ color: "var(--fg)" }}>{r.grauRisco ?? ""}</span> },
+  { key: "ie", header: "Inscr. Estadual", sortKey: "ie", cell: (r) => <span className="block max-w-[14rem] truncate text-[12px]" title={r.ie} style={{ color: "var(--fg)" }}>{r.ie}</span> },
   { key: "email", header: "E-mail", sortKey: "email", cell: (r) => <span className="block max-w-[12rem] truncate text-[12px]" title={r.email} style={{ color: "var(--fg)" }}>{r.email}</span> },
   { key: "tel", header: "Telefone", sortKey: "telefone", cell: (r) => <span className="numeric text-[12px]" style={{ color: "var(--fg)" }}>{r.telefone}</span> },
   {

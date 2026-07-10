@@ -39,6 +39,7 @@ export async function gerarXlsxEnriquecimento(
     { header: "Situação", key: "situacao", width: 14 },
     { header: "CNAE", key: "cnae", width: 12 },
     { header: "CNAE Descrição", key: "cnaeDesc", width: 34 },
+    { header: "CNAEs Secundários", key: "cnaeSec", width: 44 },
     { header: "Capital Social", key: "capital", width: 18 },
     { header: "Porte", key: "porte", width: 14 },
     { header: "Matriz/Filial", key: "matrizFilial", width: 14 },
@@ -55,6 +56,7 @@ export async function gerarXlsxEnriquecimento(
     { header: "Município", key: "municipio", width: 22 },
     { header: "UF", key: "uf", width: 6 },
     { header: "CEP", key: "cep", width: 12 },
+    { header: "Inscrições Estaduais", key: "ie", width: 44 },
     { header: "Observação", key: "obs", width: 36 },
   ];
 
@@ -66,6 +68,16 @@ export async function gerarXlsxEnriquecimento(
   ws.getRow(1).height = 22;
 
   const boolLabel = (v: boolean | null) => (v === null ? "" : v ? "Sim" : "Não");
+  const fmtCnaesSec = (v: unknown): string => {
+    if (!Array.isArray(v)) return "";
+    return v
+      .map((c) => {
+        const o = c as { codigo?: unknown; descricao?: unknown };
+        return `${o?.codigo ?? ""} ${o?.descricao ?? ""}`.trim();
+      })
+      .filter(Boolean)
+      .join("; ");
+  };
 
   for (const r of registros) {
     const row = ws.addRow({
@@ -81,6 +93,7 @@ export async function gerarXlsxEnriquecimento(
       situacao: r.situacao ?? "",
       cnae: r.cnaePrincipal ?? "",
       cnaeDesc: r.cnaeDescricao ?? "",
+      cnaeSec: fmtCnaesSec(r.cnaesSecundarios),
       capital: r.capitalSocial == null ? null : Number(r.capitalSocial),
       porte: r.porte ?? "",
       matrizFilial: r.matrizFilial ?? "",
@@ -97,6 +110,7 @@ export async function gerarXlsxEnriquecimento(
       municipio: r.municipio ?? "",
       uf: r.uf ?? "",
       cep: r.cep ?? "",
+      ie: r.ieResumo ?? "",
       obs: r.errorMessage ?? "",
     });
     const capCell = row.getCell("capital");
