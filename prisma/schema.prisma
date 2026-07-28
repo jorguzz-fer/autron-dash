@@ -43,6 +43,8 @@ model Tenant {
   titulosReceber        TituloReceber[]
   enrichmentBatches     EnrichmentBatch[]
   enrichmentRecords     EnrichmentRecord[]
+  regioesVenda          RegiaoVenda[]
+  clienteGeoOverrides   ClienteGeoOverride[]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -86,6 +88,7 @@ model User {
   observacoesPV         ObservacaoPV[]
   mfaBackupCodes        MfaBackupCode[]
   enrichmentBatches     EnrichmentBatch[]
+  clienteGeoOverrides   ClienteGeoOverride[]
 
   @@unique([tenantId, email])
   @@index([email])
@@ -793,4 +796,57 @@ model EnrichmentRecord {
   @@index([batchId, status])
   @@index([batchId, rowIndex])
   @@index([tenantId, cnpj]) // cache cross-batch, sempre tenant-scoped
+}
+
+// ── 13. Análise Regional de Vendas ──────────────────────────────────────────
+// Estudo de distribuição de carteiras por região (curva ABC de clientes +
+// churn), baseado no faturamento histórico. O fato (Faturamento) só tem UF;
+// a CIDADE é derivada em runtime de EnrichmentRecord.municipio / Ploomes.cidade
+// cruzando pelo NOME do cliente (normalizeClienteKey). Aqui persistimos apenas
+// a CONFIGURAÇÃO do estudo — não replicamos o faturamento.
+
+// Território configurável: uma região = nome + conjunto de UFs e/ou municípios
+// (chaves "CIDADE/UF"). Um município listado vence a UF na resolução, então dá
+// pra recortar SP em litoral/Vale/interior e cruzar UF (Vale do Paraíba +
+// Volta Redonda/RJ). Opcionalmente atribui um vendedor (simulação de carteira).
+model RegiaoVenda {
+  id             String   @id @default(cuid())
+  tenantId       String
+  nome           String
+  descricao      String?
+  cor            String? // hex p/ os gráficos (ex.: "#009da4")
+  vendedorCodigo String? // codigoProtheus atribuído (sem FK — igual ComissaoLancamento.codVendedor)
+  nomeVendedor   String? // rótulo livre do vendedor (quando não há cadastro)
+  ufs            String[] // UFs inteiras da região (ex.: ["PR","SC","RS"])
+  municipios     String[] // chaves "CIDADE/UF" normalizadas (ex.: ["SANTOS/SP","GUARUJA/SP"])
+  ordem          Int      @default(0) // ordenação de exibição
+  ativo          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, nome])
+  @@index([tenantId, ativo])
+}
+
+// Correção manual da geografia por cliente: sobrepõe o que a derivação
+// automática (enrich/Ploomes) errou ou não achou. Pode informar município/UF
+// ou fixar (pin) direto uma região por id. Chave = nome normalizado do cliente.
+model ClienteGeoOverride {
+  id            String   @id @default(cuid())
+  tenantId      String
+  clienteKey    String // normalizeClienteKey(razaoSocial|nomeFantasia)
+  clienteLabel  String? // rótulo legível do cliente (p/ tela)
+  municipio     String? // cidade corrigida/informada
+  uf            String? // UF corrigida/informada
+  regiaoId      String? // pin direto numa RegiaoVenda (soft ref; dangling = ignorado)
+  atualizadoPor String
+  atualizadoEm  DateTime @default(now()) @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [atualizadoPor], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, clienteKey])
+  @@index([tenantId])
 }

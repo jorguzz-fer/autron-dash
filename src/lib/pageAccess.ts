@@ -17,6 +17,7 @@ export type ModuleKey =
   | "FATURAMENTO"
   | "PREVISAO_FATURAMENTO"
   | "COMPARATIVO_PLOOMES"
+  | "ANALISE_REGIONAL"
   | "UPLOADS"
   | "ENRIQUECIMENTO"
   | "CHAT_IA"
@@ -42,6 +43,7 @@ export const MODULES: ModuleInfo[] = [
   { key: "FATURAMENTO",          label: "Faturamento",            href: "/faturamento",          section: "Operações" },
   { key: "PREVISAO_FATURAMENTO", label: "Previsão Faturamento",   href: "/previsao-faturamento", section: "Operações" },
   { key: "COMPARATIVO_PLOOMES",  label: "Comparativo Ploomes",    href: "/comparativo-ploomes",  section: "Operações" },
+  { key: "ANALISE_REGIONAL",     label: "Análise Regional",       href: "/analise-regional",     section: "Operações" },
   { key: "UPLOADS",              label: "Upload de planilhas",    href: "/uploads",              section: "Ferramentas" },
   { key: "ENRIQUECIMENTO",       label: "Enriquecimento CNPJ",    href: "/enriquecimento",       section: "Ferramentas" },
   { key: "CHAT_IA",              label: "Chat IA",                href: "/chat-ia",              section: "Ferramentas" },
@@ -61,18 +63,18 @@ const ROLE_DEFAULT_MODULES: Record<string, ModuleKey[]> = {
   ADMIN: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "ANALISE_REGIONAL",
     "UPLOADS", "ENRIQUECIMENTO", "CHAT_IA", "CONCILIACAO", "KPI_FINANCEIRO", "COMISSOES",
   ],
   DIRETOR: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "ANALISE_REGIONAL",
   ],
   GERENTE: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
     "PRONTIDAO", "PREVISAO_ENTREGA", "ESTOQUE", "FATURAMENTO",
-    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "UPLOADS",
+    "PREVISAO_FATURAMENTO", "COMPARATIVO_PLOOMES", "ANALISE_REGIONAL", "UPLOADS",
   ],
   OPERADOR: [
     "DASHBOARD", "VISAO_GERAL", "ENTRADA_PEDIDOS", "ANALISE_CONTRATOS",
