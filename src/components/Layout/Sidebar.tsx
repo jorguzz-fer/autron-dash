@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LineChart,
   LogOut,
+  Map,
   Package,
   Percent,
   Receipt,
@@ -49,6 +50,7 @@ const NAV_PRIMARY: NavItem[] = [
   { label: "Faturamento",          href: "/faturamento",          icon: Receipt,           moduleKey: "FATURAMENTO" },
   { label: "Previsão Faturamento", href: "/previsao-faturamento", icon: LineChart,         moduleKey: "PREVISAO_FATURAMENTO" },
   { label: "Comparativo Ploomes",  href: "/comparativo-ploomes",  icon: GitCompareArrows,  moduleKey: "COMPARATIVO_PLOOMES" },
+  { label: "Análise Regional",     href: "/analise-regional",     icon: Map,               moduleKey: "ANALISE_REGIONAL" },
 ];
 
 const NAV_TOOLS: NavItem[] = [
