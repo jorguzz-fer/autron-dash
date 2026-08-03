@@ -55,3 +55,18 @@ litellm_settings:
   drop_params: true
   # Telemetria desligada.
   telemetry: false
+  # ─── Fallbacks entre providers ────────────────────────────────────────
+  # Se um modelo falhar (billing inativo, rate limit, provider fora do ar), o
+  # LiteLLM reencaminha o pedido automaticamente pro próximo `model_name` da
+  # lista, na ordem — o usuário nem percebe a queda. As chaves e os alvos
+  # precisam bater EXATAMENTE com os `model_name` definidos em `model_list`.
+  # Aqui cada GPT cai pra um Claude e depois um Gemini de porte equivalente.
+  fallbacks:
+    - "GPT-5": ["Claude Sonnet", "Gemini 2.5 Pro"]
+    - "GPT-5 mini (rápido/barato)": ["Claude Haiku (rápido/barato)", "Gemini 2.5 Flash (rápido/barato)"]
+    # Reverso: se a Anthropic/Google cair, também há para onde ir.
+    - "Claude Sonnet": ["Gemini 2.5 Pro", "GPT-5"]
+    - "Claude Opus": ["Claude Sonnet", "Gemini 2.5 Pro"]
+    - "Claude Haiku (rápido/barato)": ["Gemini 2.5 Flash (rápido/barato)", "GPT-5 mini (rápido/barato)"]
+    - "Gemini 2.5 Pro": ["Claude Sonnet", "GPT-5"]
+    - "Gemini 2.5 Flash (rápido/barato)": ["Claude Haiku (rápido/barato)", "GPT-5 mini (rápido/barato)"]

@@ -121,6 +121,8 @@ Redeploy do autron-dash. O link "Chat IA" reaparece na sidebar automaticamente
 | Chat IA redireciona mas dá 401 | `IA_SSO_SECRET` diferente entre autron-dash e mini-proxy |
 | Open WebUI abre mas sem modelos | Logs do `litellm`. API keys corretas? Nomes de modelo no `litellm-config.yaml` batem com a conta? |
 | "model not found" ao chatar | Ajustar `model:` no `litellm-config.yaml` pro ID exato disponível na conta |
+| `RateLimitError ... account is not active / billing` | Conta do provider sem billing ativo (ex.: OpenAI pré-pago sem créditos). Corrija em platform.openai.com → Billing, ou troque a env `OPENAI_API_KEY` por uma conta ativa no Coolify + redeploy. Os `fallbacks` no config fazem o pedido cair pra outro provider enquanto isso. |
+| Trocar a conta de um provider | É só editar a env var da chave (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY`) no painel do Coolify e redeploy — não mexe no repositório. |
 | Link "Chat IA" não aparece | `IA_SSO_SECRET` + `IA_CHAT_URL` setadas no autron-dash? Redeploy feito? |
 
 ---
