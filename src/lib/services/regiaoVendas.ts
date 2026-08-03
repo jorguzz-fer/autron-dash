@@ -336,6 +336,63 @@ async function computeAnaliseRegional(f: RegiaoVendasFilters): Promise<AnaliseRe
   };
 }
 
+// ── Histórico mês a mês (por vendedor / por cliente) ────────────────────────
+
+export interface FatMensalRow {
+  /** Nome normalizado do cliente (mesma chave de região/churn). */
+  clienteKey: string;
+  /** Nome exibível do cliente (razaoSocial, fallback nomeFantasia). */
+  cliente: string;
+  /** Mês da emissão "YYYY-MM". */
+  mes: string;
+  /** Vendedor da NF (nomeVendedor). */
+  vendedor: string | null;
+  /** Faturamento líquido somado no mês. */
+  receita: number;
+}
+
+/**
+ * Faturamento líquido por (cliente, mês, vendedor) — base do histórico
+ * mês a mês da Análise Regional. Agregado NO BANCO (to_char + SUM); o
+ * pivô por vendedor OU por cliente e o recorte por região são montados
+ * na página reaproveitando o mapa cliente→região de getAnaliseRegional
+ * (fonte única da atribuição regional). Cacheado por período; invalida no
+ * upload de FATURAMENTO.
+ */
+export async function getFaturamentoMensalRegional(f: RegiaoVendasFilters): Promise<FatMensalRow[]> {
+  return unstable_cache(computeFaturamentoMensalRegional, ["analise-regional-mensal"], {
+    tags: [dataTag(f.tenantId, "FATURAMENTO")],
+  })(f);
+}
+
+async function computeFaturamentoMensalRegional(f: RegiaoVendasFilters): Promise<FatMensalRow[]> {
+  const di = f.dataInicio ?? null;
+  const df = f.dataFim ?? null;
+  const rows = await prisma.$queryRaw<
+    { cliente: string | null; mes: string; vendedor: string | null; receita: number }[]
+  >`
+    SELECT
+      COALESCE(NULLIF(TRIM("razaoSocial"), ''), NULLIF(TRIM("nomeFantasia"), '')) AS cliente,
+      to_char("emissao", 'YYYY-MM') AS mes,
+      NULLIF(TRIM("nomeVendedor"), '') AS vendedor,
+      COALESCE(SUM("faturamentoLiquido"), 0)::float8 AS receita
+    FROM "Faturamento"
+    WHERE "tenantId" = ${f.tenantId}
+      AND "emissao" IS NOT NULL
+      AND (${di}::timestamp IS NULL OR "emissao" >= ${di})
+      AND (${df}::timestamp IS NULL OR "emissao" <= ${df})
+      AND COALESCE(NULLIF(TRIM("razaoSocial"), ''), NULLIF(TRIM("nomeFantasia"), '')) IS NOT NULL
+    GROUP BY 1, 2, 3
+  `;
+  return rows.map((r) => ({
+    clienteKey: normalizeClienteKey(r.cliente),
+    cliente: r.cliente ?? "(sem nome)",
+    mes: r.mes,
+    vendedor: r.vendedor,
+    receita: r.receita ?? 0,
+  }));
+}
+
 function buildResumo(
   clientes: ClienteRegiaoRow[],
   regioesDb: Awaited<ReturnType<typeof getRegioes>>,

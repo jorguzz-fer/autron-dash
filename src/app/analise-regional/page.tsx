@@ -11,8 +11,11 @@ import DateRangeFilter from "@/components/UI/DateRangeFilter";
 import FilterSelect from "@/components/UI/FilterSelect";
 import SegmentedControl from "@/components/UI/SegmentedControl";
 import OverrideBtn, { type RegiaoOption } from "./OverrideBtn";
+import HistoricoMensal, { contarChaves } from "./HistoricoMensal";
+import type { HistoricoDim } from "./histTypes";
 import {
   getAnaliseRegional,
+  getFaturamentoMensalRegional,
   type ClienteRegiaoRow,
   type RegiaoResumo,
 } from "@/lib/services/regiaoVendas";
@@ -29,6 +32,7 @@ interface SP {
   to?: string;
   churn?: string; // janela "perdido" em meses: "6" | "12" | "24"
   regiao?: string; // id da região, "__sem__", ou vazio (todas)
+  histDim?: string; // dimensão do histórico mês a mês: "vendedor" | "cliente"
 }
 
 const CHURN_OPTS = [
@@ -82,13 +86,18 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
   const dataInicio = fromParsed ?? bounds.min ?? undefined;
   const dataFim = toParsed ?? bounds.max ?? undefined;
 
-  const data = await getAnaliseRegional({
-    tenantId,
-    dataInicio,
-    dataFim,
-    emRiscoMeses,
-    perdidoMeses,
-  });
+  const histDim: HistoricoDim = sp.histDim === "cliente" ? "cliente" : "vendedor";
+
+  const [data, mensalRaw] = await Promise.all([
+    getAnaliseRegional({
+      tenantId,
+      dataInicio,
+      dataFim,
+      emRiscoMeses,
+      perdidoMeses,
+    }),
+    getFaturamentoMensalRegional({ tenantId, dataInicio, dataFim }),
+  ]);
 
   const regiaoOptions: RegiaoOption[] = data.regioes.map((r) => ({ id: r.id, nome: r.nome }));
   const filterOptions = [
@@ -106,6 +115,17 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
     ? data.clientes.filter((c) => (selectedRegiao === "__sem__" ? c.regiaoId == null : c.regiaoId === selectedRegiao))
     : data.clientes;
   const escopoOrdenado = [...escopo].sort((a, b) => b.receita - a.receita);
+
+  // Histórico mês a mês recortado pela MESMA região selecionada: filtra as
+  // linhas mensais pelos clientes do escopo (mesma atribuição de região).
+  const mensalRows = selectedRegiao
+    ? (() => {
+        const scopeKeys = new Set(escopo.map((c) => c.clienteKey));
+        return mensalRaw.filter((r) => scopeKeys.has(r.clienteKey));
+      })()
+    : mensalRaw;
+  const histTotalChaves = contarChaves(mensalRows, histDim);
+  const HIST_LIMIT = 40;
 
   const churnList = escopoOrdenado.filter((c) => c.churn === "EM_RISCO" || c.churn === "PERDIDO");
   const naoResolvidos = data.clientes
@@ -168,6 +188,31 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
         >
           <DataTable columns={resumoColumns} rows={data.resumoPorRegiao} rowKey={(r) => r.id ?? "__sem__"}
             emptyMessage="Nenhuma região configurada. Crie territórios em Regiões & carteiras." />
+        </CardSection>
+
+        {/* Histórico mês a mês — por vendedor ou por cliente */}
+        <CardSection
+          title="Histórico mês a mês"
+          subtitle={
+            `${regiaoNome ? regiaoNome : "Todas as regiões"} · faturamento líquido por mês` +
+            (histTotalChaves > HIST_LIMIT
+              ? ` · top ${HIST_LIMIT} ${histDim === "vendedor" ? "vendedores" : "clientes"} de ${fmtNum(histTotalChaves)}`
+              : "")
+          }
+          actions={
+            <SegmentedControl
+              name="histDim"
+              value={histDim}
+              ariaLabel="Dimensão do histórico"
+              size="sm"
+              options={[
+                { value: "vendedor", label: "Por vendedor" },
+                { value: "cliente", label: "Por cliente" },
+              ]}
+            />
+          }
+        >
+          <HistoricoMensal rows={mensalRows} dim={histDim} limit={HIST_LIMIT} />
         </CardSection>
 
         {/* Curva ABC do escopo */}
