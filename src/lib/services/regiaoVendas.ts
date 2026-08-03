@@ -393,6 +393,48 @@ async function computeFaturamentoMensalRegional(f: RegiaoVendasFilters): Promise
   }));
 }
 
+/**
+ * Entrada de pedidos por (cliente, mês, vendedor) — MESMA forma que
+ * FatMensalRow (campo `receita` = soma de `vlrTotal` dos pedidos), para que o
+ * histórico mês a mês reaproveite o componente e os filtros sem alteração.
+ * Base: `Pedido.dtEmissao`. `Pedido.cliente` é o nome do cliente, normalizado
+ * para a MESMA chave de faturamento/região (casa os filtros de estado/cidade).
+ * Cacheado por período; invalida no upload de PEDIDO.
+ */
+export async function getPedidosMensalRegional(f: RegiaoVendasFilters): Promise<FatMensalRow[]> {
+  return unstable_cache(computePedidosMensalRegional, ["analise-regional-mensal-pedidos"], {
+    tags: [dataTag(f.tenantId, "PEDIDO")],
+  })(f);
+}
+
+async function computePedidosMensalRegional(f: RegiaoVendasFilters): Promise<FatMensalRow[]> {
+  const di = f.dataInicio ?? null;
+  const df = f.dataFim ?? null;
+  const rows = await prisma.$queryRaw<
+    { cliente: string | null; mes: string; vendedor: string | null; receita: number }[]
+  >`
+    SELECT
+      NULLIF(TRIM("cliente"), '') AS cliente,
+      to_char("dtEmissao", 'YYYY-MM') AS mes,
+      NULLIF(TRIM("nomeVendedor"), '') AS vendedor,
+      COALESCE(SUM("vlrTotal"), 0)::float8 AS receita
+    FROM "Pedido"
+    WHERE "tenantId" = ${f.tenantId}
+      AND "dtEmissao" IS NOT NULL
+      AND (${di}::timestamp IS NULL OR "dtEmissao" >= ${di})
+      AND (${df}::timestamp IS NULL OR "dtEmissao" <= ${df})
+      AND NULLIF(TRIM("cliente"), '') IS NOT NULL
+    GROUP BY 1, 2, 3
+  `;
+  return rows.map((r) => ({
+    clienteKey: normalizeClienteKey(r.cliente),
+    cliente: r.cliente ?? "(sem nome)",
+    mes: r.mes,
+    vendedor: r.vendedor,
+    receita: r.receita ?? 0,
+  }));
+}
+
 // ── Carteira por vendedor (ABC, TOP clientes, TOP churn) ────────────────────
 
 export interface VendedorClienteRow {

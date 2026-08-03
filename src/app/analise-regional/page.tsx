@@ -17,6 +17,7 @@ import type { HistoricoDim } from "./histTypes";
 import {
   getAnaliseRegional,
   getFaturamentoMensalRegional,
+  getPedidosMensalRegional,
   type ClienteRegiaoRow,
   type RegiaoResumo,
 } from "@/lib/services/regiaoVendas";
@@ -34,6 +35,7 @@ interface SP {
   churn?: string; // janela "perdido" em meses: "6" | "12" | "24"
   regiao?: string; // id da região, "__sem__", ou vazio (todas)
   histDim?: string; // dimensão do histórico mês a mês: "vendedor" | "cliente"
+  histFonte?: string; // fonte do histórico: "faturamento" | "pedidos"
   hv?: string; // histórico: vendedores (nomes, separados por vírgula)
   huf?: string; // histórico: estados/UF (separados por vírgula)
   hcid?: string; // histórico: cidades/municípios (separados por vírgula)
@@ -99,8 +101,10 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
   const dataFim = toParsed ?? bounds.max ?? undefined;
 
   const histDim: HistoricoDim = sp.histDim === "cliente" ? "cliente" : "vendedor";
+  // Fonte do histórico mês a mês: faturamento líquido ou entrada de pedidos.
+  const histFonte: "faturamento" | "pedidos" = sp.histFonte === "pedidos" ? "pedidos" : "faturamento";
 
-  const [data, mensalRaw] = await Promise.all([
+  const [data, mensalFat, mensalPed] = await Promise.all([
     getAnaliseRegional({
       tenantId,
       dataInicio,
@@ -109,7 +113,10 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
       perdidoMeses,
     }),
     getFaturamentoMensalRegional({ tenantId, dataInicio, dataFim }),
+    getPedidosMensalRegional({ tenantId, dataInicio, dataFim }),
   ]);
+  // Linhas mensais da fonte ativa (mesma forma FatMensalRow para ambas).
+  const mensalRaw = histFonte === "pedidos" ? mensalPed : mensalFat;
 
   const regiaoOptions: RegiaoOption[] = data.regioes.map((r) => ({ id: r.id, nome: r.nome }));
   const filterOptions = [
@@ -160,7 +167,7 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
   const HIST_LIMIT = 40;
 
   // Opções dos filtros do histórico.
-  //   vendedores: presentes no faturamento (todas as NFs).
+  //   vendedores: presentes na fonte ativa (faturamento OU entrada de pedidos).
   //   UF/cidade: da geo derivada; cidades limitadas às UFs marcadas (quando há).
   const vendedorOpts = Array.from(
     new Set(mensalRaw.map((r) => r.vendedor ?? "Sem vendedor")),
@@ -253,26 +260,40 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
             emptyMessage="Nenhuma região configurada. Crie territórios em Regiões & carteiras." />
         </CardSection>
 
-        {/* Histórico mês a mês — por vendedor ou por cliente */}
+        {/* Histórico mês a mês — faturamento OU entrada de pedidos */}
         <CardSection
           title="Histórico mês a mês"
           subtitle={
-            `${regiaoNome ? regiaoNome : "Todas as regiões"} · faturamento líquido por mês` +
+            `${regiaoNome ? regiaoNome : "Todas as regiões"} · ${
+              histFonte === "pedidos" ? "entrada de pedidos (valor) por mês" : "faturamento líquido por mês"
+            }` +
             (histTotalChaves > HIST_LIMIT
               ? ` · top ${HIST_LIMIT} ${histDim === "vendedor" ? "vendedores" : "clientes"} de ${fmtNum(histTotalChaves)}`
               : "")
           }
           actions={
-            <SegmentedControl
-              name="histDim"
-              value={histDim}
-              ariaLabel="Dimensão do histórico"
-              size="sm"
-              options={[
-                { value: "vendedor", label: "Por vendedor" },
-                { value: "cliente", label: "Por cliente" },
-              ]}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <SegmentedControl
+                name="histFonte"
+                value={histFonte}
+                ariaLabel="Fonte do histórico"
+                size="sm"
+                options={[
+                  { value: "faturamento", label: "Faturamento" },
+                  { value: "pedidos", label: "Entrada de pedidos" },
+                ]}
+              />
+              <SegmentedControl
+                name="histDim"
+                value={histDim}
+                ariaLabel="Dimensão do histórico"
+                size="sm"
+                options={[
+                  { value: "vendedor", label: "Por vendedor" },
+                  { value: "cliente", label: "Por cliente" },
+                ]}
+              />
+            </div>
           }
         >
           <div className="space-y-4">
@@ -292,6 +313,9 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
               />
               <p className="text-[11px]" style={{ color: "var(--fg-subtle)" }}>
                 Combine vendedor, estados e cidades para simular uma região de atendimento e ver o histórico somado.
+                {histFonte === "pedidos"
+                  ? " Fonte: entrada de pedidos (valor total por PV, base data de emissão do pedido)."
+                  : " Fonte: faturamento líquido."}{" "}
                 Estado e cidade usam a geografia derivada de cada cliente (Enriquecimento CNPJ / Ploomes).
               </p>
             </div>
