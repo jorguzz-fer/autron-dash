@@ -393,6 +393,184 @@ async function computeFaturamentoMensalRegional(f: RegiaoVendasFilters): Promise
   }));
 }
 
+// ── Carteira por vendedor (ABC, TOP clientes, TOP churn) ────────────────────
+
+export interface VendedorClienteRow {
+  cliente: string;
+  receita: number;
+  classe: ClasseAbc; // ABC DENTRO da carteira do vendedor
+  churn: ChurnStatus;
+  ultimaEmissaoISO: string | null;
+}
+export interface VendedorCarteira {
+  vendedor: string;
+  /** Classe ABC do vendedor no ranking de vendedores (Pareto por receita). */
+  classe: ClasseAbc;
+  receita: number;
+  qtdClientes: number;
+  ativos: number;
+  emRisco: number;
+  perdidos: number;
+  ticketMedio: number;
+  /** ABC dos clientes DENTRO da carteira do vendedor. */
+  clientesA: number;
+  clientesB: number;
+  clientesC: number;
+  /** Maiores clientes da carteira (por receita). */
+  topClientes: VendedorClienteRow[];
+  /** Clientes em risco/perdidos da carteira (por receita). */
+  topChurn: VendedorClienteRow[];
+}
+export interface AnaliseVendedoresData {
+  vendedores: VendedorCarteira[];
+  totalReceita: number;
+  refDataISO: string;
+}
+
+/**
+ * Carteira de cada vendedor a partir do Faturamento: agrupa os clientes de
+ * getAnaliseRegional por `vendedorFaturamento` (vendedor da NF mais recente),
+ * recalcula a curva ABC DENTRO da carteira (Pareto por vendedor), classifica
+ * os vendedores entre si (ABC por receita) e destaca TOP clientes e TOP churn.
+ * Reaproveita todo o pipeline cacheado de getAnaliseRegional — nenhuma query
+ * nova de faturamento.
+ */
+export async function getAnaliseVendedores(f: RegiaoVendasFilters): Promise<AnaliseVendedoresData> {
+  const data = await getAnaliseRegional(f);
+
+  // Agrupa clientes por vendedor (da NF).
+  const porVendedor = new Map<string, ClienteRegiaoRow[]>();
+  for (const c of data.clientes) {
+    const v = c.vendedorFaturamento?.trim() || "Sem vendedor";
+    const arr = porVendedor.get(v);
+    if (arr) arr.push(c);
+    else porVendedor.set(v, [c]);
+  }
+
+  // ABC dos vendedores entre si (por receita total).
+  const receitaPorVendedor = Array.from(porVendedor.entries()).map(([vendedor, arr]) => ({
+    key: vendedor,
+    label: vendedor,
+    receita: arr.reduce((s, c) => s + c.receita, 0),
+  }));
+  const classeVendedor = new Map<string, ClasseAbc>();
+  for (const row of computeAbc(receitaPorVendedor)) classeVendedor.set(row.key, row.classe);
+
+  const vendedores: VendedorCarteira[] = Array.from(porVendedor.entries()).map(([vendedor, arr]) => {
+    const receita = arr.reduce((s, c) => s + c.receita, 0);
+    const ordenados = [...arr].sort((a, b) => b.receita - a.receita);
+
+    // ABC DENTRO da carteira do vendedor.
+    const classeInterna = new Map<string, ClasseAbc>();
+    for (const row of computeAbc(arr.map((c) => ({ key: c.clienteKey, label: c.cliente, receita: c.receita })))) {
+      classeInterna.set(row.key, row.classe);
+    }
+    let clientesA = 0;
+    let clientesB = 0;
+    let clientesC = 0;
+    for (const c of arr) {
+      const cl = classeInterna.get(c.clienteKey) ?? "C";
+      if (cl === "A") clientesA++;
+      else if (cl === "B") clientesB++;
+      else clientesC++;
+    }
+
+    const toRow = (c: ClienteRegiaoRow): VendedorClienteRow => ({
+      cliente: c.cliente,
+      receita: c.receita,
+      classe: classeInterna.get(c.clienteKey) ?? "C",
+      churn: c.churn,
+      ultimaEmissaoISO: c.ultimaEmissaoISO,
+    });
+
+    return {
+      vendedor,
+      classe: classeVendedor.get(vendedor) ?? "C",
+      receita,
+      qtdClientes: arr.length,
+      ativos: arr.filter((c) => c.churn === "ATIVO").length,
+      emRisco: arr.filter((c) => c.churn === "EM_RISCO").length,
+      perdidos: arr.filter((c) => c.churn === "PERDIDO").length,
+      ticketMedio: arr.length > 0 ? receita / arr.length : 0,
+      clientesA,
+      clientesB,
+      clientesC,
+      topClientes: ordenados.slice(0, 15).map(toRow),
+      topChurn: ordenados
+        .filter((c) => c.churn === "EM_RISCO" || c.churn === "PERDIDO")
+        .slice(0, 15)
+        .map(toRow),
+    };
+  });
+
+  vendedores.sort((a, b) => b.receita - a.receita);
+
+  return {
+    vendedores,
+    totalReceita: data.totalReceita,
+    refDataISO: data.refDataISO,
+  };
+}
+
+// ── Entrada de Pedidos por vendedor (carteira em aberto) ────────────────────
+
+export interface PedidosVendedor {
+  vendedor: string;
+  /** Valor total dos pedidos (PVs) do vendedor no período. */
+  valorTotal: number;
+  /** Valor ainda EM ABERTO (sem nota fiscal) — carteira a faturar. */
+  valorEmAberto: number;
+  /** Nº de PVs distintos. */
+  qtdPVs: number;
+  /** Nº de clientes distintos (por código). */
+  qtdClientes: number;
+}
+
+/**
+ * Agrega a Entrada de Pedidos por vendedor NO BANCO. Complementa a carteira
+ * (faturamento) com o pipeline de pedidos: valor total, valor em aberto
+ * (ainda a faturar) e contagens. Base: `Pedido.dtEmissao` no período.
+ */
+export async function getPedidosPorVendedor(f: RegiaoVendasFilters): Promise<PedidosVendedor[]> {
+  return unstable_cache(computePedidosPorVendedor, ["analise-vendedores-pedidos"], {
+    tags: [dataTag(f.tenantId, "PEDIDO")],
+  })(f);
+}
+
+async function computePedidosPorVendedor(f: RegiaoVendasFilters): Promise<PedidosVendedor[]> {
+  const di = f.dataInicio ?? null;
+  const df = f.dataFim ?? null;
+  const rows = await prisma.$queryRaw<
+    {
+      vendedor: string | null;
+      valor_total: number;
+      valor_aberto: number;
+      qtd_pvs: number;
+      qtd_clientes: number;
+    }[]
+  >`
+    SELECT
+      NULLIF(TRIM("nomeVendedor"), '') AS vendedor,
+      COALESCE(SUM("vlrTotal"), 0)::float8 AS valor_total,
+      COALESCE(SUM("vlrTotal") FILTER (WHERE "notaFiscal" IS NULL), 0)::float8 AS valor_aberto,
+      COUNT(DISTINCT "numPedido")::int AS qtd_pvs,
+      COUNT(DISTINCT "cliente")::int AS qtd_clientes
+    FROM "Pedido"
+    WHERE "tenantId" = ${f.tenantId}
+      AND (${di}::timestamp IS NULL OR "dtEmissao" >= ${di})
+      AND (${df}::timestamp IS NULL OR "dtEmissao" <= ${df})
+    GROUP BY 1
+    ORDER BY 2 DESC
+  `;
+  return rows.map((r) => ({
+    vendedor: r.vendedor ?? "Sem vendedor",
+    valorTotal: r.valor_total ?? 0,
+    valorEmAberto: r.valor_aberto ?? 0,
+    qtdPVs: r.qtd_pvs ?? 0,
+    qtdClientes: r.qtd_clientes ?? 0,
+  }));
+}
+
 function buildResumo(
   clientes: ClienteRegiaoRow[],
   regioesDb: Awaited<ReturnType<typeof getRegioes>>,

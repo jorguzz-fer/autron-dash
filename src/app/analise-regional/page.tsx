@@ -12,6 +12,7 @@ import FilterSelect from "@/components/UI/FilterSelect";
 import SegmentedControl from "@/components/UI/SegmentedControl";
 import OverrideBtn, { type RegiaoOption } from "./OverrideBtn";
 import HistoricoMensal, { contarChaves } from "./HistoricoMensal";
+import MultiChipFilter from "@/components/UI/MultiChipFilter";
 import type { HistoricoDim } from "./histTypes";
 import {
   getAnaliseRegional,
@@ -23,7 +24,7 @@ import { getFaturamentoDateBounds } from "@/lib/services/faturamento";
 import { fmtCurrency, fmtDate, fmtNum } from "@/lib/format";
 import { parseDateInput } from "@/lib/sort";
 import type { ChurnStatus, ClasseAbc } from "@/lib/domain/regiaoVendas";
-import { Wallet, Users, CheckCircle2, AlertTriangle, UserX, MapPinOff, Map, Download } from "lucide-react";
+import { Wallet, Users, CheckCircle2, AlertTriangle, UserX, MapPinOff, Map as MapIcon, Download, UserSquare } from "lucide-react";
 
 export const metadata = { title: "Análise Regional — Autron Dash" };
 
@@ -33,6 +34,17 @@ interface SP {
   churn?: string; // janela "perdido" em meses: "6" | "12" | "24"
   regiao?: string; // id da região, "__sem__", ou vazio (todas)
   histDim?: string; // dimensão do histórico mês a mês: "vendedor" | "cliente"
+  hv?: string; // histórico: vendedores (nomes, separados por vírgula)
+  huf?: string; // histórico: estados/UF (separados por vírgula)
+  hcid?: string; // histórico: cidades/municípios (separados por vírgula)
+}
+
+/** Lê um param multi-valor "a,b,c" → ["a","b","c"] (sem vazios). */
+function parseMulti(v: string | undefined): string[] {
+  return (v ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 const CHURN_OPTS = [
@@ -116,16 +128,59 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
     : data.clientes;
   const escopoOrdenado = [...escopo].sort((a, b) => b.receita - a.receita);
 
-  // Histórico mês a mês recortado pela MESMA região selecionada: filtra as
-  // linhas mensais pelos clientes do escopo (mesma atribuição de região).
-  const mensalRows = selectedRegiao
-    ? (() => {
-        const scopeKeys = new Set(escopo.map((c) => c.clienteKey));
-        return mensalRaw.filter((r) => scopeKeys.has(r.clienteKey));
-      })()
-    : mensalRaw;
+  // Geografia derivada por cliente (mesma fonte da atribuição de região):
+  // clienteKey → { uf, municipio }. Alimenta os filtros de estado/cidade.
+  const geoByCliente = new Map<string, { uf: string | null; municipio: string | null }>();
+  for (const c of data.clientes) {
+    geoByCliente.set(c.clienteKey, { uf: c.uf, municipio: c.municipio });
+  }
+
+  // Filtros do histórico (multi-seleção): vendedor, estado (UF) e cidade.
+  const histVendedores = parseMulti(sp.hv);
+  const histUFs = parseMulti(sp.huf);
+  const histCidades = parseMulti(sp.hcid);
+  const vendSet = new Set(histVendedores);
+  const ufSet = new Set(histUFs);
+  const cidSet = new Set(histCidades);
+
+  // Histórico mês a mês recortado por: região selecionada (escopo de clientes)
+  // + vendedor + estado + cidade. Estado/cidade usam a geo derivada do cliente.
+  const scopeKeys = selectedRegiao ? new Set(escopo.map((c) => c.clienteKey)) : null;
+  const mensalRows = mensalRaw.filter((r) => {
+    if (scopeKeys && !scopeKeys.has(r.clienteKey)) return false;
+    if (vendSet.size > 0 && !vendSet.has(r.vendedor ?? "Sem vendedor")) return false;
+    if (ufSet.size > 0 || cidSet.size > 0) {
+      const geo = geoByCliente.get(r.clienteKey);
+      if (ufSet.size > 0 && !(geo?.uf && ufSet.has(geo.uf))) return false;
+      if (cidSet.size > 0 && !(geo?.municipio && cidSet.has(geo.municipio))) return false;
+    }
+    return true;
+  });
   const histTotalChaves = contarChaves(mensalRows, histDim);
   const HIST_LIMIT = 40;
+
+  // Opções dos filtros do histórico.
+  //   vendedores: presentes no faturamento (todas as NFs).
+  //   UF/cidade: da geo derivada; cidades limitadas às UFs marcadas (quando há).
+  const vendedorOpts = Array.from(
+    new Set(mensalRaw.map((r) => r.vendedor ?? "Sem vendedor")),
+  )
+    .sort((a, b) => a.localeCompare(b, "pt-BR"))
+    .map((v) => ({ value: v, label: v }));
+  const ufOpts = Array.from(
+    new Set(data.clientes.map((c) => c.uf).filter((u): u is string => !!u)),
+  )
+    .sort()
+    .map((u) => ({ value: u, label: u }));
+  const cidadeOpts = Array.from(
+    new Set(
+      data.clientes
+        .filter((c) => c.municipio && (ufSet.size === 0 || (c.uf && ufSet.has(c.uf))))
+        .map((c) => c.municipio as string),
+    ),
+  )
+    .sort((a, b) => a.localeCompare(b, "pt-BR"))
+    .map((m) => ({ value: m, label: m }));
 
   const churnList = escopoOrdenado.filter((c) => c.churn === "EM_RISCO" || c.churn === "PERDIDO");
   const naoResolvidos = data.clientes
@@ -153,11 +208,19 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
           <FilterSelect name="regiao" label="Região" options={filterOptions} value={selectedRegiao} allLabel="Todas as regiões" />
           <div className="ml-auto flex items-end gap-2">
             <Link
+              href="/analise-regional/vendedores"
+              className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-[var(--surface-2)]"
+              style={{ borderColor: "var(--border-soft)", color: "var(--fg)" }}
+            >
+              <UserSquare className="size-3.5" />
+              Carteira por vendedor
+            </Link>
+            <Link
               href="/analise-regional/regioes"
               className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-[var(--surface-2)]"
               style={{ borderColor: "var(--border-soft)", color: "var(--fg)" }}
             >
-              <Map className="size-3.5" />
+              <MapIcon className="size-3.5" />
               Regiões & carteiras
             </Link>
             <a
@@ -212,7 +275,28 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
             />
           }
         >
-          <HistoricoMensal rows={mensalRows} dim={histDim} limit={HIST_LIMIT} />
+          <div className="space-y-4">
+            {/* Filtros para simular regiões de atendimento */}
+            <div
+              className="space-y-3 rounded-xl p-3"
+              style={{ backgroundColor: "var(--surface-2)", border: "1px solid var(--border-soft)" }}
+            >
+              <MultiChipFilter name="hv" label="Vendedor" options={vendedorOpts} selected={histVendedores} />
+              <MultiChipFilter name="huf" label="Estado (UF)" options={ufOpts} selected={histUFs} />
+              <MultiChipFilter
+                name="hcid"
+                label={`Cidade${histUFs.length > 0 ? ` · ${histUFs.join(", ")}` : ""}`}
+                options={cidadeOpts}
+                selected={histCidades}
+                maxVisible={20}
+              />
+              <p className="text-[11px]" style={{ color: "var(--fg-subtle)" }}>
+                Combine vendedor, estados e cidades para simular uma região de atendimento e ver o histórico somado.
+                Estado e cidade usam a geografia derivada de cada cliente (Enriquecimento CNPJ / Ploomes).
+              </p>
+            </div>
+            <HistoricoMensal rows={mensalRows} dim={histDim} limit={HIST_LIMIT} />
+          </div>
         </CardSection>
 
         {/* Curva ABC do escopo */}
