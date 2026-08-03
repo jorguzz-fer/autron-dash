@@ -37,6 +37,7 @@ const vendedorSchema = z.object({
   tipo: z.enum(TIPO_VALUES, { errorMap: () => ({ message: "Tipo inválido" }) }),
   nivel: z.coerce.number().int().min(1).max(10).optional().nullable(),
   gatilhoOverride: z.coerce.number().min(0).max(9.9999).optional().nullable(),
+  comissaoOverride: z.coerce.number().min(0).max(9.9999).optional().nullable(),
   supervisorCodigo: z.string().trim().max(30).optional().nullable(),
   ...garantidoFields,
   ativo: z.boolean().optional(),
@@ -57,6 +58,7 @@ type VendedorInput = {
   tipo: string;
   nivel?: number | null;
   gatilhoOverride?: number | null;
+  comissaoOverride?: number | null;
   supervisorCodigo?: string | null;
   garantidoValor?: number | null;
   garantidoInicio?: string | null;
@@ -73,7 +75,7 @@ export async function criarVendedor(input: VendedorInput): Promise<SimpleResult>
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
   }
-  const { codigoProtheus, nome, cargo, tipo, nivel, gatilhoOverride, supervisorCodigo, garantidoValor, garantidoInicio, garantidoMeses, ativo } = parsed.data;
+  const { codigoProtheus, nome, cargo, tipo, nivel, gatilhoOverride, comissaoOverride, supervisorCodigo, garantidoValor, garantidoInicio, garantidoMeses, ativo } = parsed.data;
 
   // Garantido: exige valor + início + meses juntos (ou nenhum).
   const gInicio = parseInicio(garantidoInicio);
@@ -103,6 +105,7 @@ export async function criarVendedor(input: VendedorInput): Promise<SimpleResult>
         tipo,
         nivel: nivel ?? null,
         gatilhoOverride: gatilhoOverride ?? null,
+        comissaoOverride: comissaoOverride ?? null,
         supervisorCodigo: supervisorCodigo || null,
         garantidoValor: temGarantido ? garantidoValor : null,
         garantidoInicio: temGarantido ? gInicio : null,
@@ -145,7 +148,7 @@ export async function atualizarVendedor(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos" };
   }
-  const { codigoProtheus, nome, cargo, tipo, nivel, gatilhoOverride, supervisorCodigo, garantidoValor, garantidoInicio, garantidoMeses, ativo } = parsed.data;
+  const { codigoProtheus, nome, cargo, tipo, nivel, gatilhoOverride, comissaoOverride, supervisorCodigo, garantidoValor, garantidoInicio, garantidoMeses, ativo } = parsed.data;
 
   const gInicio = parseInicio(garantidoInicio);
   const temGarantido = garantidoValor != null && garantidoValor > 0;
@@ -184,6 +187,7 @@ export async function atualizarVendedor(
         tipo,
         nivel: nivel ?? null,
         gatilhoOverride: gatilhoOverride ?? null,
+        comissaoOverride: comissaoOverride ?? null,
         supervisorCodigo: supervisorCodigo || null,
         garantidoValor: temGarantido ? garantidoValor : null,
         garantidoInicio: temGarantido ? gInicio : null,

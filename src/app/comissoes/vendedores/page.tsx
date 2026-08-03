@@ -87,6 +87,16 @@ function vendedorColumns(
     ),
   },
   {
+    key: "comissaoOverride",
+    header: "Comissão %",
+    align: "right",
+    cell: (v) => (
+      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+        {fmtPct(v.comissaoOverride?.toString())}
+      </span>
+    ),
+  },
+  {
     key: "gatilhoOverride",
     header: "Gatilho override",
     align: "right",
@@ -142,6 +152,7 @@ function vendedorColumns(
           tipo: v.tipo,
           nivel: v.nivel ?? null,
           gatilhoOverride: v.gatilhoOverride?.toString() ?? null,
+          comissaoOverride: v.comissaoOverride?.toString() ?? null,
           supervisorCodigo: v.supervisorCodigo ?? null,
           garantidoValor: v.garantidoValor?.toString() ?? null,
           garantidoInicio: toMonthInput(v.garantidoInicio),
