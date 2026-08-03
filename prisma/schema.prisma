@@ -590,6 +590,9 @@ model ComissaoVendedor {
   tipo            String   // "CLT" | "PJ" | "REPRESENTANTE"
   nivel           Int?
   gatilhoOverride Decimal? @db.Decimal(6, 4)
+  // % de comissão individual (fração: 0.015 = 1,5%). Sobrepõe o % do cargo para
+  // este vendedor; um % informado na linha do analítico ainda tem prioridade.
+  comissaoOverride Decimal? @db.Decimal(6, 4)
   // Carteira/hierarquia (Fase 2): codigoProtheus do gestor. NULL = sem gestor.
   supervisorCodigo String?
   // Garantido (Fase 2): piso mensal por N meses para recém-contratado.

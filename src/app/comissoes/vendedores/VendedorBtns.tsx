@@ -18,6 +18,7 @@ interface VendedorData {
   tipo: string;
   nivel: number | null;
   gatilhoOverride: string | number | null;
+  comissaoOverride: string | number | null;
   supervisorCodigo: string | null;
   garantidoValor: string | number | null;
   garantidoInicio: string | null; // "YYYY-MM"
@@ -61,6 +62,7 @@ export function VendedorCriarBtn({ supervisores = [] }: { supervisores?: Supervi
       tipo: String(fd.get("tipo") ?? "CLT"),
       nivel: fd.get("nivel") ? Number(fd.get("nivel")) : null,
       gatilhoOverride: fd.get("gatilhoOverride") ? Number(fd.get("gatilhoOverride")) : null,
+      comissaoOverride: fd.get("comissaoOverride") ? Number(fd.get("comissaoOverride")) : null,
       ...readExtraFields(fd),
       ativo: fd.get("ativo") === "on",
     };
@@ -183,6 +185,18 @@ export function VendedorCriarBtn({ supervisores = [] }: { supervisores?: Supervi
               </Field>
             </div>
 
+            <Field label="Comissão override" hint="% individual — ex: 0.015 = 1,5%. Vazio usa o % do cargo.">
+              <input
+                type="number"
+                name="comissaoOverride"
+                min={0}
+                max={9.9999}
+                step={0.0001}
+                className={INPUT_CLASS}
+                style={INPUT_STYLE}
+              />
+            </Field>
+
             <Field label="Supervisor (carteira)" hint="gestor cuja carteira soma este vendedor; opcional">
               <SupervisorSelect supervisores={supervisores} />
             </Field>
@@ -237,6 +251,7 @@ export function VendedorEditarBtn({
       tipo: String(fd.get("tipo") ?? "CLT"),
       nivel: fd.get("nivel") ? Number(fd.get("nivel")) : null,
       gatilhoOverride: fd.get("gatilhoOverride") ? Number(fd.get("gatilhoOverride")) : null,
+      comissaoOverride: fd.get("comissaoOverride") ? Number(fd.get("comissaoOverride")) : null,
       ...readExtraFields(fd),
       ativo: fd.get("ativo") === "on",
     };
@@ -253,6 +268,8 @@ export function VendedorEditarBtn({
 
   const gatilhoNum =
     vendedor.gatilhoOverride != null ? Number(vendedor.gatilhoOverride) : "";
+  const comissaoNum =
+    vendedor.comissaoOverride != null ? Number(vendedor.comissaoOverride) : "";
 
   return (
     <>
@@ -355,6 +372,19 @@ export function VendedorEditarBtn({
                 />
               </Field>
             </div>
+
+            <Field label="Comissão override" hint="% individual — ex: 0.015 = 1,5%. Vazio usa o % do cargo.">
+              <input
+                type="number"
+                name="comissaoOverride"
+                min={0}
+                max={9.9999}
+                step={0.0001}
+                defaultValue={comissaoNum}
+                className={INPUT_CLASS}
+                style={INPUT_STYLE}
+              />
+            </Field>
 
             <Field label="Supervisor (carteira)" hint="gestor cuja carteira soma este vendedor; opcional">
               <SupervisorSelect

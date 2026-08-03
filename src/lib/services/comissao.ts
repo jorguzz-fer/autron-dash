@@ -99,7 +99,10 @@ export async function getRegraVendedor(
   const cargo = await prisma.comissaoCargo.findFirst({
     where: { tenantId, ano, cargo: vend.cargo },
   });
-  const comissaoPct = cargo ? num(cargo.comissaoPct) : 0;
+  const comissaoCargo = cargo ? num(cargo.comissaoPct) : 0;
+  // % individual do vendedor sobrepõe o % do cargo (fallback). Um % informado
+  // na linha do analítico ainda tem prioridade sobre ambos (ver previsaoMensal).
+  const comissaoPct = vend.comissaoOverride != null ? num(vend.comissaoOverride) : comissaoCargo;
   const gatilhoCargo = cargo ? num(cargo.gatilhoPct) : 0;
   const gatilhoPct = vend.gatilhoOverride != null ? num(vend.gatilhoOverride) : gatilhoCargo;
   return { comissaoPct, gatilhoPct };
