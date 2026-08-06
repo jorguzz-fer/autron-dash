@@ -100,8 +100,10 @@ export async function getRegraVendedor(
     where: { tenantId, ano, cargo: vend.cargo },
   });
   const comissaoCargo = cargo ? num(cargo.comissaoPct) : 0;
-  // % individual do vendedor sobrepõe o % do cargo (fallback). Um % informado
-  // na linha do analítico ainda tem prioridade sobre ambos (ver previsaoMensal).
+  // Precedência do % de comissão (ago/2026): override do vendedor > % do cargo.
+  // O % que vem POR LINHA no analítico do Protheus NÃO conta mais — o cálculo
+  // (previsaoMensal/gridPedidosPagos) usa este comissaoPct direto. Sem override
+  // nem cargo, fica 0 (não paga).
   const comissaoPct = vend.comissaoOverride != null ? num(vend.comissaoOverride) : comissaoCargo;
   const gatilhoCargo = cargo ? num(cargo.gatilhoPct) : 0;
   const gatilhoPct = vend.gatilhoOverride != null ? num(vend.gatilhoOverride) : gatilhoCargo;

@@ -19,8 +19,11 @@ export function janelaPagamento(d: Date): string {
 /**
  * Grid de comissão PAGA: Map<janela "YYYY-MM", number[12]> onde o array é
  * indexado pelo mês de ORIGEM (emissão, 0=jan). Valor = comissaoLinha
- * (valor * comissaoPct, sem aplicar pctRateio). Só linhas classificacao === "PAGO"
- * com dataPagamento.
+ * (valor * comissaoPct do CARGO, sem aplicar pctRateio). Só linhas
+ * classificacao === "PAGO" com dataPagamento.
+ *
+ * REGRA DE NEGÓCIO (ago/2026): usa SEMPRE o % do cargo/cadastro; o l.comissaoPct
+ * por linha (Protheus) é ignorado. Ver previsaoMensal / types.ts.
  *
  * "Pulo do gato" (A9): pedido emitido em mês NÃO habilitado nunca paga, mesmo
  * que o cliente pague depois. Quando `habilitaPorMesEmissao` é fornecido, linhas
@@ -37,8 +40,7 @@ export function gridPedidosPagos(
     const origem = l.dataEmissao.getMonth(); // 0-11
     if (habilitaPorMesEmissao && !habilitaPorMesEmissao[origem]) continue;
     const janela = janelaPagamento(l.dataPagamento);
-    const pct = l.comissaoPct ?? comissaoPct;
-    const valorPago = comissaoLinha(l.valor, pct);
+    const valorPago = comissaoLinha(l.valor, comissaoPct);
     if (!grid.has(janela)) grid.set(janela, new Array<number>(12).fill(0));
     grid.get(janela)![origem] += valorPago;
   }
@@ -64,8 +66,7 @@ export function gridProgramados(
     if (habilitaPorMesEmissao && !habilitaPorMesEmissao[origem]) continue;
     const ref = l.dataVencimento ?? l.dataEmissao;
     const janela = janelaPagamento(ref);
-    const pct = l.comissaoPct ?? comissaoPct;
-    const valor = comissaoLinha(l.valor, pct);
+    const valor = comissaoLinha(l.valor, comissaoPct);
     if (!grid.has(janela)) grid.set(janela, new Array<number>(12).fill(0));
     grid.get(janela)![origem] += valor;
   }

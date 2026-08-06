@@ -31,4 +31,16 @@ describe("previsaoMensal", () => {
     expect(prev[0]).toBeCloseTo(225, 6); // (10000+5000)*0.015
     expect(prev[1]).toBe(0);             // fev não habilitado
   });
+
+  it("usa SEMPRE o % do cargo e IGNORA o comissaoPct por linha (regra ago/2026)", () => {
+    // Linha traz 100% (o que zerava o cálculo, virando valor bruto). Deve ser ignorado.
+    const lancs: LancamentoInput[] = [
+      { ...lanc(1, 10000, "P1"), comissaoPct: 1 },   // planilha diz 100%
+      { ...lanc(1, 5000, "P2"), comissaoPct: 0.005 }, // planilha diz 0,5%
+    ];
+    const habilita = new Array<boolean>(12).fill(true);
+    const prev = previsaoMensal(lancs, 0.015, habilita, 2026);
+    // Cargo 1,5% aplicado a ambas: (10000+5000)*0.015 = 225 (não 15000+75)
+    expect(prev[0]).toBeCloseTo(225, 6);
+  });
 });

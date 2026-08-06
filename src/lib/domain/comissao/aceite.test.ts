@@ -5,9 +5,16 @@
 //   Analítico: comissionamento/materiais/Comissao 2026 - pgto EP 21.03.2026 a 20.04.2026-Analitco.xlsx
 //   Extrato:   comissionamento/materiais/Comissao 2026 - pgto EP 21.03.2026 a 20.04.2026-Extrato.xlsx
 //
-// Correções nesta iteração:
+// ⚠️ MUDANÇA DE REGRA (ago/2026): a comissão passou a usar SEMPRE o % do
+//    cargo/cadastro do vendedor, IGNORANDO o comissaoPct por linha do Protheus.
+//    Por isso alguns números aqui NÃO batem mais com o Extrato Protheus — a
+//    divergência é intencional (a empresa paga pelo % negociado, não pelo do
+//    Protheus). As asserções de Adriano que somavam linhas de 0,5% foram
+//    recalculadas com o cargo (1%) aplicado a todas as linhas.
+//
+// Correções de iterações anteriores:
 //   1. pagamento.ts: comissão não deve ser multiplicada por pctRateio
-//   2. types.ts / comissao.ts / pagamento.ts: comissaoPct precisa ser por linha (campo opcional)
+//   2. types.ts / comissao.ts / pagamento.ts: comissaoPct por linha (hoje só informativo)
 //
 // Nota sobre divergência TO-BE vs AS-IS Protheus (Alexsiano):
 //   O Extrato Protheus usa comparação MENSAL (ep_m >= gatilho_m) para habilita.
@@ -302,12 +309,13 @@ describe("aceite — reproduz Extrato Protheus", () => {
       expect(ap[0].habilita).toBe(true);
     });
 
-    it("previsao JAN ≈ R$5.772,98 (±R$1)", () => {
+    it("previsao JAN ≈ R$6.621,01 (cargo 1% em TODAS as linhas — regra ago/2026)", () => {
       const ap = apurarAno(lancamentosAdriano, metasAdriano, regraAdriano, 2026);
       const habArr = ap.map((m) => m.habilita);
       const prev = previsaoMensal(lancamentosAdriano, regraAdriano.comissaoPct, habArr, 2026);
-      // Motor computa ~5773.05; Extrato usa coluna pré-arredondada = 5772.98. Δ < R$0,10.
-      expect(prev[0]).toBeCloseTo(5772.98, 0);
+      // Antes (Protheus, % por linha): 5773,05 (linhas 0,5% + 0,1%).
+      // Agora: EP JAN 662.101,36 × 1% (cargo) = 6621,01 — % por linha ignorado.
+      expect(prev[0]).toBeCloseTo(6621.01, 1);
     });
 
     it("pagos janela 21/03-20/04 origem JAN ≈ R$314,68", () => {
@@ -317,11 +325,12 @@ describe("aceite — reproduz Extrato Protheus", () => {
       expect(janela?.[0] ?? 0).toBeCloseTo(314.68, 0);
     });
 
-    it("pagos janela 21/04-20/05 origem JAN ≈ R$262,61", () => {
+    it("pagos janela 21/04-20/05 origem JAN ≈ R$525,23 (cargo 1% — regra ago/2026)", () => {
       const grid = gridPedidosPagos(lancamentosAdriano, regraAdriano.comissaoPct);
       const janela = grid.get("2026-05");
-      // Motor: 145.655 + 116.962 = 262.62; Extrato: 262.61. Δ < R$0,02
-      expect(janela?.[0] ?? 0).toBeCloseTo(262.61, 0);
+      // Antes (0,5% por linha): 145,655 + 116,962 = 262,61.
+      // Agora (cargo 1%): 29131,00×1% + 23392,33×1% = 291,31 + 233,92 = 525,23.
+      expect(janela?.[0] ?? 0).toBeCloseTo(525.23, 1);
     });
   });
 

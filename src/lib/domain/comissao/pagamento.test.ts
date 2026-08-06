@@ -39,6 +39,16 @@ describe("gridPedidosPagos", () => {
     expect(grid.get("2026-05")?.[0]).toBeCloseTo(150, 3);
   });
 
+  it("usa SEMPRE o % do cargo e IGNORA o comissaoPct por linha (regra ago/2026)", () => {
+    const lancs: LancamentoInput[] = [
+      // linha diz 100% (Protheus/rateio) — deve ser ignorada; vale o cargo 1,5%
+      { numeroPedido: "P1", itemPedido: "A", dataEmissao: new Date(2026, 0, 10), valor: 10000, codVendedor: "V", dataPagamento: new Date(2026, 2, 24), parcela: 1, pctRateio: 100, classificacao: "PAGO", comissaoPct: 1 },
+    ];
+    const grid = gridPedidosPagos(lancs, 0.015);
+    // 10000 * 0.015 = 150 (não 10000 * 1)
+    expect(grid.get("2026-04")?.[0]).toBeCloseTo(150, 6);
+  });
+
   it("pulo do gato: pedido emitido em mês NÃO habilitado nunca paga", () => {
     const lancs: LancamentoInput[] = [
       // emitido em ABR (índice 3), pago depois — mas ABR não habilitado

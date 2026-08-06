@@ -14,8 +14,11 @@ export interface LancamentoInput {
   parcela: number | null;
   pctRateio: number; // 100, 33.33...
   classificacao: Classificacao;
-  /** Percentual de comissão efetivo da linha (ex.: 0.01, 0.005, 0.013).
-   *  Quando ausente, usa o comissaoPct da RegraVendedor como fallback. */
+  /** Percentual de comissão que veio POR LINHA na planilha do Protheus
+   *  (ex.: 0.01, 0.005, 0.013). É apenas informativo/histórico.
+   *  ⚠️ NÃO é usado no cálculo desde ago/2026: a empresa paga pelo % do
+   *  cargo/cadastro do vendedor (RegraVendedor.comissaoPct), não pelo % do
+   *  Protheus. Ver previsaoMensal e gridPedidosPagos. */
   comissaoPct?: number;
 }
 
