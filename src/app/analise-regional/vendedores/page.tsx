@@ -245,7 +245,14 @@ export default async function CarteiraVendedorPage({ searchParams }: { searchPar
 
         <p className="text-center text-[11.5px]" style={{ color: "var(--fg-subtle)" }}>
           Vendedor = <code>nomeVendedor</code> da nota fiscal mais recente de cada cliente (faturamento) e da
-          entrada de pedidos. A curva ABC de clientes é recalculada dentro de cada carteira.
+          entrada de pedidos — ou seja, o vendedor da ÉPOCA. Para ver o mesmo histórico reagrupado pelo{" "}
+          <Link
+            href="/analise-regional/carteiras"
+            className="underline underline-offset-2 hover:text-[var(--fg)]"
+          >
+            dono atual da carteira
+          </Link>
+          , use a Análise de Carteira. A curva ABC de clientes é recalculada dentro de cada carteira.
         </p>
       </div>
     </AppShell>
