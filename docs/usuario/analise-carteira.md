@@ -31,9 +31,14 @@ relatório e as colunas aceitam várias grafias (`Razão Social`/`Nome`/`Cliente
 
 ## Como o cruzamento é feito
 
-`Faturamento` e `Pedido` não guardam código de cliente — só o nome. O
-cruzamento é pelo **nome normalizado** (mesma chave da Análise Regional), com o
-**nome fantasia** como segunda tentativa.
+O cruzamento é pelo **nome normalizado** do cliente (mesma chave da Análise
+Regional), com o **nome fantasia** como segunda tentativa.
+
+A entrada de pedidos é um caso à parte: o relatório traz o **código** do
+cadastro (ex.: `C009280`), não a razão social. O código é traduzido para o nome
+usando, nesta ordem, a base de carteira, o Enriquecimento CNPJ e o Ploomes — por
+isso manter a base de carteira em dia também melhora a exibição e o cruzamento
+dos pedidos em todas as telas.
 
 - Cliente com histórico que **não está** na base → agrupado como **Sem carteira**.
 - Mesmo nome com lojas em carteiras diferentes → vence o dono com mais cadastros.

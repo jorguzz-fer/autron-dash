@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 import { dataTag } from "@/lib/cache";
 import { normalizeClienteKey } from "@/lib/domain/kpiFinanceiro";
+import { aplicarNomeCliente, getNomeClientePorCodigo } from "@/lib/services/clienteNomes";
 import {
   municipioKey,
   resolveRegiao,
@@ -397,14 +398,26 @@ async function computeFaturamentoMensalRegional(f: RegiaoVendasFilters): Promise
  * Entrada de pedidos por (cliente, mês, vendedor) — MESMA forma que
  * FatMensalRow (campo `receita` = soma de `vlrTotal` dos pedidos), para que o
  * histórico mês a mês reaproveite o componente e os filtros sem alteração.
- * Base: `Pedido.dtEmissao`. `Pedido.cliente` é o nome do cliente, normalizado
- * para a MESMA chave de faturamento/região (casa os filtros de estado/cidade).
- * Cacheado por período; invalida no upload de PEDIDO.
+ * Base: `Pedido.dtEmissao`.
+ *
+ * ATENÇÃO: `Pedido.cliente` é o CÓDIGO do cadastro Protheus (ex.: "C009280"),
+ * não a razão social — o faturamento é que traz o nome. Por isso o código é
+ * traduzido para o nome (`getNomeClientePorCodigo`) antes de devolver: é o que
+ * faz a tabela exibir o cliente e o que casa a linha com faturamento, região e
+ * carteira (todo o cruzamento é por nome normalizado).
+ *
+ * A agregação é cacheada por período e invalida no upload de PEDIDO; a tradução
+ * é aplicada depois, com o lookup de nomes (cache próprio) — assim um upload de
+ * cadastro novo melhora a cobertura sem invalidar a agregação.
  */
 export async function getPedidosMensalRegional(f: RegiaoVendasFilters): Promise<FatMensalRow[]> {
-  return unstable_cache(computePedidosMensalRegional, ["analise-regional-mensal-pedidos"], {
-    tags: [dataTag(f.tenantId, "PEDIDO")],
-  })(f);
+  const [rows, nomes] = await Promise.all([
+    unstable_cache(computePedidosMensalRegional, ["analise-regional-mensal-pedidos"], {
+      tags: [dataTag(f.tenantId, "PEDIDO")],
+    })(f),
+    getNomeClientePorCodigo(f.tenantId),
+  ]);
+  return aplicarNomeCliente(rows, new Map(nomes));
 }
 
 async function computePedidosMensalRegional(f: RegiaoVendasFilters): Promise<FatMensalRow[]> {
