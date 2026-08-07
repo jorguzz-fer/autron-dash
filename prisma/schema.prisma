@@ -45,6 +45,7 @@ model Tenant {
   enrichmentRecords     EnrichmentRecord[]
   regioesVenda          RegiaoVenda[]
   clienteGeoOverrides   ClienteGeoOverride[]
+  carteiraClientes      CarteiraCliente[]
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -226,6 +227,7 @@ enum Dataset {
   COMISSAO_ANALITICO
   COMISSAO_META
   TITULO_RECEBER
+  CARTEIRA_CLIENTE
 }
 
 enum MetaCategoria {
@@ -852,4 +854,33 @@ model ClienteGeoOverride {
 
   @@unique([tenantId, clienteKey])
   @@index([tenantId])
+}
+
+// Foto ATUAL da carteira de clientes (relatório Protheus "clientes com
+// vendedor", base SA1): quem é HOJE o dono de cada cliente. Serve para
+// reagrupar o histórico — faturamento e entrada de pedidos — pelo dono atual
+// da carteira, independentemente de quem era o vendedor na época da venda.
+// Snapshot: cada upload do dataset CARTEIRA_CLIENTE substitui a base inteira.
+model CarteiraCliente {
+  id            String   @id @default(cuid())
+  tenantId      String
+  chaveCadastro String // "CODIGO/LOJA" (ou o clienteKey quando não há código) — unicidade do cadastro
+  codigoCliente String?
+  loja          String?
+  cliente       String // razão social / nome do cadastro
+  nomeFantasia  String?
+  clienteKey    String // normalizeClienteKey(cliente) — join com Faturamento/Pedido
+  fantasiaKey   String? // normalizeClienteKey(nomeFantasia) — join alternativo
+  cnpj          String?
+  municipio     String?
+  uf            String?
+  codVendedor   String?
+  nomeVendedor  String? // DONO da carteira (campo "nome vendedor" do relatório); null = cadastro sem dono
+  createdAt     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, chaveCadastro])
+  @@index([tenantId, clienteKey])
+  @@index([tenantId, nomeVendedor])
 }
