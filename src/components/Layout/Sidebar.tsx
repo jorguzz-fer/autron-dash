@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Target,
   Upload,
   Users,
   Wallet,
@@ -71,6 +72,7 @@ const NAV_COMISSOES: NavItem[] = [
   { label: "Visão Geral", href: "/comissoes",           icon: Percent,    moduleKey: "COMISSOES" },
   { label: "Extrato",     href: "/comissoes/extrato",   icon: ScrollText, moduleKey: "COMISSOES" },
   { label: "Vendedores",  href: "/comissoes/vendedores", icon: Users,     moduleKey: "COMISSOES" },
+  { label: "Metas",       href: "/comissoes/metas",     icon: Target,     moduleKey: "COMISSOES" },
   { label: "Upload",      href: "/comissoes/upload",    icon: Upload,     moduleKey: "COMISSOES" },
 ];
 
