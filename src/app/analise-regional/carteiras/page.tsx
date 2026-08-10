@@ -29,7 +29,7 @@ import {
 } from "@/lib/services/regiaoVendas";
 import { getFaturamentoDateBounds } from "@/lib/services/faturamento";
 import { fmtCurrency, fmtDate, fmtNum } from "@/lib/format";
-import { parseDateInput } from "@/lib/sort";
+import { parseDateInput, parseSort, sortRows } from "@/lib/sort";
 import type { ChurnStatus, ClasseAbc } from "@/lib/domain/regiaoVendas";
 import {
   ArrowLeft,
@@ -58,6 +58,9 @@ interface SP {
   histDim?: string;
   /** Agrupamento do histórico: "atual" (dono da carteira) | "epoca" (vendedor da NF). */
   grupo?: string;
+  /** Ordenação da tabela de clientes (coluna / direção). */
+  sortC?: string;
+  dirC?: string;
 }
 
 const CHURN_OPTS = [
@@ -226,6 +229,39 @@ export default async function AnaliseCarteiraPage({ searchParams }: { searchPara
       )
     : mensalGrupo;
   const histTotalChaves = contarChaves(mensalRows, histDim);
+
+  // ── Colunas de venda ano a ano por cliente ──────────────────────────────
+  // Soma o mensal da FONTE atual (faturamento/pedidos), respeitando o filtro
+  // de período — mes = "YYYY-MM". Reaproveita o dado já buscado (sem query
+  // nova). Cada valor por ano fica achatado como `ano<AAAA>` na linha, pra o
+  // sortRows conseguir ordenar por coluna de ano.
+  const anosSet = new Set<string>();
+  const anoPorCliente = new Map<string, Record<string, number>>();
+  for (const r of mensalRaw) {
+    const ano = r.mes.slice(0, 4);
+    anosSet.add(ano);
+    let rec = anoPorCliente.get(r.clienteKey);
+    if (!rec) {
+      rec = {};
+      anoPorCliente.set(r.clienteKey, rec);
+    }
+    rec[ano] = (rec[ano] ?? 0) + r.receita;
+  }
+  const anos = [...anosSet].sort(); // ascendente: 2022 … 2026
+
+  // Top 100 por faturamento (critério de seleção fixo) → depois ordena p/ exibir.
+  const clientesTop100: ClienteRowView[] = clientesEscopo.slice(0, 100).map((c) => {
+    const rec = anoPorCliente.get(c.clienteKey) ?? {};
+    const anoFields: Record<string, number> = {};
+    for (const ano of anos) anoFields[`ano${ano}`] = rec[ano] ?? 0;
+    return { ...c, ...anoFields } as ClienteRowView;
+  });
+  const sortStateCli = parseSort(sp.sortC, sp.dirC);
+  const clientesOrdenados = sortRows(
+    clientesTop100 as unknown as Record<string, unknown>[],
+    sortStateCli,
+  ) as unknown as ClienteRowView[];
+  const fonteAnoLabel = fonte === "pedidos" ? "entrada de pedidos" : "faturamento";
 
   // KPIs do escopo (carteira selecionada ou consolidado).
   const kpiReceita = carteira ? carteira.receita : data.totalReceita;
@@ -433,12 +469,14 @@ export default async function AnaliseCarteiraPage({ searchParams }: { searchPara
         {/* Clientes do escopo */}
         <CardSection
           title={carteira ? `Clientes — ${carteira.dono}` : "Clientes (todas as carteiras)"}
-          subtitle={`Top ${Math.min(100, clientesEscopo.length)} por faturamento · classe ABC dentro da carteira · “vendedor da época” = NF mais recente do período`}
+          subtitle={`Top ${Math.min(100, clientesEscopo.length)} por faturamento · classe ABC dentro da carteira · colunas por ano = ${fonteAnoLabel} (no período) · clique nos cabeçalhos para ordenar`}
         >
           <DataTable
-            columns={clienteColumns}
-            rows={clientesEscopo.slice(0, 100)}
+            columns={clienteColumns(anos)}
+            rows={clientesOrdenados}
             rowKey={(c) => c.clienteKey}
+            sortParam="sortC"
+            dirParam="dirC"
             emptyMessage="Sem clientes no escopo selecionado."
           />
         </CardSection>
@@ -563,78 +601,112 @@ const resumoColumns: Column<CarteiraResumo>[] = [
   },
 ];
 
-const clienteColumns: Column<ClienteCarteiraRow>[] = [
-  {
-    key: "cliente",
-    header: "Cliente",
-    cell: (c) => (
-      <div className="flex items-center gap-2">
-        <StatusBadge tone={CLASSE_TONE[c.classe]}>{c.classe}</StatusBadge>
-        <span className="text-[12.5px] font-medium" style={{ color: "var(--fg-strong)" }}>
-          {c.cliente}
+/** Linha da tabela de clientes + os valores por ano achatados (`ano2022`…). */
+type ClienteRowView = ClienteCarteiraRow & Record<`ano${string}`, number>;
+
+/** Colunas da tabela de clientes, com uma coluna por ano com dados. Todas
+ *  ordenáveis (sortKey) — o DataTable renderiza o header clicável. */
+function clienteColumns(anos: string[]): Column<ClienteRowView>[] {
+  return [
+    {
+      key: "cliente",
+      header: "Cliente",
+      sortKey: "cliente",
+      cell: (c) => (
+        <div className="flex items-center gap-2">
+          <StatusBadge tone={CLASSE_TONE[c.classe]}>{c.classe}</StatusBadge>
+          <span className="text-[12.5px] font-medium" style={{ color: "var(--fg-strong)" }}>
+            {c.cliente}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "dono",
+      header: "Dono atual",
+      sortKey: "dono",
+      cell: (c) => (
+        <span className="text-[12px]" style={{ color: c.naBase ? "var(--fg)" : "var(--fg-subtle)" }}>
+          {c.dono}
         </span>
-      </div>
+      ),
+    },
+    {
+      key: "epoca",
+      header: "Vendedor da época",
+      sortKey: "vendedorEpoca",
+      cell: (c) => (
+        <span
+          className="text-[12px]"
+          style={{ color: c.trocouDeDono ? "#f59e0b" : "var(--fg-muted)" }}
+          title={c.trocouDeDono ? "Cliente herdado: faturou com outro vendedor no período" : undefined}
+        >
+          {c.vendedorEpoca ?? "—"}
+        </span>
+      ),
+    },
+    // Uma coluna por ano com dados (2022 … 2026), valor da fonte selecionada.
+    ...anos.map(
+      (ano): Column<ClienteRowView> => ({
+        key: `ano${ano}`,
+        header: ano,
+        sortKey: `ano${ano}`,
+        align: "right",
+        cell: (c) => {
+          const v = (c as Record<string, number>)[`ano${ano}`] ?? 0;
+          return (
+            <span
+              className="numeric text-[12px]"
+              style={{ color: v ? "var(--fg)" : "var(--fg-subtle)" }}
+            >
+              {v ? fmtCurrency(v, { decimals: 0 }) : "—"}
+            </span>
+          );
+        },
+      }),
     ),
-  },
-  {
-    key: "dono",
-    header: "Dono atual",
-    cell: (c) => (
-      <span className="text-[12px]" style={{ color: c.naBase ? "var(--fg)" : "var(--fg-subtle)" }}>
-        {c.dono}
-      </span>
-    ),
-  },
-  {
-    key: "epoca",
-    header: "Vendedor da época",
-    cell: (c) => (
-      <span
-        className="text-[12px]"
-        style={{ color: c.trocouDeDono ? "#f59e0b" : "var(--fg-muted)" }}
-        title={c.trocouDeDono ? "Cliente herdado: faturou com outro vendedor no período" : undefined}
-      >
-        {c.vendedorEpoca ?? "—"}
-      </span>
-    ),
-  },
-  {
-    key: "receita",
-    header: "Faturamento",
-    align: "right",
-    cell: (c) => (
-      <span className="numeric text-[12px]" style={{ color: "var(--fg)" }}>
-        {fmtCurrency(c.receita, { decimals: 0 })}
-      </span>
-    ),
-  },
-  {
-    key: "pedidos",
-    header: "Pedidos",
-    align: "right",
-    cell: (c) => (
-      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
-        {fmtCurrency(c.pedidos, { decimals: 0 })}
-      </span>
-    ),
-  },
-  {
-    key: "ultima",
-    header: "Última NF",
-    align: "right",
-    cell: (c) => (
-      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
-        {c.ultimaEmissaoISO ? fmtDate(new Date(c.ultimaEmissaoISO)) : "—"}
-      </span>
-    ),
-  },
-  {
-    key: "status",
-    header: "Status",
-    align: "center",
-    cell: (c) => <StatusBadge tone={CHURN_TONE[c.churn]}>{CHURN_LABEL[c.churn]}</StatusBadge>,
-  },
-];
+    {
+      key: "receita",
+      header: "Faturamento",
+      sortKey: "receita",
+      align: "right",
+      cell: (c) => (
+        <span className="numeric text-[12px]" style={{ color: "var(--fg)" }}>
+          {fmtCurrency(c.receita, { decimals: 0 })}
+        </span>
+      ),
+    },
+    {
+      key: "pedidos",
+      header: "Pedidos",
+      sortKey: "pedidos",
+      align: "right",
+      cell: (c) => (
+        <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+          {fmtCurrency(c.pedidos, { decimals: 0 })}
+        </span>
+      ),
+    },
+    {
+      key: "ultima",
+      header: "Última NF",
+      sortKey: "ultimaEmissaoISO",
+      align: "right",
+      cell: (c) => (
+        <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
+          {c.ultimaEmissaoISO ? fmtDate(new Date(c.ultimaEmissaoISO)) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortKey: "churn",
+      align: "center",
+      cell: (c) => <StatusBadge tone={CHURN_TONE[c.churn]}>{CHURN_LABEL[c.churn]}</StatusBadge>,
+    },
+  ];
+}
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
