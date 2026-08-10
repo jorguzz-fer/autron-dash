@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { dataTag } from "@/lib/cache";
 import { normalizeClienteKey } from "@/lib/domain/kpiFinanceiro";
 import { computeAbc, type ChurnStatus, type ClasseAbc } from "@/lib/domain/regiaoVendas";
+import { aplicarNomeCliente, getNomeClientePorCodigo } from "@/lib/services/clienteNomes";
 import {
   getAnaliseRegional,
   type ClienteRegiaoRow,
@@ -176,12 +177,43 @@ export interface PedidoClienteAgg {
 /**
  * Entrada de pedidos agregada por cliente no período (valor total, valor ainda
  * em aberto e nº de PVs). Complementa o faturamento na visão de carteira.
- * Cacheada; invalida no upload de PEDIDO.
+ *
+ * `Pedido.cliente` é o CÓDIGO do cadastro Protheus, então o código é traduzido
+ * para o nome antes de agregar — sem isso o pedido nunca casaria com o cliente
+ * do faturamento nem com a base de carteira. Depois da tradução, os cadastros
+ * (lojas) que compartilham o mesmo nome são somados numa linha só.
+ * A agregação é cacheada e invalida no upload de PEDIDO.
  */
 export async function getPedidosPorCliente(f: RegiaoVendasFilters): Promise<PedidoClienteAgg[]> {
-  return unstable_cache(computePedidosPorCliente, ["carteira-pedidos-cliente"], {
-    tags: [dataTag(f.tenantId, "PEDIDO")],
-  })(f);
+  const [rows, nomes] = await Promise.all([
+    unstable_cache(computePedidosPorCliente, ["carteira-pedidos-cliente"], {
+      tags: [dataTag(f.tenantId, "PEDIDO")],
+    })(f),
+    getNomeClientePorCodigo(f.tenantId),
+  ]);
+  return consolidarPedidosPorCliente(aplicarNomeCliente(rows, new Map(nomes)));
+}
+
+/** Soma as linhas que, depois da tradução do código, viraram o mesmo cliente. */
+function consolidarPedidosPorCliente(rows: PedidoClienteAgg[]): PedidoClienteAgg[] {
+  const porChave = new Map<string, PedidoClienteAgg>();
+  for (const r of rows) {
+    const atual = porChave.get(r.clienteKey);
+    if (!atual) {
+      porChave.set(r.clienteKey, { ...r });
+      continue;
+    }
+    atual.valorTotal += r.valorTotal;
+    atual.valorEmAberto += r.valorEmAberto;
+    atual.qtdPVs += r.qtdPVs;
+    if (
+      r.ultimaEmissaoISO &&
+      (!atual.ultimaEmissaoISO || r.ultimaEmissaoISO > atual.ultimaEmissaoISO)
+    ) {
+      atual.ultimaEmissaoISO = r.ultimaEmissaoISO;
+    }
+  }
+  return [...porChave.values()];
 }
 
 async function computePedidosPorCliente(f: RegiaoVendasFilters): Promise<PedidoClienteAgg[]> {
