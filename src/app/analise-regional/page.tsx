@@ -248,7 +248,7 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
             </a>
             <a
               href="/analise-regional/base-pivot"
-              title="Base achatada (1 linha por cliente) para tabela dinâmica: faturamento e pedidos ano a ano, ABC e vendedores"
+              title="Base detalhada p/ tabela dinâmica: faturamento + entrada de pedidos por cliente/mês, com código, vendedor da época, vendedor atual da carteira e classe ABC"
               className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-[var(--surface-2)]"
               style={{ borderColor: "var(--border-soft)", color: "var(--fg)" }}
             >
