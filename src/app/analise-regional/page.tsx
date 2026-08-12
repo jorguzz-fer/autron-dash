@@ -25,7 +25,7 @@ import { getFaturamentoDateBounds } from "@/lib/services/faturamento";
 import { fmtCurrency, fmtDate, fmtNum } from "@/lib/format";
 import { parseDateInput } from "@/lib/sort";
 import type { ChurnStatus, ClasseAbc } from "@/lib/domain/regiaoVendas";
-import { Wallet, Users, CheckCircle2, AlertTriangle, UserX, MapPinOff, Map as MapIcon, Download, UserSquare, Briefcase } from "lucide-react";
+import { Wallet, Users, CheckCircle2, AlertTriangle, UserX, MapPinOff, Map as MapIcon, Download, UserSquare, Briefcase, Table2 } from "lucide-react";
 
 export const metadata = { title: "Análise Regional — Autron Dash" };
 
@@ -245,6 +245,15 @@ export default async function AnaliseRegionalPage({ searchParams }: { searchPara
             >
               <Download className="size-3.5" />
               Baixar CSV
+            </a>
+            <a
+              href="/analise-regional/base-pivot"
+              title="Base achatada (1 linha por cliente) para tabela dinâmica: faturamento e pedidos ano a ano, ABC e vendedores"
+              className="ring-focus inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] font-medium transition-colors hover:bg-[var(--surface-2)]"
+              style={{ borderColor: "var(--border-soft)", color: "var(--fg)" }}
+            >
+              <Table2 className="size-3.5" />
+              Base p/ dinâmica
             </a>
           </div>
         </div>

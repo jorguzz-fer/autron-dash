@@ -684,3 +684,227 @@ function buildResumo(
   out.sort((a, b) => b.receita - a.receita);
   return out;
 }
+
+// ── Base para tabela dinâmica (pivot) — export por cliente, ano a ano ────────
+
+export interface PivotClienteRow {
+  clienteKey: string;
+  /** Código do cliente (Ploomes; vazio se não cruzar pelo nome). */
+  codigo: string | null;
+  cliente: string;
+  /** "Dono" atual do cliente no CRM (Ploomes.responsavel mais recente). */
+  dono: string | null;
+  /** Vendedor atual = nomeVendedor da NF mais recente. */
+  vendedorAtual: string | null;
+  /** Vendedor da época do pedido = nomeVendedor do pedido mais recente. */
+  vendedorPedido: string | null;
+  cidade: string | null;
+  uf: string | null;
+  /** Classe ABC sobre o faturamento do ano-base (null = sem faturamento no ano). */
+  classeAbc: ClasseAbc | null;
+  fatPorAno: Record<number, number>;
+  fatTotal: number;
+  pedPorAno: Record<number, number>;
+  pedTotal: number;
+}
+
+export interface BasePivotData {
+  anos: number[]; // união ordenada dos anos com faturamento OU pedidos
+  abcAno: number;
+  clientes: PivotClienteRow[];
+}
+
+/**
+ * Base "achatada" (uma linha por cliente) para montar tabela dinâmica no Excel:
+ * código + nome + dono (Ploomes) + vendedor atual (faturamento) + vendedor do
+ * último pedido, faturamento ano a ano (+ total) e entrada de pedidos ano a ano
+ * (+ total). A classe ABC é calculada sobre o faturamento do `abcAno`
+ * (A ≤ 80%, B ≤ 95%, C o restante — Pareto acumulado). Toda a HISTÓRIA é
+ * considerada (sem recorte de período); o cruzamento cliente↔Ploomes é pelo
+ * nome normalizado (mesma chave da Análise Regional).
+ */
+export async function getBaseClientesPivot(tenantId: string, abcAno: number): Promise<BasePivotData> {
+  const [fatAgg, fatLatest, pedAgg, pedLatest, ploomes] = await Promise.all([
+    prisma.$queryRaw<{ cliente: string | null; ano: number; valor: number }[]>`
+      SELECT COALESCE(NULLIF(TRIM("razaoSocial"), ''), NULLIF(TRIM("nomeFantasia"), '')) AS cliente,
+             EXTRACT(YEAR FROM "emissao")::int AS ano,
+             COALESCE(SUM("faturamentoLiquido"), 0)::float8 AS valor
+      FROM "Faturamento"
+      WHERE "tenantId" = ${tenantId} AND "emissao" IS NOT NULL
+        AND COALESCE(NULLIF(TRIM("razaoSocial"), ''), NULLIF(TRIM("nomeFantasia"), '')) IS NOT NULL
+      GROUP BY 1, 2`,
+    prisma.$queryRaw<{ cliente: string; vendedor: string | null; emissao: Date }[]>`
+      SELECT DISTINCT ON (cliente) cliente, "nomeVendedor" AS vendedor, "emissao"
+      FROM (
+        SELECT COALESCE(NULLIF(TRIM("razaoSocial"), ''), NULLIF(TRIM("nomeFantasia"), '')) AS cliente,
+               "nomeVendedor", "emissao"
+        FROM "Faturamento"
+        WHERE "tenantId" = ${tenantId} AND "emissao" IS NOT NULL
+          AND COALESCE(NULLIF(TRIM("razaoSocial"), ''), NULLIF(TRIM("nomeFantasia"), '')) IS NOT NULL
+      ) t
+      ORDER BY cliente, "emissao" DESC`,
+    prisma.$queryRaw<{ cliente: string | null; ano: number; valor: number }[]>`
+      SELECT NULLIF(TRIM("cliente"), '') AS cliente,
+             EXTRACT(YEAR FROM "dtEmissao")::int AS ano,
+             COALESCE(SUM("vlrTotal"), 0)::float8 AS valor
+      FROM "Pedido"
+      WHERE "tenantId" = ${tenantId} AND "dtEmissao" IS NOT NULL
+        AND NULLIF(TRIM("cliente"), '') IS NOT NULL
+      GROUP BY 1, 2`,
+    prisma.$queryRaw<{ cliente: string; vendedor: string | null; dt: Date }[]>`
+      SELECT DISTINCT ON (cliente) cliente, "nomeVendedor" AS vendedor, "dtEmissao" AS dt
+      FROM (
+        SELECT NULLIF(TRIM("cliente"), '') AS cliente, "nomeVendedor", "dtEmissao"
+        FROM "Pedido"
+        WHERE "tenantId" = ${tenantId} AND "dtEmissao" IS NOT NULL AND NULLIF(TRIM("cliente"), '') IS NOT NULL
+      ) t
+      ORDER BY cliente, "dtEmissao" DESC`,
+    prisma.$queryRaw<{
+      cliente: string | null; codigo: string | null; dono: string | null;
+      cidade: string | null; uf: string | null; termino: Date | null; criacao: Date | null;
+    }[]>`
+      SELECT NULLIF(TRIM("cliente"), '') AS cliente, "codigoCliente" AS codigo, "responsavel" AS dono,
+             "cidadeCliente" AS cidade, "ufCliente" AS uf, "termino", "criacao"
+      FROM "PloomesOportunidade"
+      WHERE "tenantId" = ${tenantId} AND NULLIF(TRIM("cliente"), '') IS NOT NULL`,
+  ]);
+
+  type Acc = {
+    clienteKey: string;
+    displayName: string;
+    displayWeight: number; // maior faturamento define o nome exibido
+    fatPorAno: Record<number, number>;
+    fatTotal: number;
+    pedPorAno: Record<number, number>;
+    pedTotal: number;
+    vendedorAtual: string | null;
+    vendedorPedido: string | null;
+    codigo: string | null;
+    dono: string | null;
+    cidade: string | null;
+    uf: string | null;
+  };
+  const byKey = new Map<string, Acc>();
+  const anosSet = new Set<number>();
+
+  function ensure(key: string, nameCandidate: string | null): Acc {
+    let acc = byKey.get(key);
+    if (!acc) {
+      acc = {
+        clienteKey: key,
+        displayName: nameCandidate ?? "(sem nome)",
+        displayWeight: 0,
+        fatPorAno: {},
+        fatTotal: 0,
+        pedPorAno: {},
+        pedTotal: 0,
+        vendedorAtual: null,
+        vendedorPedido: null,
+        codigo: null,
+        dono: null,
+        cidade: null,
+        uf: null,
+      };
+      byKey.set(key, acc);
+    }
+    return acc;
+  }
+
+  // Faturamento por ano (define também o nome exibido pelo maior peso).
+  for (const r of fatAgg) {
+    if (!r.cliente) continue;
+    const key = normalizeClienteKey(r.cliente);
+    if (!key) continue;
+    const acc = ensure(key, r.cliente);
+    anosSet.add(r.ano);
+    acc.fatPorAno[r.ano] = (acc.fatPorAno[r.ano] ?? 0) + r.valor;
+    acc.fatTotal += r.valor;
+    if (r.valor > acc.displayWeight) {
+      acc.displayWeight = r.valor;
+      acc.displayName = r.cliente;
+    }
+  }
+  // Pedidos por ano.
+  for (const r of pedAgg) {
+    if (!r.cliente) continue;
+    const key = normalizeClienteKey(r.cliente);
+    if (!key) continue;
+    const acc = ensure(key, r.cliente);
+    anosSet.add(r.ano);
+    acc.pedPorAno[r.ano] = (acc.pedPorAno[r.ano] ?? 0) + r.valor;
+    acc.pedTotal += r.valor;
+  }
+  // Vendedor atual (NF mais recente) — resolve colisões de nome pela data.
+  const fatVendByKey = new Map<string, { vendedor: string | null; emissao: Date }>();
+  for (const r of fatLatest) {
+    const key = normalizeClienteKey(r.cliente);
+    if (!key) continue;
+    const cur = fatVendByKey.get(key);
+    if (!cur || r.emissao > cur.emissao) fatVendByKey.set(key, { vendedor: r.vendedor, emissao: r.emissao });
+  }
+  for (const [key, v] of fatVendByKey) {
+    const acc = byKey.get(key);
+    if (acc) acc.vendedorAtual = v.vendedor;
+  }
+  // Vendedor do último pedido.
+  const pedVendByKey = new Map<string, { vendedor: string | null; dt: Date }>();
+  for (const r of pedLatest) {
+    const key = normalizeClienteKey(r.cliente);
+    if (!key) continue;
+    const cur = pedVendByKey.get(key);
+    if (!cur || r.dt > cur.dt) pedVendByKey.set(key, { vendedor: r.vendedor, dt: r.dt });
+  }
+  for (const [key, v] of pedVendByKey) {
+    const acc = byKey.get(key);
+    if (acc) acc.vendedorPedido = v.vendedor;
+  }
+  // Ploomes: código, dono (responsável), cidade/uf — registro mais recente.
+  const ploomesByKey = new Map<string, { at: number; codigo: string | null; dono: string | null; cidade: string | null; uf: string | null }>();
+  for (const r of ploomes) {
+    if (!r.cliente) continue;
+    const key = normalizeClienteKey(r.cliente);
+    if (!key) continue;
+    const at = (r.termino ?? r.criacao)?.getTime() ?? 0;
+    const cur = ploomesByKey.get(key);
+    if (!cur || at >= cur.at) {
+      ploomesByKey.set(key, { at, codigo: r.codigo, dono: r.dono, cidade: r.cidade, uf: r.uf });
+    }
+  }
+  for (const [key, p] of ploomesByKey) {
+    const acc = byKey.get(key);
+    if (acc) {
+      acc.codigo = p.codigo?.trim() || null;
+      acc.dono = p.dono?.trim() || null;
+      acc.cidade = p.cidade?.trim() || null;
+      acc.uf = p.uf?.trim() || null;
+    }
+  }
+
+  // Classe ABC sobre o faturamento do ano-base.
+  const classeByKey = new Map<string, ClasseAbc>();
+  const abcInput = Array.from(byKey.values())
+    .map((a) => ({ key: a.clienteKey, label: a.displayName, receita: a.fatPorAno[abcAno] ?? 0 }))
+    .filter((x) => x.receita > 0);
+  for (const row of computeAbc(abcInput)) classeByKey.set(row.key, row.classe);
+
+  const anos = Array.from(anosSet).sort((a, b) => a - b);
+  const clientes: PivotClienteRow[] = Array.from(byKey.values())
+    .map((a) => ({
+      clienteKey: a.clienteKey,
+      codigo: a.codigo,
+      cliente: a.displayName,
+      dono: a.dono,
+      vendedorAtual: a.vendedorAtual,
+      vendedorPedido: a.vendedorPedido,
+      cidade: a.cidade,
+      uf: a.uf,
+      classeAbc: classeByKey.get(a.clienteKey) ?? null,
+      fatPorAno: a.fatPorAno,
+      fatTotal: a.fatTotal,
+      pedPorAno: a.pedPorAno,
+      pedTotal: a.pedTotal,
+    }))
+    .sort((x, y) => (y.fatPorAno[abcAno] ?? 0) - (x.fatPorAno[abcAno] ?? 0) || y.fatTotal - x.fatTotal);
+
+  return { anos, abcAno, clientes };
+}
