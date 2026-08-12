@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { csvCurrency, toCsv, type CsvRow } from "@/lib/csv";
-import { getBaseClientesPivot } from "@/lib/services/regiaoVendas";
+import { getBaseVendasDetalhada } from "@/lib/services/carteira";
 
 /**
  * GET /analise-regional/base-pivot
- * Base "achatada" (uma linha por cliente) para tabela dinâmica no Excel:
- * código, nome, dono (Ploomes), vendedor atual (faturamento) e vendedor do
- * último pedido; faturamento ano a ano (+ total) e entrada de pedidos ano a
- * ano (+ total); classe ABC sobre o faturamento do ano-base.
- * Considera toda a história (sem recorte de período). Ano-base ABC via ?abcAno=
- * (default: ano anterior ao atual).
+ * Base detalhada para tabela dinâmica no Excel, combinando FATURAMENTO e
+ * ENTRADA DE PEDIDOS numa lista só (coluna "Origem"), no grão
+ * (cliente, mês, vendedor da época). Cada linha: código do cliente, nome,
+ * vendedor da época, vendedor atual da carteira (dono), valor e classe ABC do
+ * cliente sobre o faturamento do ano-base.
+ * Considera toda a história. Ano-base ABC via ?abcAno= (default: ano anterior).
  */
 export async function GET(req: Request) {
   const session = await auth();
@@ -24,36 +24,30 @@ export async function GET(req: Request) {
       ? abcAnoParam
       : new Date().getFullYear() - 1;
 
-  const { anos, clientes } = await getBaseClientesPivot(tenantId, abcAno);
+  const { rows: dados } = await getBaseVendasDetalhada(tenantId, abcAno);
 
   const headers = [
+    "Origem",
     "Codigo cliente",
     "Nome cliente",
-    "Dono atual (Ploomes)",
-    "Vendedor atual (faturamento)",
-    "Vendedor ultimo pedido",
-    "Cidade",
-    "UF",
+    "Ano",
+    "Mes",
+    "Vendedor da epoca",
+    "Vendedor atual da carteira",
+    "Valor",
     `Classe ABC ${abcAno}`,
-    ...anos.map((a) => `Faturamento ${a}`),
-    "Faturamento total",
-    ...anos.map((a) => `Pedidos ${a}`),
-    "Pedidos total",
   ];
 
-  const rows: CsvRow[] = clientes.map((c) => [
-    c.codigo ?? "",
-    c.cliente,
-    c.dono ?? "",
-    c.vendedorAtual ?? "",
-    c.vendedorPedido ?? "",
-    c.cidade ?? "",
-    c.uf ?? "",
-    c.classeAbc ?? "",
-    ...anos.map((a) => (c.fatPorAno[a] ? csvCurrency(c.fatPorAno[a]) : "")),
-    csvCurrency(c.fatTotal),
-    ...anos.map((a) => (c.pedPorAno[a] ? csvCurrency(c.pedPorAno[a]) : "")),
-    csvCurrency(c.pedTotal),
+  const rows: CsvRow[] = dados.map((r) => [
+    r.origem,
+    r.codigo,
+    r.cliente,
+    r.ano,
+    r.mes,
+    r.vendedorEpoca ?? "",
+    r.vendedorCarteira ?? "",
+    csvCurrency(r.valor),
+    r.classeAbc ?? "",
   ]);
 
   const body = toCsv(headers, rows);
@@ -61,7 +55,7 @@ export async function GET(req: Request) {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="base-clientes-pivot.csv"`,
+      "Content-Disposition": `attachment; filename="base-vendas-detalhada.csv"`,
       "Cache-Control": "no-store",
     },
   });

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { dataTag } from "@/lib/cache";
 import { normalizeClienteKey } from "@/lib/domain/kpiFinanceiro";
 import { computeAbc, type ChurnStatus, type ClasseAbc } from "@/lib/domain/regiaoVendas";
-import { aplicarNomeCliente, getNomeClientePorCodigo } from "@/lib/services/clienteNomes";
+import { aplicarNomeCliente, getNomeClientePorCodigo, codigoClienteKey } from "@/lib/services/clienteNomes";
 import {
   getAnaliseRegional,
   type ClienteRegiaoRow,
@@ -434,4 +434,145 @@ export async function getAnaliseCarteira(f: RegiaoVendasFilters): Promise<Analis
     base,
     refDataISO: regional.refDataISO,
   };
+}
+
+// ── Base detalhada para tabela dinâmica (faturamento + entrada de pedidos) ───
+
+export interface VendaDetalheRow {
+  origem: "Faturamento" | "Entrada de pedido";
+  /** Código do cadastro (Protheus). Pedido já traz o código; faturamento cruza pelo nome. */
+  codigo: string;
+  cliente: string;
+  ano: number;
+  /** Competência "YYYY-MM". */
+  mes: string;
+  /** Vendedor da ÉPOCA (nomeVendedor da NF / do pedido). */
+  vendedorEpoca: string | null;
+  /** Vendedor ATUAL da carteira (dono, base CARTEIRA_CLIENTE); null = sem carteira. */
+  vendedorCarteira: string | null;
+  valor: number;
+  /** Classe ABC do cliente sobre o faturamento do ano-base (null = sem fat. no ano). */
+  classeAbc: ClasseAbc | null;
+}
+
+export interface BaseVendasDetalhada {
+  abcAno: number;
+  rows: VendaDetalheRow[];
+}
+
+/**
+ * Base "achatada"/detalhada para tabela dinâmica no Excel, combinando
+ * FATURAMENTO e ENTRADA DE PEDIDOS numa única lista (coluna `origem`), no grão
+ * (cliente, mês, vendedor da época). Cada linha traz: código do cliente, nome,
+ * vendedor da época, vendedor atual da carteira (dono) e a classe ABC do
+ * cliente sobre o faturamento do ano-base (A ≤ 80%, B ≤ 95%, C o restante).
+ *
+ * Fontes (sem Ploomes): o código vem do cadastro `CarteiraCliente` — para o
+ * faturamento, cruzando pelo nome normalizado; para o pedido, a própria coluna
+ * "Cliente" já é o código, que é traduzido para o nome. O dono da carteira sai
+ * de `getCarteiraBase`. Considera toda a história (sem recorte de período).
+ */
+export async function getBaseVendasDetalhada(
+  tenantId: string,
+  abcAno: number,
+): Promise<BaseVendasDetalhada> {
+  const [fat, ped, base, nomesPairs, cadastros] = await Promise.all([
+    prisma.$queryRaw<{ cliente: string | null; mes: string; vendedor: string | null; valor: number }[]>`
+      SELECT COALESCE(NULLIF(TRIM("razaoSocial"), ''), NULLIF(TRIM("nomeFantasia"), '')) AS cliente,
+             to_char("emissao", 'YYYY-MM') AS mes,
+             NULLIF(TRIM("nomeVendedor"), '') AS vendedor,
+             COALESCE(SUM("faturamentoLiquido"), 0)::float8 AS valor
+      FROM "Faturamento"
+      WHERE "tenantId" = ${tenantId} AND "emissao" IS NOT NULL
+        AND COALESCE(NULLIF(TRIM("razaoSocial"), ''), NULLIF(TRIM("nomeFantasia"), '')) IS NOT NULL
+      GROUP BY 1, 2, 3`,
+    prisma.$queryRaw<{ codigo: string | null; mes: string; vendedor: string | null; valor: number }[]>`
+      SELECT NULLIF(TRIM("cliente"), '') AS codigo,
+             to_char("dtEmissao", 'YYYY-MM') AS mes,
+             NULLIF(TRIM("nomeVendedor"), '') AS vendedor,
+             COALESCE(SUM("vlrTotal"), 0)::float8 AS valor
+      FROM "Pedido"
+      WHERE "tenantId" = ${tenantId} AND "dtEmissao" IS NOT NULL AND NULLIF(TRIM("cliente"), '') IS NOT NULL
+      GROUP BY 1, 2, 3`,
+    getCarteiraBase(tenantId),
+    getNomeClientePorCodigo(tenantId),
+    prisma.carteiraCliente.findMany({
+      where: { tenantId, codigoCliente: { not: null } },
+      select: { clienteKey: true, fantasiaKey: true, codigoCliente: true },
+    }),
+  ]);
+
+  const resolverDono = makeDonoResolver(base);
+  const nomePorCodigo = new Map(nomesPairs);
+
+  // clienteKey / fantasiaKey → código do cadastro (primeiro cadastro vence).
+  const codigoPorKey = new Map<string, string>();
+  for (const c of cadastros) {
+    const cod = c.codigoCliente?.trim();
+    if (!cod) continue;
+    if (c.clienteKey && !codigoPorKey.has(c.clienteKey)) codigoPorKey.set(c.clienteKey, cod);
+    if (c.fantasiaKey && !codigoPorKey.has(c.fantasiaKey)) codigoPorKey.set(c.fantasiaKey, cod);
+  }
+
+  // Curva ABC sobre o faturamento do ano-base, por cliente (clienteKey).
+  const fatAnoBase = new Map<string, { label: string; receita: number }>();
+  for (const r of fat) {
+    if (!r.cliente || !r.mes.startsWith(`${abcAno}-`)) continue;
+    const key = normalizeClienteKey(r.cliente);
+    if (!key) continue;
+    const cur = fatAnoBase.get(key);
+    if (cur) cur.receita += r.valor;
+    else fatAnoBase.set(key, { label: r.cliente, receita: r.valor });
+  }
+  const classePorKey = new Map<string, ClasseAbc>();
+  for (const row of computeAbc(
+    [...fatAnoBase.entries()]
+      .filter(([, v]) => v.receita > 0)
+      .map(([key, v]) => ({ key, label: v.label, receita: v.receita })),
+  )) {
+    classePorKey.set(row.key, row.classe);
+  }
+
+  const rows: VendaDetalheRow[] = [];
+  for (const r of fat) {
+    if (!r.cliente) continue;
+    const key = normalizeClienteKey(r.cliente);
+    if (!key) continue;
+    rows.push({
+      origem: "Faturamento",
+      codigo: codigoPorKey.get(key) ?? "",
+      cliente: r.cliente,
+      ano: Number(r.mes.slice(0, 4)),
+      mes: r.mes,
+      vendedorEpoca: r.vendedor,
+      vendedorCarteira: resolverDono(key)?.dono ?? null,
+      valor: r.valor,
+      classeAbc: classePorKey.get(key) ?? null,
+    });
+  }
+  for (const r of ped) {
+    if (!r.codigo) continue;
+    const nome = nomePorCodigo.get(codigoClienteKey(r.codigo)) ?? r.codigo;
+    const key = normalizeClienteKey(nome);
+    rows.push({
+      origem: "Entrada de pedido",
+      codigo: r.codigo,
+      cliente: nome,
+      ano: Number(r.mes.slice(0, 4)),
+      mes: r.mes,
+      vendedorEpoca: r.vendedor,
+      vendedorCarteira: resolverDono(key)?.dono ?? null,
+      valor: r.valor,
+      classeAbc: classePorKey.get(key) ?? null,
+    });
+  }
+
+  rows.sort(
+    (a, b) =>
+      a.cliente.localeCompare(b.cliente, "pt-BR") ||
+      a.origem.localeCompare(b.origem) ||
+      a.mes.localeCompare(b.mes),
+  );
+
+  return { abcAno, rows };
 }
