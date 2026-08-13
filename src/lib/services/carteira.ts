@@ -439,18 +439,22 @@ export async function getAnaliseCarteira(f: RegiaoVendasFilters): Promise<Analis
 // ── Base detalhada para tabela dinâmica (faturamento + entrada de pedidos) ───
 
 export interface VendaDetalheRow {
-  origem: "Faturamento" | "Entrada de pedido";
+  origem: "Faturamento" | "Entrada de pedido" | "Cadastro (sem histórico)";
   /** Código do cadastro (Protheus). Pedido já traz o código; faturamento cruza pelo nome. */
   codigo: string;
   cliente: string;
-  ano: number;
-  /** Competência "YYYY-MM". */
+  cidade: string | null;
+  uf: string | null;
+  /** Ano da competência; null nas linhas de cadastro sem histórico. */
+  ano: number | null;
+  /** Competência "YYYY-MM" (vazio nas linhas de cadastro sem histórico). */
   mes: string;
   /** Vendedor da ÉPOCA (nomeVendedor da NF / do pedido). */
   vendedorEpoca: string | null;
   /** Vendedor ATUAL da carteira (dono, base CARTEIRA_CLIENTE); null = sem carteira. */
   vendedorCarteira: string | null;
-  valor: number;
+  /** Valor (faturamento líquido / valor do pedido); null nas linhas sem histórico. */
+  valor: number | null;
   /** Classe ABC do cliente sobre o faturamento do ano-base (null = sem fat. no ano). */
   classeAbc: ClasseAbc | null;
 }
@@ -467,10 +471,14 @@ export interface BaseVendasDetalhada {
  * vendedor da época, vendedor atual da carteira (dono) e a classe ABC do
  * cliente sobre o faturamento do ano-base (A ≤ 80%, B ≤ 95%, C o restante).
  *
- * Fontes (sem Ploomes): o código vem do cadastro `CarteiraCliente` — para o
- * faturamento, cruzando pelo nome normalizado; para o pedido, a própria coluna
- * "Cliente" já é o código, que é traduzido para o nome. O dono da carteira sai
- * de `getCarteiraBase`. Considera toda a história (sem recorte de período).
+ * Fontes (sem Ploomes): código, cidade/UF e o nome dos clientes SEM histórico
+ * vêm do cadastro `CarteiraCliente` — para o faturamento, cruzando pelo nome
+ * normalizado; para o pedido, a própria coluna "Cliente" já é o código, que é
+ * traduzido para o nome. O dono da carteira sai de `getCarteiraBase`.
+ *
+ * Inclui também os clientes do cadastro que NÃO têm histórico de faturamento
+ * nem de pedido (origem "Cadastro (sem histórico)"), com código, nome,
+ * cidade/UF e vendedor atual da carteira. Considera toda a história.
  */
 export async function getBaseVendasDetalhada(
   tenantId: string,
@@ -497,22 +505,44 @@ export async function getBaseVendasDetalhada(
     getCarteiraBase(tenantId),
     getNomeClientePorCodigo(tenantId),
     prisma.carteiraCliente.findMany({
-      where: { tenantId, codigoCliente: { not: null } },
-      select: { clienteKey: true, fantasiaKey: true, codigoCliente: true },
+      where: { tenantId },
+      select: {
+        clienteKey: true,
+        fantasiaKey: true,
+        codigoCliente: true,
+        cliente: true,
+        municipio: true,
+        uf: true,
+      },
     }),
   ]);
 
   const resolverDono = makeDonoResolver(base);
   const nomePorCodigo = new Map(nomesPairs);
 
-  // clienteKey / fantasiaKey → código do cadastro (primeiro cadastro vence).
+  // clienteKey / fantasiaKey → código e → geografia (primeiro cadastro vence).
   const codigoPorKey = new Map<string, string>();
+  const geoPorKey = new Map<string, { cidade: string | null; uf: string | null }>();
+  // clienteKey → cadastro representativo (para emitir clientes SEM histórico).
+  const cadastroPorKey = new Map<
+    string,
+    { codigo: string; cliente: string; cidade: string | null; uf: string | null }
+  >();
   for (const c of cadastros) {
-    const cod = c.codigoCliente?.trim();
-    if (!cod) continue;
-    if (c.clienteKey && !codigoPorKey.has(c.clienteKey)) codigoPorKey.set(c.clienteKey, cod);
-    if (c.fantasiaKey && !codigoPorKey.has(c.fantasiaKey)) codigoPorKey.set(c.fantasiaKey, cod);
+    const cod = c.codigoCliente?.trim() || "";
+    const cidade = c.municipio?.trim() || null;
+    const uf = c.uf?.trim() || null;
+    for (const key of [c.clienteKey, c.fantasiaKey]) {
+      if (!key) continue;
+      if (cod && !codigoPorKey.has(key)) codigoPorKey.set(key, cod);
+      if ((cidade || uf) && !geoPorKey.has(key)) geoPorKey.set(key, { cidade, uf });
+    }
+    // Um representante por clienteKey (nome principal do cadastro).
+    if (c.clienteKey && !cadastroPorKey.has(c.clienteKey)) {
+      cadastroPorKey.set(c.clienteKey, { codigo: cod, cliente: c.cliente, cidade, uf });
+    }
   }
+  const geoDe = (key: string) => geoPorKey.get(key) ?? { cidade: null, uf: null };
 
   // Curva ABC sobre o faturamento do ano-base, por cliente (clienteKey).
   const fatAnoBase = new Map<string, { label: string; receita: number }>();
@@ -534,14 +564,20 @@ export async function getBaseVendasDetalhada(
   }
 
   const rows: VendaDetalheRow[] = [];
+  // clienteKeys que têm QUALQUER histórico (faturamento ou pedido).
+  const comHistorico = new Set<string>();
   for (const r of fat) {
     if (!r.cliente) continue;
     const key = normalizeClienteKey(r.cliente);
     if (!key) continue;
+    comHistorico.add(key);
+    const geo = geoDe(key);
     rows.push({
       origem: "Faturamento",
       codigo: codigoPorKey.get(key) ?? "",
       cliente: r.cliente,
+      cidade: geo.cidade,
+      uf: geo.uf,
       ano: Number(r.mes.slice(0, 4)),
       mes: r.mes,
       vendedorEpoca: r.vendedor,
@@ -554,16 +590,38 @@ export async function getBaseVendasDetalhada(
     if (!r.codigo) continue;
     const nome = nomePorCodigo.get(codigoClienteKey(r.codigo)) ?? r.codigo;
     const key = normalizeClienteKey(nome);
+    comHistorico.add(key);
+    const geo = geoDe(key);
     rows.push({
       origem: "Entrada de pedido",
       codigo: r.codigo,
       cliente: nome,
+      cidade: geo.cidade,
+      uf: geo.uf,
       ano: Number(r.mes.slice(0, 4)),
       mes: r.mes,
       vendedorEpoca: r.vendedor,
       vendedorCarteira: resolverDono(key)?.dono ?? null,
       valor: r.valor,
       classeAbc: classePorKey.get(key) ?? null,
+    });
+  }
+
+  // Clientes do cadastro SEM histórico de faturamento nem de pedido.
+  for (const [key, c] of cadastroPorKey) {
+    if (comHistorico.has(key)) continue;
+    rows.push({
+      origem: "Cadastro (sem histórico)",
+      codigo: c.codigo,
+      cliente: c.cliente,
+      cidade: c.cidade,
+      uf: c.uf,
+      ano: null,
+      mes: "",
+      vendedorEpoca: null,
+      vendedorCarteira: resolverDono(key)?.dono ?? null,
+      valor: null,
+      classeAbc: null,
     });
   }
 
