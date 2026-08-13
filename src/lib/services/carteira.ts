@@ -457,6 +457,8 @@ export interface VendaDetalheRow {
   valor: number | null;
   /** Classe ABC do cliente sobre o faturamento do ano-base (null = sem fat. no ano). */
   classeAbc: ClasseAbc | null;
+  /** "Ativo" se teve faturamento OU pedido na janela de atividade; senão "Inativo". */
+  situacao: "Ativo" | "Inativo";
 }
 
 export interface BaseVendasDetalhada {
@@ -479,10 +481,15 @@ export interface BaseVendasDetalhada {
  * Inclui também os clientes do cadastro que NÃO têm histórico de faturamento
  * nem de pedido (origem "Cadastro (sem histórico)"), com código, nome,
  * cidade/UF e vendedor atual da carteira. Considera toda a história.
+ *
+ * A coluna `situacao` marca "Ativo"/"Inativo" por cliente: Ativo = teve
+ * faturamento OU pedido nos últimos `janelaMeses` meses (default 12); os
+ * clientes sem histórico ficam "Inativo".
  */
 export async function getBaseVendasDetalhada(
   tenantId: string,
   abcAno: number,
+  janelaMeses = 12,
 ): Promise<BaseVendasDetalhada> {
   const [fat, ped, base, nomesPairs, cadastros] = await Promise.all([
     prisma.$queryRaw<{ cliente: string | null; mes: string; vendedor: string | null; valor: number }[]>`
@@ -563,6 +570,32 @@ export async function getBaseVendasDetalhada(
     classePorKey.set(row.key, row.classe);
   }
 
+  // Situação Ativo/Inativo: última movimentação (faturamento OU pedido) por
+  // cliente vs. a janela de atividade. Mês de corte "YYYY-MM" = hoje − janela.
+  const agora = new Date();
+  const corte = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth() - janelaMeses, 1));
+  const corteYm = `${corte.getUTCFullYear()}-${String(corte.getUTCMonth() + 1).padStart(2, "0")}`;
+  const ultimaMovPorKey = new Map<string, string>();
+  const marcarMov = (key: string, mes: string) => {
+    const cur = ultimaMovPorKey.get(key);
+    if (!cur || mes > cur) ultimaMovPorKey.set(key, mes);
+  };
+  for (const r of fat) {
+    if (!r.cliente) continue;
+    const key = normalizeClienteKey(r.cliente);
+    if (key) marcarMov(key, r.mes);
+  }
+  for (const r of ped) {
+    if (!r.codigo) continue;
+    const nome = nomePorCodigo.get(codigoClienteKey(r.codigo)) ?? r.codigo;
+    const key = normalizeClienteKey(nome);
+    if (key) marcarMov(key, r.mes);
+  }
+  const situacaoDe = (key: string): "Ativo" | "Inativo" => {
+    const ult = ultimaMovPorKey.get(key);
+    return ult && ult >= corteYm ? "Ativo" : "Inativo";
+  };
+
   const rows: VendaDetalheRow[] = [];
   // clienteKeys que têm QUALQUER histórico (faturamento ou pedido).
   const comHistorico = new Set<string>();
@@ -584,6 +617,7 @@ export async function getBaseVendasDetalhada(
       vendedorCarteira: resolverDono(key)?.dono ?? null,
       valor: r.valor,
       classeAbc: classePorKey.get(key) ?? null,
+      situacao: situacaoDe(key),
     });
   }
   for (const r of ped) {
@@ -604,6 +638,7 @@ export async function getBaseVendasDetalhada(
       vendedorCarteira: resolverDono(key)?.dono ?? null,
       valor: r.valor,
       classeAbc: classePorKey.get(key) ?? null,
+      situacao: situacaoDe(key),
     });
   }
 
@@ -622,6 +657,7 @@ export async function getBaseVendasDetalhada(
       vendedorCarteira: resolverDono(key)?.dono ?? null,
       valor: null,
       classeAbc: null,
+      situacao: "Inativo",
     });
   }
 
