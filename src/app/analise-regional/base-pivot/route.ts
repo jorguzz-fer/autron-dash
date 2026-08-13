@@ -24,7 +24,14 @@ export async function GET(req: Request) {
       ? abcAnoParam
       : new Date().getFullYear() - 1;
 
-  const { rows: dados } = await getBaseVendasDetalhada(tenantId, abcAno);
+  // Janela (meses) de atividade p/ marcar Ativo/Inativo. Default 12.
+  const ativoMesesParam = Number(url.searchParams.get("ativoMeses"));
+  const janelaMeses =
+    Number.isInteger(ativoMesesParam) && ativoMesesParam >= 1 && ativoMesesParam <= 120
+      ? ativoMesesParam
+      : 12;
+
+  const { rows: dados } = await getBaseVendasDetalhada(tenantId, abcAno, janelaMeses);
 
   const headers = [
     "Origem",
@@ -38,6 +45,7 @@ export async function GET(req: Request) {
     "Vendedor atual da carteira",
     "Valor",
     `Classe ABC ${abcAno}`,
+    `Situacao (${janelaMeses}m)`,
   ];
 
   const rows: CsvRow[] = dados.map((r) => [
@@ -52,6 +60,7 @@ export async function GET(req: Request) {
     r.vendedorCarteira ?? "",
     csvCurrency(r.valor),
     r.classeAbc ?? "",
+    r.situacao,
   ]);
 
   const body = toCsv(headers, rows);
