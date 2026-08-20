@@ -2,7 +2,14 @@
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { PlusCircle, Pencil } from "lucide-react";
+import { fracaoParaPct, pctParaFracao } from "@/lib/domain/comissao/percentual";
 import { criarCargo, atualizarCargo } from "./actions";
+
+// Os campos são digitados em PERCENTUAL (1,5 = 1,5%) e gravados em FRAÇÃO
+// (0,015). Limites da tela em percentual — o banco guarda Decimal(6,4).
+const PCT_MAX_COMISSAO = 100; // 100% do valor do pedido
+const PCT_MAX_GATILHO = 999.99; // gatilho acima de 100% da meta é possível
+const PCT_STEP = 0.01; // 0,01% = 0.0001 na fração
 
 const BASE_OPTIONS = [
   { value: "INDIVIDUAL", label: "Individual" },
@@ -38,8 +45,8 @@ export function CargoCriarBtn() {
     const input = {
       ano: Number(fd.get("ano") ?? anoAtual),
       cargo: String(fd.get("cargo") ?? "").trim(),
-      comissaoPct: Number(fd.get("comissaoPct") ?? 0),
-      gatilhoPct: Number(fd.get("gatilhoPct") ?? 0),
+      comissaoPct: pctParaFracao(Number(fd.get("comissaoPct") ?? 0)),
+      gatilhoPct: pctParaFracao(Number(fd.get("gatilhoPct") ?? 0)),
       base: String(fd.get("base") ?? "INDIVIDUAL"),
     };
 
@@ -125,28 +132,28 @@ export function CargoCriarBtn() {
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Comissão %" hint="ex: 0.05 = 5%">
+              <Field label="Comissão (%)" hint="digite 1,5 para 1,5%">
                 <input
                   type="number"
                   name="comissaoPct"
                   required
                   min={0}
-                  max={9.9999}
-                  step={0.0001}
+                  max={PCT_MAX_COMISSAO}
+                  step={PCT_STEP}
                   defaultValue={0}
                   className={INPUT_CLASS}
                   style={INPUT_STYLE}
                 />
               </Field>
 
-              <Field label="Gatilho %" hint="ex: 0.7 = 70%">
+              <Field label="Gatilho (%)" hint="digite 70 para 70% da meta">
                 <input
                   type="number"
                   name="gatilhoPct"
                   required
                   min={0}
-                  max={9.9999}
-                  step={0.0001}
+                  max={PCT_MAX_GATILHO}
+                  step={PCT_STEP}
                   defaultValue={0}
                   className={INPUT_CLASS}
                   style={INPUT_STYLE}
@@ -187,8 +194,8 @@ export function CargoEditarBtn({ cargo }: { cargo: CargoData }) {
     const input = {
       ano: Number(fd.get("ano") ?? cargo.ano),
       cargo: String(fd.get("cargo") ?? "").trim(),
-      comissaoPct: Number(fd.get("comissaoPct") ?? 0),
-      gatilhoPct: Number(fd.get("gatilhoPct") ?? 0),
+      comissaoPct: pctParaFracao(Number(fd.get("comissaoPct") ?? 0)),
+      gatilhoPct: pctParaFracao(Number(fd.get("gatilhoPct") ?? 0)),
       base: String(fd.get("base") ?? "INDIVIDUAL"),
     };
 
@@ -266,29 +273,29 @@ export function CargoEditarBtn({ cargo }: { cargo: CargoData }) {
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Comissão %">
+              <Field label="Comissão (%)" hint="digite 1,5 para 1,5%">
                 <input
                   type="number"
                   name="comissaoPct"
                   required
                   min={0}
-                  max={9.9999}
-                  step={0.0001}
-                  defaultValue={Number(cargo.comissaoPct)}
+                  max={PCT_MAX_COMISSAO}
+                  step={PCT_STEP}
+                  defaultValue={fracaoParaPct(Number(cargo.comissaoPct))}
                   className={INPUT_CLASS}
                   style={INPUT_STYLE}
                 />
               </Field>
 
-              <Field label="Gatilho %">
+              <Field label="Gatilho (%)" hint="digite 70 para 70% da meta">
                 <input
                   type="number"
                   name="gatilhoPct"
                   required
                   min={0}
-                  max={9.9999}
-                  step={0.0001}
-                  defaultValue={Number(cargo.gatilhoPct)}
+                  max={PCT_MAX_GATILHO}
+                  step={PCT_STEP}
+                  defaultValue={fracaoParaPct(Number(cargo.gatilhoPct))}
                   className={INPUT_CLASS}
                   style={INPUT_STYLE}
                 />
