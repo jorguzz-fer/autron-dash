@@ -50,10 +50,12 @@ export function apurarAno(
     saldoAcum += saldo;
     epAcum += ep;
     metaAcum += meta;
+    const pctMes = meta > 0 ? ep / meta : null;
+    const pctAcumulado = metaAcum > 0 ? round2(epAcum / metaAcum) : null;
     const habilita =
       regra.gatilhoPct === 0
         ? true
-        : metaAcum > 0 && round2(epAcum / metaAcum) >= regra.gatilhoPct;
+        : pctAcumulado != null && pctAcumulado >= regra.gatilhoPct;
     result.push({
       mes: i + 1,
       meta,
@@ -61,6 +63,8 @@ export function apurarAno(
       ep,
       saldo,
       saldoAcumulado: saldoAcum,
+      pctMes,
+      pctAcumulado,
       habilita,
       previsao: 0,
     });

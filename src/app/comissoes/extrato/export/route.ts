@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { getExtratoVendedor } from "@/lib/services/comissao";
-import { csvCurrency, toCsv, type CsvRow } from "@/lib/csv";
+import { gerarXlsxExtrato } from "@/lib/services/comissao-export";
+import { csvCurrency, type CsvRow } from "@/lib/csv";
 import { getUserAccess } from "@/lib/services/perfis";
 
 const MESES_LABEL = [
@@ -10,9 +11,12 @@ const MESES_LABEL = [
 ];
 
 /**
- * GET /comissoes/extrato/export?vend=000022&ano=2026
+ * GET /comissoes/extrato/export?vend=000022&ano=2026[&format=csv]
  *
- * Retorna CSV com o extrato completo de um vendedor/ano:
+ * Padrão: .xlsx (reunião ago/2026 — o arquivo vai pro vendedor como evidência
+ * e CSV é ruim de tratar). `format=csv` mantém o formato antigo.
+ *
+ * O CSV traz o extrato completo de um vendedor/ano:
  * - Seção 1: Apuração mensal (Meta, Gatilho, EP, Saldo, Saldo Acum., Habilita, Previsão[, A Receber])
  * - Seção 2: Programado para pagar (faturado, aguardando cliente) por janela
  * - Seção 3: Pedidos pagos por janela (linhas × meses)
@@ -35,6 +39,25 @@ export async function GET(req: NextRequest) {
 
   if (!vend) {
     return NextResponse.json({ error: "Parâmetro vend é obrigatório" }, { status: 400 });
+  }
+
+  if (u.get("format") !== "csv") {
+    const out = await gerarXlsxExtrato(session.user.tenantId, vend, ano);
+    if (!out) {
+      return NextResponse.json(
+        { error: "Vendedor não encontrado ou sem dados para o ano informado" },
+        { status: 404 },
+      );
+    }
+    return new NextResponse(out.buffer as unknown as BodyInit, {
+      status: 200,
+      headers: {
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${out.filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
   const extrato = await getExtratoVendedor(session.user.tenantId, vend, ano);

@@ -157,6 +157,31 @@ describe("apurarAno", () => {
     expect(ap[0].ep).toBe(1000); // only 2026 counted
   });
 
+  it("pctMes e pctAcumulado: fração da meta, acumulado igual ao critério de habilita", () => {
+    // JAN 120% da meta, FEV 30% → acumulado FEV = 1500/2000 = 0.75 (>= 0.7 habilita)
+    const lancs = [lanc(1, 1200, "P1"), lanc(2, 300, "P2")];
+    const metas = [meta(1, 1000), meta(2, 1000)];
+    const ap = apurarAno(lancs, metas, regra, 2026);
+    expect(ap[0].pctMes).toBeCloseTo(1.2);
+    expect(ap[0].pctAcumulado).toBeCloseTo(1.2);
+    expect(ap[1].pctMes).toBeCloseTo(0.3);
+    expect(ap[1].pctAcumulado).toBeCloseTo(0.75);
+    expect(ap[1].habilita).toBe(true);
+  });
+
+  it("pctAcumulado usa o mesmo arredondamento de 2 casas do habilita (0.695 → 0.7)", () => {
+    const lancs = [lanc(1, 695, "P1")];
+    const ap = apurarAno(lancs, [meta(1, 1000)], regra, 2026);
+    expect(ap[0].pctAcumulado).toBe(0.7);
+    expect(ap[0].habilita).toBe(true);
+  });
+
+  it("pctMes/pctAcumulado são null em mês sem meta", () => {
+    const ap = apurarAno([lanc(1, 500, "P1")], [], regra, 2026);
+    expect(ap[0].pctMes).toBeNull();
+    expect(ap[0].pctAcumulado).toBeNull();
+  });
+
   it("zero metas default to 0", () => {
     const ap = apurarAno([lanc(1, 500, "P1")], [], regra, 2026);
     expect(ap[0].meta).toBe(0);
