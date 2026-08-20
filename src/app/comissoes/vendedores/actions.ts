@@ -36,8 +36,19 @@ const vendedorSchema = z.object({
   cargo: z.string().trim().min(1, "Cargo obrigatório").max(60),
   tipo: z.enum(TIPO_VALUES, { errorMap: () => ({ message: "Tipo inválido" }) }),
   nivel: z.coerce.number().int().min(1).max(10).optional().nullable(),
-  gatilhoOverride: z.coerce.number().min(0).max(9.9999).optional().nullable(),
-  comissaoOverride: z.coerce.number().min(0).max(9.9999).optional().nullable(),
+  // Frações (0.015 = 1,5%) — a tela digita em % e converte antes de enviar.
+  gatilhoOverride: z.coerce
+    .number()
+    .min(0, "Gatilho não pode ser negativo")
+    .max(9.9999, "Gatilho máximo: 999,99%")
+    .optional()
+    .nullable(),
+  comissaoOverride: z.coerce
+    .number()
+    .min(0, "Comissão não pode ser negativa")
+    .max(1, "Comissão máxima: 100%")
+    .optional()
+    .nullable(),
   supervisorCodigo: z.string().trim().max(30).optional().nullable(),
   ...garantidoFields,
   ativo: z.boolean().optional(),
@@ -224,14 +235,15 @@ export async function atualizarVendedor(
 const cargoSchema = z.object({
   ano: z.coerce.number().int().min(2020).max(2099),
   cargo: z.string().trim().min(1, "Cargo obrigatório").max(60),
+  // Frações (0.015 = 1,5%) — a tela digita em % e converte antes de enviar.
   comissaoPct: z.coerce
     .number()
     .min(0, "Comissão não pode ser negativa")
-    .max(9.9999, "Comissão máxima: 9.9999"),
+    .max(1, "Comissão máxima: 100%"),
   gatilhoPct: z.coerce
     .number()
     .min(0, "Gatilho não pode ser negativo")
-    .max(9.9999, "Gatilho máximo: 9.9999"),
+    .max(9.9999, "Gatilho máximo: 999,99%"),
   base: z.enum(BASE_VALUES, { errorMap: () => ({ message: "Base inválida" }) }),
 });
 

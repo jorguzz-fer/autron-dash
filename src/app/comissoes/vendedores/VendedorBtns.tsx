@@ -2,7 +2,27 @@
 
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { UserPlus, Pencil } from "lucide-react";
+import { fracaoParaPct, pctParaFracao } from "@/lib/domain/comissao/percentual";
 import { criarVendedor, atualizarVendedor } from "./actions";
+
+// Overrides são digitados em PERCENTUAL (1,5 = 1,5%) e gravados em FRAÇÃO
+// (0,015) — mesma convenção da tabela de cargos.
+const PCT_MAX_COMISSAO = 100;
+const PCT_MAX_GATILHO = 999.99;
+const PCT_STEP = 0.01;
+
+/**
+ * Campo opcional em percentual → fração, ou `null` quando deixado em branco.
+ * Vazio = "usa o % do cargo"; zero digitado é um override legítimo (0% = não
+ * comissiona / sem gatilho) e precisa ser gravado — por isso o teste é contra
+ * string vazia, e não a truthiness do valor.
+ */
+function lePctOpcional(fd: FormData, campo: string): number | null {
+  const raw = String(fd.get(campo) ?? "").trim();
+  if (raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? pctParaFracao(n) : null;
+}
 
 const TIPO_OPTIONS = [
   { value: "CLT", label: "CLT" },
@@ -61,8 +81,8 @@ export function VendedorCriarBtn({ supervisores = [] }: { supervisores?: Supervi
       cargo: String(fd.get("cargo") ?? "").trim(),
       tipo: String(fd.get("tipo") ?? "CLT"),
       nivel: fd.get("nivel") ? Number(fd.get("nivel")) : null,
-      gatilhoOverride: fd.get("gatilhoOverride") ? Number(fd.get("gatilhoOverride")) : null,
-      comissaoOverride: fd.get("comissaoOverride") ? Number(fd.get("comissaoOverride")) : null,
+      gatilhoOverride: lePctOpcional(fd, "gatilhoOverride"),
+      comissaoOverride: lePctOpcional(fd, "comissaoOverride"),
       ...readExtraFields(fd),
       ativo: fd.get("ativo") === "on",
     };
@@ -172,26 +192,26 @@ export function VendedorCriarBtn({ supervisores = [] }: { supervisores?: Supervi
                 />
               </Field>
 
-              <Field label="Gatilho override" hint="ex: 0.7 = 70%, opcional">
+              <Field label="Gatilho override (%)" hint="digite 70 para 70%; vazio usa o cargo">
                 <input
                   type="number"
                   name="gatilhoOverride"
                   min={0}
-                  max={9.9999}
-                  step={0.0001}
+                  max={PCT_MAX_GATILHO}
+                  step={PCT_STEP}
                   className={INPUT_CLASS}
                   style={INPUT_STYLE}
                 />
               </Field>
             </div>
 
-            <Field label="Comissão override" hint="% individual — ex: 0.015 = 1,5%. Vazio usa o % do cargo.">
+            <Field label="Comissão override (%)" hint="% individual — digite 1,5 para 1,5%. Vazio usa o % do cargo.">
               <input
                 type="number"
                 name="comissaoOverride"
                 min={0}
-                max={9.9999}
-                step={0.0001}
+                max={PCT_MAX_COMISSAO}
+                step={PCT_STEP}
                 className={INPUT_CLASS}
                 style={INPUT_STYLE}
               />
@@ -250,8 +270,8 @@ export function VendedorEditarBtn({
       cargo: String(fd.get("cargo") ?? "").trim(),
       tipo: String(fd.get("tipo") ?? "CLT"),
       nivel: fd.get("nivel") ? Number(fd.get("nivel")) : null,
-      gatilhoOverride: fd.get("gatilhoOverride") ? Number(fd.get("gatilhoOverride")) : null,
-      comissaoOverride: fd.get("comissaoOverride") ? Number(fd.get("comissaoOverride")) : null,
+      gatilhoOverride: lePctOpcional(fd, "gatilhoOverride"),
+      comissaoOverride: lePctOpcional(fd, "comissaoOverride"),
       ...readExtraFields(fd),
       ativo: fd.get("ativo") === "on",
     };
@@ -266,10 +286,11 @@ export function VendedorEditarBtn({
     });
   }
 
+  // Banco guarda fração; o campo é em percentual.
   const gatilhoNum =
-    vendedor.gatilhoOverride != null ? Number(vendedor.gatilhoOverride) : "";
+    vendedor.gatilhoOverride != null ? fracaoParaPct(Number(vendedor.gatilhoOverride)) : "";
   const comissaoNum =
-    vendedor.comissaoOverride != null ? Number(vendedor.comissaoOverride) : "";
+    vendedor.comissaoOverride != null ? fracaoParaPct(Number(vendedor.comissaoOverride)) : "";
 
   return (
     <>
@@ -359,13 +380,13 @@ export function VendedorEditarBtn({
                 />
               </Field>
 
-              <Field label="Gatilho override">
+              <Field label="Gatilho override (%)" hint="digite 70 para 70%; vazio usa o cargo">
                 <input
                   type="number"
                   name="gatilhoOverride"
                   min={0}
-                  max={9.9999}
-                  step={0.0001}
+                  max={PCT_MAX_GATILHO}
+                  step={PCT_STEP}
                   defaultValue={gatilhoNum}
                   className={INPUT_CLASS}
                   style={INPUT_STYLE}
@@ -373,13 +394,13 @@ export function VendedorEditarBtn({
               </Field>
             </div>
 
-            <Field label="Comissão override" hint="% individual — ex: 0.015 = 1,5%. Vazio usa o % do cargo.">
+            <Field label="Comissão override (%)" hint="% individual — digite 1,5 para 1,5%. Vazio usa o % do cargo.">
               <input
                 type="number"
                 name="comissaoOverride"
                 min={0}
-                max={9.9999}
-                step={0.0001}
+                max={PCT_MAX_COMISSAO}
+                step={PCT_STEP}
                 defaultValue={comissaoNum}
                 className={INPUT_CLASS}
                 style={INPUT_STYLE}

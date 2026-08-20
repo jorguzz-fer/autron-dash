@@ -21,10 +21,39 @@ const TIPO_TONE: Record<string, "brand" | "success" | "warning"> = {
   REPRESENTANTE: "success",
 };
 
+/** Os percentuais são guardados como fração (0.015 = 1,5%). */
 function fmtPct(val: string | number | null | undefined): string {
   if (val == null || val === "") return "—";
   const n = Number(val);
   return isNaN(n) ? "—" : `${(n * 100).toFixed(2)}%`;
+}
+
+/**
+ * Célula de percentual. Sinaliza em âmbar comissão acima de 100%: até ago/2026
+ * o campo pedia a fração num rótulo "%", então quem digitou "1,5" para 1,5%
+ * gravou 150% — o valor continua no banco e precisa ser reeditado.
+ */
+function PctCell({
+  value,
+  size,
+  tone = "var(--fg-muted)",
+}: {
+  value: string | number | null | undefined;
+  size: string;
+  tone?: string;
+}) {
+  const n = value == null || value === "" ? null : Number(value);
+  const suspeito = n != null && !isNaN(n) && n > 1;
+  return (
+    <span
+      className={`numeric ${size}`}
+      style={{ color: suspeito ? "#f59e0b" : tone }}
+      title={suspeito ? "Acima de 100% — provavelmente digitado como fração (1,5 = 150%). Reedite o cadastro." : undefined}
+    >
+      {suspeito ? "⚠ " : ""}
+      {fmtPct(value)}
+    </span>
+  );
 }
 
 /** "YYYY-MM" a partir de uma data (para preencher input type=month). */
@@ -90,11 +119,7 @@ function vendedorColumns(
     key: "comissaoOverride",
     header: "Comissão %",
     align: "right",
-    cell: (v) => (
-      <span className="numeric text-[12px]" style={{ color: "var(--fg-muted)" }}>
-        {fmtPct(v.comissaoOverride?.toString())}
-      </span>
-    ),
+    cell: (v) => <PctCell value={v.comissaoOverride?.toString()} size="text-[12px]" />,
   },
   {
     key: "gatilhoOverride",
@@ -196,11 +221,7 @@ const cargoColumns: Column<CargoRow>[] = [
     key: "comissaoPct",
     header: "Comissão %",
     align: "right",
-    cell: (c) => (
-      <span className="numeric text-[12.5px]" style={{ color: "var(--fg)" }}>
-        {fmtPct(c.comissaoPct?.toString())}
-      </span>
-    ),
+    cell: (c) => <PctCell value={c.comissaoPct?.toString()} size="text-[12.5px]" tone="var(--fg)" />,
   },
   {
     key: "gatilhoPct",
