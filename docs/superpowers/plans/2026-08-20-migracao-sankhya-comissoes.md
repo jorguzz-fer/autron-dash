@@ -66,7 +66,7 @@ partir de agosto/2026 a fonte passa a ser o Sankhya.
 | 5 | Reunião com Rogério: viabilidade/credenciais da API do Sankhya | doc recebida: <https://developer.sankhya.com.br/> — falta credencial/token da conta |
 | 6 | Integração via API (se #5 viável): módulo segregado de consulta/escrita | depende de #5 |
 | 7 | Validar divergências com William (R$ 27 mil; fev/jun do Alexsiano; códigos 11/14/27 sem cadastro) | em andamento — check com William após deploy |
-| 8 | Regras de representantes (% por tipo de venda, sem gatilho) | adiado — aguardando regra do Leandro/Márcio. Atenção: **Cavanellas vendeu em ago/2026** (3 pedidos, R$ 67,6 mil — Gerdau e ArcelorMittal, tipo RE) |
+| 8 | Regras de representantes (% por tipo de venda, sem gatilho) | **regra recebida e implementada no domínio** (`representante.ts`, Anexo II — ver abaixo). Falta a ingestão/tela. Atenção: **Cavanellas vendeu em ago/2026** (3 pedidos, R$ 67,6 mil — Gerdau e ArcelorMittal, tipo RE ⇒ 5% ≈ R$ 3.379 se pagos sem desconto) |
 | 9 | Ingestão dos pilares (Dataset novos, transformação → `ComissaoLancamento`, upload/UI) | próximo passo — depende das respostas abaixo (dedup de linha e Pilar 3) |
 
 ## Amostras de ago/2026 — o que os arquivos mostraram
@@ -92,11 +92,42 @@ Códigos NÃO batem com os do Protheus — casamento por nome na importação
 (mesma estratégia do `matchVendedorNome` das metas), formalizando o vínculo
 em campo próprio no cadastro.
 
+## Regras de representantes (Anexo II — recebido ago/2026)
+
+Implementadas em `src/lib/domain/comissao/representante.ts` (sem meta/gatilho;
+paga no pagamento do cliente):
+
+- **% por tipo de venda** (coluna Tipo_Venda do Sankhya): NO (Nova
+  Oportunidade), ME (Melhoria) e SU (Substituição) = **8%**; RE (Reposição) e
+  SE (Serviços) = **5%**. ⇒ Isso decodifica os RE/NO vistos nos exports — e
+  torna as linhas SEM Tipo_Venda um problema financeiro direto (sem o código
+  não há % do representante).
+- **Fator pelo desconto** concedido na oportunidade: ≤10% ×1,00;
+  10,01–15% ×0,95; 15,01–20% ×0,90; 20,01–25% ×0,85; 25,01–30% ×0,80;
+  >30% ×0,70. Comissão = valor × %tipo × fator. ⚠ O desconto da oportunidade
+  NÃO vem nos exports atuais do Sankhya — pedir o campo.
+- **Sistemas MEC911** (supressão de particulados): valor FIXO por faixa do
+  pedido — até 300k R$ 6.000; até 400k R$ 7.600; até 500k R$ 9.000; até 600k
+  R$ 10.200; até 700k R$ 11.200; acima R$ 12.000.
+- **Importação Direta (ID)**: prêmio de **2% sobre a comissão recebida pela
+  Autron** da representada (não sobre a venda), pago após o recebimento;
+  MEC911 via ID usa as mesmas faixas sobre a comissão recebida em BRL.
+
 ## Pendências com a origem (Sílvio)
 
 1. **Pilar 3 — Pagamentos/baixas do contas a receber** (o que dispara a
    comissão): NF, parcela, vencimento, **data do pagamento efetivo**, valor
    pago, vendedor, pedido. Sem ele o ciclo não fecha.
+   *Status ago/2026 (Márcio): está travado — títulos pagos NÃO gerados pelo
+   Sankhya (legado migrado do Protheus) não têm ligação com pedido/NF.
+   Caminho proposto: exportar em duas partes — (a) títulos nascidos no
+   Sankhya, com vínculo normal; (b) títulos legados com o nº do título/PV do
+   Protheus no campo de referência (mesmo padrão "PV 21xxx" do faturamento) —
+   o de-para do lado de cá já sabe casar esse formato. Se nem isso houver,
+   um de-para manual título→PV feito uma única vez na virada resolve o
+   estoque legado, que é finito e só diminui.*
+1b. **Desconto da oportunidade por pedido/item** no export (novo — exigido
+   pela regra dos representantes; sem ele não dá para aplicar o fator).
 2. **Parcelas**: o faturamento traz UMA parcela por linha; condições
    "30/45 DDL" indicam mais parcelas não desdobradas. Confirmar se o
    desdobramento vem no Pilar 3.
