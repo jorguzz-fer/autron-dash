@@ -61,12 +61,61 @@ partir de agosto/2026 a fonte passa a ser o Sankhya.
 |---|-----------|--------|
 | 1 | % de atingimento (mês e acumulado YTD) no extrato, com barra de status e vermelho abaixo do gatilho | **feito** (`pctMes`/`pctAcumulado` na apuração + linhas no extrato) |
 | 2 | Exportação do extrato em XLS (evidência auditável para o vendedor; CSV é ruim de tratar) | **feito** (export .xlsx com 3 abas; `?format=csv` mantém o antigo) |
-| 3 | Receber planilhas cruas do Sankhya (pedidos, faturamento, contas a receber) e escrever os parsers | bloqueado — aguardando amostras do Sílvio |
-| 4 | De-para vendedor (código Protheus ↔ Sankhya) e pedido (nº Protheus ↔ nº Sankhya) — schema + tela/import | depende de #3 (o formato dos códigos vem nas amostras) |
-| 5 | Reunião com Rogério: viabilidade/credenciais da API do Sankhya | agendar (Márcio articula) |
+| 3 | Parsers das planilhas cruas do Sankhya | **Pilar 1 e 2 feitos** (`sankhyaPedidos.ts`, `sankhyaFaturamento.ts` — validados com as amostras de ago/2026). **Falta o Pilar 3 (pagamentos)** — sem ele não há o que pagar |
+| 4 | De-para vendedor (código Protheus ↔ Sankhya) e pedido (nº Protheus ↔ nº Sankhya) — schema + import | pedido: o de-para vem na coluna `PV_sistema_anterior…` do faturamento (parser já extrai). Vendedor: tabela observada abaixo; formalizar no schema junto com a ingestão |
+| 5 | Reunião com Rogério: viabilidade/credenciais da API do Sankhya | doc recebida: <https://developer.sankhya.com.br/> — falta credencial/token da conta |
 | 6 | Integração via API (se #5 viável): módulo segregado de consulta/escrita | depende de #5 |
 | 7 | Validar divergências com William (R$ 27 mil; fev/jun do Alexsiano; códigos 11/14/27 sem cadastro) | em andamento — check com William após deploy |
-| 8 | Regras de representantes (% por tipo de venda, sem gatilho) | adiado — aguardando regra do Leandro/Márcio |
+| 8 | Regras de representantes (% por tipo de venda, sem gatilho) | adiado — aguardando regra do Leandro/Márcio. Atenção: **Cavanellas vendeu em ago/2026** (3 pedidos, R$ 67,6 mil — Gerdau e ArcelorMittal, tipo RE) |
+| 9 | Ingestão dos pilares (Dataset novos, transformação → `ComissaoLancamento`, upload/UI) | próximo passo — depende das respostas abaixo (dedup de linha e Pilar 3) |
+
+## Amostras de ago/2026 — o que os arquivos mostraram
+
+**Pilar 1 — Entrada de PV** (`Entrada_PV_Comissao.xlsx`): 75 linhas, 71
+pedidos (numeração Sankhya 262–476), R$ 2.808.428,13 no total. Datas vêm como
+TEXTO `dd/mm/yyyy hh:mm:ss`. Campos: pedido, emissão, cliente (código novo),
+produto, qtd, valor do item, vendedor (código novo), entrega, tipo de negócio
+(Cliente Final/OEM/REVENDA), tipo de venda (RE/NO), previsão de vencimento,
+condição de pagamento.
+
+**Pilar 2 — Faturamento** (`Faturamento_Comissao.xlsx`): 51 linhas, 36 NFs,
+R$ 1.591.685,80. Mesmos campos + NF, `PV_sistema_anterior_ou_outra_referencia`
+(o de-para: 41 linhas com PV do Protheus, 9 só com pedido Sankhya, 1 sem
+vínculo), código do tipo de negociação, prazo da parcela e vencimento.
+1 devolução (NF 33245, −R$ 2.683,84) sem vínculo com pedido de origem.
+
+**De-para de vendedores observado (código Sankhya → nome):**
+1=VENDEDOR (placeholder de pedido sem atribuição!), 3=Rafael, 4=Célio
+(inativo — residual), 5=Willian, 6=Michel, 7=Dewet, 8=Alexsiano, 11=João,
+12=Rembrandt, 15=Daniele, 21=Matheus, 22=A. Cavanellas (representante).
+Códigos NÃO batem com os do Protheus — casamento por nome na importação
+(mesma estratégia do `matchVendedorNome` das metas), formalizando o vínculo
+em campo próprio no cadastro.
+
+## Pendências com a origem (Sílvio)
+
+1. **Pilar 3 — Pagamentos/baixas do contas a receber** (o que dispara a
+   comissão): NF, parcela, vencimento, **data do pagamento efetivo**, valor
+   pago, vendedor, pedido. Sem ele o ciclo não fecha.
+2. **Parcelas**: o faturamento traz UMA parcela por linha; condições
+   "30/45 DDL" indicam mais parcelas não desdobradas. Confirmar se o
+   desdobramento vem no Pilar 3.
+3. **Sequência do item**: pedidos 311/372/476 têm linhas 100% idênticas
+   (mesmo produto/qtd/valor 2×) — duplicação do export ou itens reais?
+   Incluir o nº único/sequência da linha do pedido no export resolve de vez
+   (o 308 tem o mesmo produto 2× com valores diferentes, legítimo).
+4. **Pedido 262 sem vendedor** (código 1 "VENDEDOR"): Siderar, R$ 67.923,27 —
+   atribuir na origem.
+5. **Tipo_Venda vazio**: 15 linhas na entrada, 11 no faturamento (já
+   acionado). Confirmar o significado de RE/NO (manutenção × nova
+   oportunidade?) — vira insumo da regra dos representantes.
+6. **Devoluções**: confirmar a regra (abate o EP do mês corrente? estorna
+   comissão paga?) e pedir que o export traga a NF/pedido de ORIGEM da
+   devolução (a NF 33245 veio solta).
+7. **Cadastro de vendedores do Sankhya** (export código→nome completo) para
+   fixar o de-para sem ambiguidade.
+8. **API**: credenciais/token da conta Autron no gateway Sankhya
+   (developer.sankhya.com.br) para o plano A.
 
 ## Notas técnicas para os parsers Sankhya (quando chegarem as amostras)
 
