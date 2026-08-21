@@ -50,6 +50,12 @@ export interface MesApuracao {
   ep: number;
   saldo: number;
   saldoAcumulado: number;
+  /** ep/meta do mês, como fração (1.2 = 120% da meta). null = mês sem meta. */
+  pctMes: number | null;
+  /** Σep/Σmeta YTD arredondado a 2 casas — o MESMO número que `habilita`
+   *  compara com o gatilhoPct, para a tela nunca divergir da elegibilidade.
+   *  null = sem meta acumulada até o mês. */
+  pctAcumulado: number | null;
   habilita: boolean;
   previsao: number;
 }

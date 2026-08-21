@@ -93,7 +93,7 @@ export default async function ExtratoPage({
                   }}
                 >
                   <FileDown className="size-3.5" />
-                  Exportar CSV
+                  Exportar XLS
                 </a>
                 <PrintButton label="Imprimir" />
               </div>
@@ -236,6 +236,19 @@ export default async function ExtratoPage({
                       label="EP"
                       values={extrato.apuracao.map((m) => m.ep)}
                       totalFn="sum"
+                    />
+                    {/* % de atingimento (EP/Meta) — mês e acumulado YTD */}
+                    <PctRow
+                      label="% Meta (mês)"
+                      values={extrato.apuracao.map((m) => m.pctMes)}
+                      gatilhoPct={extrato.regra.gatilhoPct}
+                      acumulado={false}
+                    />
+                    <PctRow
+                      label="% Meta (acum.)"
+                      values={extrato.apuracao.map((m) => m.pctAcumulado)}
+                      gatilhoPct={extrato.regra.gatilhoPct}
+                      acumulado
                     />
                     {/* Saldo */}
                     <ApuracaoRow
@@ -450,6 +463,81 @@ function ApuracaoRow({
         style={{ color: "var(--fg-strong)" }}
       >
         {total ? fmtCurrency(total, { decimals: 0 }) : "—"}
+      </td>
+    </tr>
+  );
+}
+
+/** "0.75" → "75%" (pt-BR, até 1 casa). */
+function fmtPctMeta(v: number): string {
+  return `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+}
+
+/**
+ * Linha de % de atingimento da meta (EP/Meta), pedida na reunião de ago/2026:
+ * além do valor, uma barrinha de status. Na linha do ACUMULADO a cor segue a
+ * elegibilidade — verde quando o YTD está no gatilho (ex.: ≥70%), vermelho
+ * quando caiu abaixo (mês em que o vendedor não recebe). O valor acumulado é o
+ * mesmo que decide `habilita`, então tela e regra nunca divergem. A linha do
+ * mês é informativa (sem gatilho por mês) e fica neutra.
+ */
+function PctRow({
+  label,
+  values,
+  gatilhoPct,
+  acumulado,
+}: {
+  label: string;
+  values: (number | null)[];
+  gatilhoPct: number;
+  acumulado: boolean;
+}) {
+  const ultimo = [...values].reverse().find((v) => v != null) ?? null;
+  const corDe = (v: number): string => {
+    if (!acumulado || gatilhoPct === 0) return "var(--fg)";
+    return v >= gatilhoPct ? "#10b981" : "#e11d48";
+  };
+  return (
+    <tr style={{ borderTop: "1px solid var(--border-soft)" }}>
+      <td className="px-3 py-2 font-medium" style={{ color: "var(--fg)" }}>
+        {label}
+      </td>
+      {values.map((v, i) => (
+        <td key={i} className="numeric px-2 py-2 text-right align-middle">
+          {v == null ? (
+            <span style={{ color: "var(--fg-muted)" }}>—</span>
+          ) : (
+            <>
+              <span style={{ color: corDe(v), fontWeight: acumulado ? 600 : undefined }}>
+                {fmtPctMeta(v)}
+              </span>
+              <span
+                className="mt-1 block h-1 w-full overflow-hidden rounded-full"
+                style={{ backgroundColor: "var(--surface-2)" }}
+              >
+                <span
+                  className="block h-full rounded-full"
+                  style={{
+                    width: `${Math.min(v * 100, 100)}%`,
+                    backgroundColor:
+                      acumulado && gatilhoPct > 0
+                        ? v >= gatilhoPct ? "#10b981" : "#e11d48"
+                        : "var(--color-brand-500)",
+                  }}
+                />
+              </span>
+            </>
+          )}
+        </td>
+      ))}
+      <td className="numeric px-2 py-2 text-right font-semibold">
+        {ultimo == null ? (
+          <span style={{ color: "var(--fg-muted)" }}>—</span>
+        ) : acumulado ? (
+          <span style={{ color: corDe(ultimo) }}>{fmtPctMeta(ultimo)}</span>
+        ) : (
+          <span style={{ color: "var(--fg-muted)" }}>—</span>
+        )}
       </td>
     </tr>
   );
