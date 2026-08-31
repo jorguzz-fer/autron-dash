@@ -64,7 +64,7 @@ partir de agosto/2026 a fonte passa a ser o Sankhya.
 | 3 | Parsers das planilhas cruas do Sankhya | **Pilar 1 e 2 feitos** (`sankhyaPedidos.ts`, `sankhyaFaturamento.ts` — validados com as amostras de ago/2026). **Falta o Pilar 3 (pagamentos)** — sem ele não há o que pagar |
 | 4 | De-para vendedor (código Protheus ↔ Sankhya) e pedido (nº Protheus ↔ nº Sankhya) — schema + import | pedido: o de-para vem na coluna `PV_sistema_anterior…` do faturamento (parser já extrai). Vendedor: tabela observada abaixo; formalizar no schema junto com a ingestão |
 | 5 | Reunião com Rogério: viabilidade/credenciais da API do Sankhya | doc recebida: <https://developer.sankhya.com.br/> — falta credencial/token da conta |
-| 6 | Integração via API (se #5 viável): módulo segregado de consulta/escrita | depende de #5 |
+| 6 | Integração via API (se #5 viável): módulo segregado de consulta/escrita | **fundação feita** (`src/lib/sankhya/` — auth OAuth/legado, loadRecords, executeQuery, consultas dos 3 pilares; ver spec 2026-08-31). Falta credencial (#5) para validar campos e ligar |
 | 7 | Validar divergências com William (R$ 27 mil; fev/jun do Alexsiano; códigos 11/14/27 sem cadastro) | em andamento — check com William após deploy |
 | 8 | Regras de representantes (% por tipo de venda, sem gatilho) | **regra recebida e implementada no domínio** (`representante.ts`, Anexo II — ver abaixo). Falta a ingestão/tela. Atenção: **Cavanellas vendeu em ago/2026** (3 pedidos, R$ 67,6 mil — Gerdau e ArcelorMittal, tipo RE ⇒ 5% ≈ R$ 3.379 se pagos sem desconto) |
 | 9 | Ingestão dos pilares (Dataset novos, transformação → `ComissaoLancamento`, upload/UI) | próximo passo — depende das respostas abaixo (dedup de linha e Pilar 3) |
