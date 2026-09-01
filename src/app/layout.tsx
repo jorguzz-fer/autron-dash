@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import EnvBanner from "@/components/Layout/EnvBanner";
+import { titlePrefix } from "@/lib/appEnv";
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -25,8 +27,10 @@ try {
 }
 `;
 
+// `titlePrefix()` lê APP_ENV em runtime — na homologação a aba do navegador
+// abre como "[HOMOLOG] Autron Dash", distinguível de produção sem olhar a URL.
 export const metadata: Metadata = {
-  title: "Autron Dash",
+  title: `${titlePrefix()}Autron Dash`,
   description: "Dashboard de gestão de pedidos, follow-up, estoque e faturamento da Autron.",
 };
 
@@ -43,7 +47,10 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        <EnvBanner />
+        {children}
+      </body>
     </html>
   );
 }
