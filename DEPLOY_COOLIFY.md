@@ -130,23 +130,27 @@ openssl rand -base64 32
 # 4) Avise os usuários que vão precisar logar de novo
 ```
 
-**Não confunda com `SEED_ADMIN_PASSWORD`** — esse só é usado pelo `seed-admin.js`
-no primeiro setup. Trocá-lo no env não muda a senha do admin no banco.
-Para alterar a senha do admin, use o terminal Coolify:
+**Não confunda com `SEED_ADMIN_PASSWORD`** — ele é lido pelo `seed-admin.js`,
+mas a senha só é gravada quando o usuário é **criado**. Num admin que já
+existe, trocar a variável e rodar o seed não muda nada (o script avisa em vez
+de fingir sucesso). Para alterar a senha do admin: atualize
+`SEED_ADMIN_PASSWORD` no painel e rode no terminal Coolify
 
 ```sh
-node -e "
-const{PrismaClient}=require('@prisma/client');
-const bcrypt=require('bcryptjs');
-const p=new PrismaClient();
-(async()=>{
-  const senha='NOVA_SENHA_FORTE';  // edite (10+ chars, 3 classes)
-  const hash=await bcrypt.hash(senha,12);
-  await p.user.updateMany({where:{email:'fer.jorge@gmail.com'},data:{passwordHash:hash}});
-  console.log('OK');
-})().finally(()=>p.\$disconnect());
-"
+node /app/scripts/seed-admin.js --reset-password
 ```
+
+Isso regrava o hash e limpa o rate limit de login daquele e-mail. Se o
+problema for só bloqueio por tentativas (`Credenciais inválidas, conta
+inativa ou limite de tentativas atingido` com a senha certa), o desbloqueio
+sozinho é:
+
+```sh
+node /app/scripts/seed-admin.js --unlock
+```
+
+O limite por IP (20 tentativas / 15 min) não é tocado por nenhum dos dois —
+ele expira sozinho na janela.
 
 ## Cuidados de segurança operacional
 
