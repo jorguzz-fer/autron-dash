@@ -94,6 +94,15 @@ Crie o usuário admin pelo **Terminal** da app no Coolify:
 node /app/scripts/seed-admin.js
 ```
 
+A senha só é gravada quando o usuário é **criado**. Se ele já existir, trocar
+o `SEED_ADMIN_PASSWORD` no painel e rodar o seed de novo **não** muda a senha
+(o script avisa) — para trocar de fato, e de quebra limpar o rate limit de
+login:
+
+```sh
+node /app/scripts/seed-admin.js --reset-password
+```
+
 Confirme que a faixa âmbar e o selo "HOMOLOGAÇÃO · dados de teste" aparecem
 na tela. Se não aparecerem, `APP_ENV` não chegou no container — corrija antes
 de seguir, porque é o que impede confundir os dois ambientes.
